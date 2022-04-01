@@ -17,10 +17,3 @@ func main() {
 
 	app.Listen(":3000")
 }
-
-// type User struct {
-// 	Id        int
-// 	FirstName string
-// 	LastName  string
-// 	Email     string
-// }
