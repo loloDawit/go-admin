@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/golang-jwt/jwt"
 	"gitlab.nordstrom.com/go-admin/database"
 	"gitlab.nordstrom.com/go-admin/models"
+	"gitlab.nordstrom.com/go-admin/utils"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -68,12 +68,7 @@ func Login(ctx *fiber.Ctx) error {
 	}
 
 	// create user clamis
-	clamis := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.StandardClaims{
-		Issuer:    strconv.Itoa(user.Id),
-		ExpiresAt: time.Now().Add(time.Hour * 24).Unix(), //24hr
-	})
-
-	token, err := clamis.SignedString([]byte("secret"))
+	token, err := utils.GenerateJWT(strconv.Itoa(user.Id))
 	if err != nil {
 		return ctx.SendStatus(fiber.StatusInternalServerError)
 	}
@@ -109,29 +104,14 @@ func Logout(ctx *fiber.Ctx) error {
 
 }
 
-type Clamis struct {
-	jwt.StandardClaims
-}
-
 func User(ctx *fiber.Ctx) error {
 	cookie := ctx.Cookies("jwt")
 
-	token, err := jwt.ParseWithClaims(cookie, &Clamis{}, func(t *jwt.Token) (interface{}, error) {
-		return []byte("secret"), nil
-	})
-
-	if err != nil || !token.Valid {
-		ctx.Status(fiber.StatusUnauthorized)
-		return ctx.JSON(fiber.Map{
-			"msg": "unauthorized.",
-		})
-	}
-
-	clamis := token.Claims.(*Clamis)
+	id, _ := utils.ParseJWT(cookie)
 
 	var user models.User
 
-	database.DB.Where("id = ?", clamis.Issuer).First(&user)
+	database.DB.Where("id = ?", id).First(&user)
 
 	return ctx.JSON(user)
 }
