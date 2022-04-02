@@ -11,16 +11,16 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-func Register(c *fiber.Ctx) error {
+func Register(ctx *fiber.Ctx) error {
 	var data map[string]string
 
-	if err := c.BodyParser(&data); err != nil {
+	if err := ctx.BodyParser(&data); err != nil {
 		return err
 	}
 
 	if data["password"] != data["passwordconfirm"] {
-		c.Status(400)
-		return c.JSON(fiber.Map{
+		ctx.Status(400)
+		return ctx.JSON(fiber.Map{
 			"msg": "password do not match",
 		})
 	}
@@ -39,13 +39,13 @@ func Register(c *fiber.Ctx) error {
 
 	database.DB.Create(&user)
 
-	return c.JSON(user)
+	return ctx.JSON(user)
 }
 
-func Login(c *fiber.Ctx) error {
+func Login(ctx *fiber.Ctx) error {
 	var data map[string]string
 
-	if err := c.BodyParser(&data); err != nil {
+	if err := ctx.BodyParser(&data); err != nil {
 		return err
 	}
 
@@ -54,15 +54,15 @@ func Login(c *fiber.Ctx) error {
 	database.DB.Where("email = ? ", data["email"]).First(&user)
 
 	if user.Id == 0 {
-		c.Status(404)
-		return c.JSON(fiber.Map{
+		ctx.Status(404)
+		return ctx.JSON(fiber.Map{
 			"msg": "user not found",
 		})
 	}
 
 	if err := bcrypt.CompareHashAndPassword(user.Password, []byte(data["password"])); err != nil {
-		c.Status(400)
-		return c.JSON(fiber.Map{
+		ctx.Status(400)
+		return ctx.JSON(fiber.Map{
 			"msg": "password|email is incorrect",
 		})
 	}
