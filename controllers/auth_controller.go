@@ -8,7 +8,6 @@ import (
 	"gitlab.nordstrom.com/go-admin/database"
 	"gitlab.nordstrom.com/go-admin/models"
 	"gitlab.nordstrom.com/go-admin/utils"
-	"golang.org/x/crypto/bcrypt"
 )
 
 func Register(ctx *fiber.Ctx) error {
@@ -24,19 +23,13 @@ func Register(ctx *fiber.Ctx) error {
 			"msg": "password do not match",
 		})
 	}
-	password, err := bcrypt.GenerateFromPassword([]byte(data["password"]), 14)
-
-	if err != nil {
-		return err
-	}
 
 	user := models.User{
 		FirstName: data["firstname"],
 		LastName:  data["lastname"],
 		Email:     data["email"],
-		Password:  password,
 	}
-
+	user.SetPassword(data["password"])
 	database.DB.Create(&user)
 
 	return ctx.JSON(user)
@@ -60,7 +53,7 @@ func Login(ctx *fiber.Ctx) error {
 		})
 	}
 
-	if err := bcrypt.CompareHashAndPassword(user.Password, []byte(data["password"])); err != nil {
+	if err := user.CompareHashAndPassword(data["password"]); err != nil {
 		ctx.Status(400)
 		return ctx.JSON(fiber.Map{
 			"msg": "password|email is incorrect",
