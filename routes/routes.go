@@ -12,7 +12,8 @@ func SetupRoutes(app *fiber.App) {
 
 	// private routes
 	app.Use(middlewares.IsAuthenticated)
-	
+
 	app.Get("/api/v1/logout", controllers.Logout)
 	app.Get("/api/v1/user", controllers.User)
+	app.Get("/api/v1/users", controllers.GetAllUsers)
 }
