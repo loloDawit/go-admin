@@ -92,3 +92,30 @@ func Login(ctx *fiber.Ctx) error {
 	})
 
 }
+
+type Clamis struct {
+	jwt.StandardClaims
+}
+
+func User(ctx *fiber.Ctx) error {
+	cookie := ctx.Cookies("jwt")
+
+	token, err := jwt.ParseWithClaims(cookie, &Clamis{}, func(t *jwt.Token) (interface{}, error) {
+		return []byte("secret"), nil
+	})
+
+	if err != nil || !token.Valid {
+		ctx.Status(fiber.StatusUnauthorized)
+		return ctx.JSON(fiber.Map{
+			"msg": "unauthorized.",
+		})
+	}
+
+	clamis := token.Claims.(*Clamis)
+
+	var user models.User
+
+	database.DB.Where("id = ?", clamis.Issuer).First(&user)
+
+	return ctx.JSON(user)
+}
