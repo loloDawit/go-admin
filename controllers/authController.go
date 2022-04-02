@@ -75,7 +75,7 @@ func Login(ctx *fiber.Ctx) error {
 
 	token, err := clamis.SignedString([]byte("secret"))
 	if err != nil {
-		return c.SendStatus(fiber.StatusInternalServerError)
+		return ctx.SendStatus(fiber.StatusInternalServerError)
 	}
 
 	cookie := fiber.Cookie{
@@ -85,9 +85,9 @@ func Login(ctx *fiber.Ctx) error {
 		HTTPOnly: true,
 	}
 
-	c.Cookie(&cookie)
+	ctx.Cookie(&cookie)
 
-	return c.JSON(fiber.Map{
+	return ctx.JSON(fiber.Map{
 		"token": token,
 	})
 
