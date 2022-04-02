@@ -93,6 +93,22 @@ func Login(ctx *fiber.Ctx) error {
 
 }
 
+func Logout(ctx *fiber.Ctx) error {
+	cookie := fiber.Cookie{
+		Name:     "jwt",
+		Value:    "",
+		Expires:  time.Now().Add(-time.Hour),
+		HTTPOnly: true,
+	}
+
+	ctx.Cookie(&cookie)
+
+	return ctx.JSON(fiber.Map{
+		"msg": "success",
+	})
+
+}
+
 type Clamis struct {
 	jwt.StandardClaims
 }
