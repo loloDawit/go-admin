@@ -63,6 +63,19 @@ func Login(c *fiber.Ctx) error {
 		})
 	}
 
-	return c.JSON(user)
+	// create user clamis
+	clamis := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.StandardClaims{
+		Issuer:    strconv.Itoa(user.Id),
+		ExpiresAt: time.Now().Add(time.Hour * 24).Unix(), //24hr
+	})
+
+	token, err := clamis.SignedString([]byte("secret"))
+	if err != nil {
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+
+	return c.JSON(fiber.Map{
+		"token": token,
+	})
 
 }
