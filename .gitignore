@@ -1,0 +1,8 @@
+.vscode
+
+.env
+.realize.*
+
+.idea
+
+uploads/*
