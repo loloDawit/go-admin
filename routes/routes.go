@@ -31,6 +31,6 @@ func SetupRoutes(app *fiber.App) {
 	app.Delete("/api/v1/role/:id", controllers.DeleteRole)
 
 	// permission routes
-	app.Get("/api/v1/permissons", controllers.GetAllPermissions)
-	app.Post("/api/v1/permissons", controllers.CreatPermissons)
+	app.Get("/api/v1/permissions", controllers.GetAllPermissions)
+	app.Post("/api/v1/permissions", controllers.CreatPermissons)
 }
