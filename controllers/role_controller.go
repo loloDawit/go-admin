@@ -30,13 +30,33 @@ func GetRole(ctx *fiber.Ctx) error {
 
 func UpdateRole(ctx *fiber.Ctx) error {
 	id, _ := strconv.Atoi(ctx.Params("id"))
+	var roleDTO fiber.Map
 
-	role := models.Role{
-		Id: uint(id),
+	if err := ctx.BodyParser(&roleDTO); err != nil {
+		return err
 	}
 
-	if err := ctx.BodyParser(&role); err != nil {
-		return err
+	list := roleDTO["permissions"].([]interface{})
+
+	permissions := make([]models.Permission, len(list))
+
+	for i, permissionId := range list {
+		id, _ := strconv.Atoi(permissionId.(string))
+
+		permissions[i] = models.Permission{
+			Id: uint(id),
+		}
+	}
+
+	// remove old permission and attach a new one
+	var result interface{}
+
+	database.DB.Table("role_permissions").Where("role_id", id).Delete(result)
+
+	role := models.Role{
+		Id:          uint(id),
+		Name:        roleDTO["name"].(string),
+		Permissions: permissions,
 	}
 
 	database.DB.Model(&role).Updates(role)
