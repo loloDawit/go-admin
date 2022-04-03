@@ -7,13 +7,13 @@ type Order struct {
 	Email     string `json:"email"`
 	UpdatedAt string `json:"updatedAt"`
 	CreatedAt string `json:"createdAt"`
-	OrderItem []OrderItem
+	OrderItem []OrderItem `json:"orderItems" gorm:"foreignKey:OrderId"`
 }
 
 type OrderItem struct {
 	Id           uint    `json:"id"`
 	OrderId      uint    `json:"orderId"`
 	ProductTitle string  `json:"productTitle"`
-	Price        float32 `json:"email"`
+	Price        float32 `json:"price"`
 	Quantity     uint    `json:"updatedAt"`
 }
