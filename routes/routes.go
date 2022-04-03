@@ -12,19 +12,24 @@ func SetupRoutes(app *fiber.App) {
 
 	// private routes
 	app.Use(middlewares.IsAuthenticated)
-
+	// Auth routes
 	app.Post("/api/v1/logout", controllers.Logout)
 	app.Get("/api/v1/user", controllers.User)
 
+	// users routes
 	app.Get("/api/v1/users", controllers.GetAllUsers)
 	app.Post("/api/v1/users", controllers.CreateUser)
 	app.Get("/api/v1/user/:id", controllers.GetUser)
 	app.Put("/api/v1/user/:id", controllers.UpdateUser)
 	app.Delete("/api/v1/user/:id", controllers.DeleteUser)
-	// roles
+
+	// roles routes
 	app.Get("/api/v1/roles", controllers.GetAllRoles)
 	app.Post("/api/v1/roles", controllers.CreateRole)
 	app.Get("/api/v1/role/:id", controllers.GetRole)
 	app.Put("/api/v1/role/:id", controllers.UpdateRole)
 	app.Delete("/api/v1/role/:id", controllers.DeleteRole)
+
+	// permission routes
+	app.Get("/api/v1/permissons", controllers.GetAllPermissions)
 }
