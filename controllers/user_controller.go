@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"math"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
@@ -9,11 +10,25 @@ import (
 )
 
 func GetAllUsers(ctx *fiber.Ctx) error {
+	page, _ := strconv.Atoi(ctx.Query("page", "1"))
+	limit := 5
+	offset := (page - 1) * limit
+	var total int64
+
 	var users []models.User
 
-	database.DB.Preload("Role").Find(&users)
+	database.DB.Preload("Role").Offset(offset).Limit(limit).Find(&users)
+	database.DB.Model(&models.User{}).Count(&total)
 
-	return ctx.JSON(users)
+	lastPage := math.Ceil(float64(int(total) / limit))
+	return ctx.JSON(fiber.Map{
+		"data": users,
+		"meta": fiber.Map{
+			"last_page": lastPage,
+			"total":     total,
+			"page":      page,
+		},
+	})
 }
 
 func GetUser(ctx *fiber.Ctx) error {
