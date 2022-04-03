@@ -8,6 +8,7 @@ import (
 	"gitlab.nordstrom.com/go-admin/models"
 )
 
+//GetAllRoles @returns all roles in json format
 func GetAllRoles(ctx *fiber.Ctx) error {
 	var roles []models.Role
 
@@ -16,6 +17,7 @@ func GetAllRoles(ctx *fiber.Ctx) error {
 	return ctx.JSON(roles)
 }
 
+//GetRole @returns a single role in json format
 func GetRole(ctx *fiber.Ctx) error {
 	id, _ := strconv.Atoi(ctx.Params("id"))
 
@@ -91,7 +93,6 @@ func CreateRole(ctx *fiber.Ctx) error {
 
 	for i, permissionId := range list {
 		id, _ := strconv.Atoi(permissionId.(string))
-
 		permissions[i] = models.Permission{
 			Id: uint(id),
 		}
