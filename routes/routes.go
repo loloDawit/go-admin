@@ -32,4 +32,5 @@ func SetupRoutes(app *fiber.App) {
 
 	// permission routes
 	app.Get("/api/v1/permissons", controllers.GetAllPermissions)
+	app.Post("/api/v1/permissons", controllers.CreatPermissons)
 }
