@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"math"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
@@ -11,24 +10,7 @@ import (
 
 func GetAllProducts(ctx *fiber.Ctx) error {
 	page, _ := strconv.Atoi(ctx.Query("page", "1"))
-	limit := 5
-	offset := (page - 1) * limit
-	var total int64
-
-	var products []models.Product
-
-	database.DB.Offset(offset).Limit(limit).Find(&products)
-	database.DB.Model(&models.Product{}).Count(&total)
-
-	lastPage := math.Ceil(float64(int(total) / limit))
-	return ctx.JSON(fiber.Map{
-		"data": products,
-		"meta": fiber.Map{
-			"last_page": lastPage,
-			"total":     total,
-			"page":      page,
-		},
-	})
+	return ctx.JSON(models.Paginate(database.DB, &models.Product{}, page))
 }
 
 func GetProduct(ctx *fiber.Ctx) error {
