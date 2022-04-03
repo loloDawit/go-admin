@@ -59,10 +59,27 @@ func DeleteRole(ctx *fiber.Ctx) error {
 }
 
 func CreateRole(ctx *fiber.Ctx) error {
-	var role models.Role
+	var roleDTO fiber.Map
 
-	if err := ctx.BodyParser(&role); err != nil {
+	if err := ctx.BodyParser(&roleDTO); err != nil {
 		return err
+	}
+
+	list := roleDTO["permissions"].([]interface{})
+
+	permissions := make([]models.Permission, len(list))
+
+	for i, permissionId := range list {
+		id, _ := strconv.Atoi(permissionId.(string))
+
+		permissions[i] = models.Permission{
+			Id: uint(id),
+		}
+	}
+
+	role := models.Role{
+		Name:        roleDTO["name"].(string),
+		Permissions: permissions,
 	}
 
 	database.DB.Create(&role)
