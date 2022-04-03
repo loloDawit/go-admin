@@ -7,11 +7,11 @@ import (
 
 type User struct {
 	Id        int    `json:"id"`
-	FirstName string `json:"firstname"`
-	LastName  string `json:"lastname"`
+	FirstName string `json:"firstName"`
+	LastName  string `json:"lastName"`
 	Email     string `json:"email" gorm:"unique"`
 	Password  []byte `json:"-"`
-	RoleId    uint   `json:"role_id"`
+	RoleId    uint   `json:"roleId"`
 	Role      Role   `json:"role" gorm:"foreignKey:RoleId"`
 }
 
