@@ -109,3 +109,54 @@ func User(ctx *fiber.Ctx) error {
 
 	return ctx.JSON(user)
 }
+
+func UpdateUserInfo(ctx *fiber.Ctx) error {
+	var data map[string]string
+
+	if err := ctx.BodyParser(&data); err != nil {
+		return err
+	}
+
+	cookie := ctx.Cookies("jwt")
+	id, _ := utils.ParseJWT(cookie)
+
+	userId, _ := strconv.Atoi(id)
+
+	user := models.User{
+		Id:        userId,
+		FirstName: data["firstname"],
+		LastName:  data["lastname"],
+		Email:     data["email"],
+	}
+
+	database.DB.Model(&user).Where("id=?", id).Updates(user)
+
+	return ctx.JSON(user)
+}
+
+func UpdatePassword(ctx *fiber.Ctx) error {
+	var data map[string]string
+
+	if err := ctx.BodyParser(&data); err != nil {
+		return err
+	}
+
+	if data["password"] != data["passwordconfirm"] {
+		ctx.Status(400)
+		return ctx.JSON(fiber.Map{
+			"msg": "password do not match",
+		})
+	}
+
+	cookie := ctx.Cookies("jwt")
+	id, _ := utils.ParseJWT(cookie)
+	userId, _ := strconv.Atoi(id)
+	user := models.User{
+		Id: userId,
+	}
+	user.SetPassword(data["password"])
+
+	database.DB.Model(&user).Where("id=?", id).Updates(user)
+
+	return ctx.JSON(user)
+}
