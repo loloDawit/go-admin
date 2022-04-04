@@ -17,7 +17,7 @@ func Register(ctx *fiber.Ctx) error {
 		return err
 	}
 
-	if data["password"] != data["passwordconfirm"] {
+	if data["password"] != data["password-confirm"] {
 		ctx.Status(400)
 		return ctx.JSON(fiber.Map{
 			"msg": "password do not match",
@@ -25,8 +25,8 @@ func Register(ctx *fiber.Ctx) error {
 	}
 
 	user := models.User{
-		FirstName: data["firstname"],
-		LastName:  data["lastname"],
+		FirstName: data["firstName"],
+		LastName:  data["lastName"],
 		Email:     data["email"],
 		RoleId:    1,
 	}
