@@ -6,3 +6,5 @@
 .idea
 
 uploads/*
+
+csv/*.csv
