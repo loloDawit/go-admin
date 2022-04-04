@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"gitlab.nordstrom.com/go-admin/middlewares"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
@@ -9,11 +10,17 @@ import (
 )
 
 func GetAllUsers(ctx *fiber.Ctx) error {
+	if err := middlewares.IsAuthorized(ctx, "users"); err != nil {
+		return err
+	}
 	page, _ := strconv.Atoi(ctx.Query("page", "1"))
 	return ctx.JSON(models.Paginate(database.DB, &models.User{}, page))
 }
 
 func GetUser(ctx *fiber.Ctx) error {
+	if err := middlewares.IsAuthorized(ctx, "users"); err != nil {
+		return err
+	}
 	id, _ := strconv.Atoi(ctx.Params("id"))
 
 	user := models.User{
@@ -26,6 +33,9 @@ func GetUser(ctx *fiber.Ctx) error {
 }
 
 func UpdateUser(ctx *fiber.Ctx) error {
+	if err := middlewares.IsAuthorized(ctx, "users"); err != nil {
+		return err
+	}
 	id, _ := strconv.Atoi(ctx.Params("id"))
 
 	user := models.User{
@@ -42,6 +52,9 @@ func UpdateUser(ctx *fiber.Ctx) error {
 }
 
 func DeleteUser(ctx *fiber.Ctx) error {
+	if err := middlewares.IsAuthorized(ctx, "users"); err != nil {
+		return err
+	}
 	id, _ := strconv.Atoi(ctx.Params("id"))
 
 	user := models.User{
@@ -56,6 +69,9 @@ func DeleteUser(ctx *fiber.Ctx) error {
 }
 
 func CreateUser(ctx *fiber.Ctx) error {
+	if err := middlewares.IsAuthorized(ctx, "users"); err != nil {
+		return err
+	}
 	var user models.User
 
 	if err := ctx.BodyParser(&user); err != nil {
