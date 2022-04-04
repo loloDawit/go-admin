@@ -20,7 +20,7 @@ func Register(ctx *fiber.Ctx) error {
 	if data["password"] != data["password-confirm"] {
 		ctx.Status(400)
 		return ctx.JSON(fiber.Map{
-			"msg": "password do not match",
+			"error": "password do not match",
 		})
 	}
 
@@ -28,7 +28,16 @@ func Register(ctx *fiber.Ctx) error {
 		FirstName: data["firstName"],
 		LastName:  data["lastName"],
 		Email:     data["email"],
+		Password:  data["password"],
 		RoleId:    1,
+	}
+
+	err := user.Validate("")
+	if err != nil {
+		ctx.Status(400)
+		return ctx.JSON(fiber.Map{
+			"error": err.Error(),
+		})
 	}
 	user.SetPassword(data["password"])
 	database.DB.Create(&user)
