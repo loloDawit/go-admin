@@ -1,11 +1,10 @@
 import React from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
-import Menu from './Components/Menu';
-import Nav from './Components/Nav';
 import Dashboard from './pages/Dashboards';
 import Users from './pages/Users';
 import './App.css';
 import Register from './pages/Register';
+import Login from './pages/Login';
 
 interface AppProps {}
 
@@ -17,6 +16,7 @@ const App: React.FunctionComponent<AppProps> = () => {
           <Route path="/" element={<Dashboard />} />
           <Route path="/users" element={<Users />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/login" element={<Login />} />
         </Routes>
       </BrowserRouter>
     </div>
