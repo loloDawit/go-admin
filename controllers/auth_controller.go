@@ -87,7 +87,7 @@ func Login(ctx *fiber.Ctx) error {
 		Expires:  time.Now().Add(time.Hour * 24),
 		HTTPOnly: true,
 	}
-
+	// Set cookie
 	ctx.Cookie(&cookie)
 
 	return ctx.JSON(fiber.Map{
@@ -98,8 +98,9 @@ func Login(ctx *fiber.Ctx) error {
 
 func Logout(ctx *fiber.Ctx) error {
 	cookie := fiber.Cookie{
-		Name:     "jwt",
-		Value:    "",
+		Name:  "jwt",
+		Value: "",
+		// Set expiry date to the past
 		Expires:  time.Now().Add(-time.Hour),
 		HTTPOnly: true,
 	}
