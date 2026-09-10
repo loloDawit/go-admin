@@ -1,4 +1,4 @@
-module gitlab.nordstrom.com/go-admin
+module github.com/loloDawit/go-admin
 
 go 1.17
 

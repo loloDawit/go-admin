@@ -2,8 +2,8 @@ package routes
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"gitlab.nordstrom.com/go-admin/controllers"
-	"gitlab.nordstrom.com/go-admin/middlewares"
+	"github.com/loloDawit/go-admin/controllers"
+	"github.com/loloDawit/go-admin/middlewares"
 )
 
 func SetupRoutes(app *fiber.App) {

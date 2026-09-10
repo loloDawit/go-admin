@@ -1,12 +1,12 @@
 package controllers
 
 import (
-	"gitlab.nordstrom.com/go-admin/middlewares"
+	"github.com/loloDawit/go-admin/middlewares"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
-	"gitlab.nordstrom.com/go-admin/database"
-	"gitlab.nordstrom.com/go-admin/models"
+	"github.com/loloDawit/go-admin/database"
+	"github.com/loloDawit/go-admin/models"
 )
 
 func GetAllUsers(ctx *fiber.Ctx) error {

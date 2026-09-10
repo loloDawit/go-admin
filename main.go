@@ -7,9 +7,9 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/joho/godotenv"
-	"gitlab.nordstrom.com/go-admin/database"
-	"gitlab.nordstrom.com/go-admin/routes"
-	"gitlab.nordstrom.com/go-admin/utils"
+	"github.com/loloDawit/go-admin/database"
+	"github.com/loloDawit/go-admin/routes"
+	"github.com/loloDawit/go-admin/utils"
 )
 
 func main() {
