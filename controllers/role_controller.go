@@ -4,11 +4,11 @@ import (
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
-	"gitlab.nordstrom.com/go-admin/database"
-	"gitlab.nordstrom.com/go-admin/models"
+	"github.com/loloDawit/go-admin/database"
+	"github.com/loloDawit/go-admin/models"
 )
 
-//GetAllRoles @returns all roles in json format
+// GetAllRoles @returns all roles in json format
 func GetAllRoles(ctx *fiber.Ctx) error {
 	var roles []models.Role
 
@@ -17,7 +17,7 @@ func GetAllRoles(ctx *fiber.Ctx) error {
 	return ctx.JSON(roles)
 }
 
-//GetRole @returns a single role in json format
+// GetRole @returns a single role in json format
 func GetRole(ctx *fiber.Ctx) error {
 	id, _ := strconv.Atoi(ctx.Params("id"))
 

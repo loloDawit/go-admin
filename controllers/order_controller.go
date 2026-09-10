@@ -6,8 +6,8 @@ import (
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
-	"gitlab.nordstrom.com/go-admin/database"
-	"gitlab.nordstrom.com/go-admin/models"
+	"github.com/loloDawit/go-admin/database"
+	"github.com/loloDawit/go-admin/models"
 )
 
 func GetAllOrders(ctx *fiber.Ctx) error {

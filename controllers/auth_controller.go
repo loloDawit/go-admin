@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"gitlab.nordstrom.com/go-admin/database"
-	"gitlab.nordstrom.com/go-admin/models"
-	"gitlab.nordstrom.com/go-admin/utils"
+	"github.com/loloDawit/go-admin/database"
+	"github.com/loloDawit/go-admin/models"
+	"github.com/loloDawit/go-admin/utils"
 )
 
 func Register(ctx *fiber.Ctx) error {
