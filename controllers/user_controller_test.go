@@ -39,7 +39,6 @@ func TestCreateUserWithAdminSuppliedPasswordCanLogIn(t *testing.T) {
 		t.Error("response body must not carry the password field")
 	}
 
-	// The admin-supplied password must be the one that actually works.
 	testutil.Login(t, app, "grace@example.com", "hopper-init-pw")
 }
 

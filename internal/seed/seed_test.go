@@ -45,8 +45,15 @@ func TestRunCreatesPermissionsRolesAndOwner(t *testing.T) {
 func TestRunIsIdempotent(t *testing.T) {
 	db := testutil.NewDB(t)
 
-	for i := 0; i < 3; i++ {
-		if err := seed.Run(db, auth.NewTestHasher(), "owner@example.com", "s3cret-password"); err != nil {
+	if err := seed.Run(db, auth.NewTestHasher(), "owner@example.com", "s3cret-password"); err != nil {
+		t.Fatalf("seed run 0: %v", err)
+	}
+
+	// Re-run with a different password and 2 more times: row counts alone
+	// can't tell a Replace from an Append, and can't tell whether the owner's
+	// password got overwritten, so both are checked explicitly below.
+	for i := 1; i < 3; i++ {
+		if err := seed.Run(db, auth.NewTestHasher(), "owner@example.com", "a-different-password"); err != nil {
 			t.Fatalf("seed run %d: %v", i, err)
 		}
 	}
@@ -58,6 +65,25 @@ func TestRunIsIdempotent(t *testing.T) {
 
 	if users != 1 || perms != 8 || roles != 3 {
 		t.Fatalf("re-running seed must not duplicate: users=%d perms=%d roles=%d", users, perms, roles)
+	}
+
+	var owner models.Role
+	if err := db.Preload("Permissions").Where("name = ?", "owner").First(&owner).Error; err != nil {
+		t.Fatalf("owner role missing: %v", err)
+	}
+	if len(owner.Permissions) != 8 {
+		t.Errorf("re-running must not accumulate grants: owner has %d permissions, want 8", len(owner.Permissions))
+	}
+
+	var user models.User
+	if err := db.Where("email = ?", "owner@example.com").First(&user).Error; err != nil {
+		t.Fatalf("owner user missing: %v", err)
+	}
+	if err := auth.NewTestHasher().Check(user.Password, "s3cret-password"); err != nil {
+		t.Errorf("re-running must not reset the owner's password: original password no longer verifies: %v", err)
+	}
+	if err := auth.NewTestHasher().Check(user.Password, "a-different-password"); err == nil {
+		t.Error("re-running must not reset the owner's password: the later run's password verifies instead")
 	}
 }
 

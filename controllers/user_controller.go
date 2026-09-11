@@ -100,7 +100,10 @@ func CreateUser(ctx *fiber.Ctx) error {
 	}
 
 	if err := database.DB.Create(&user).Error; err != nil {
-		return httpx.Fail(ctx, errs.EmailTaken.Wrap(err))
+		if isDuplicateKeyError(err) {
+			return httpx.Fail(ctx, errs.EmailTaken.Wrap(err))
+		}
+		return httpx.Fail(ctx, errs.Database.Wrap(err))
 	}
 
 	return ctx.Status(fiber.StatusCreated).JSON(user)

@@ -4,11 +4,22 @@ import (
 	"errors"
 	"strconv"
 
+	"github.com/go-sql-driver/mysql"
 	"github.com/gofiber/fiber/v2"
 	"github.com/loloDawit/go-admin/internal/errs"
 	"github.com/loloDawit/go-admin/internal/httpx"
 	"gorm.io/gorm"
 )
+
+// MySQL's "Duplicate entry" error number. gorm's default config does not
+// translate driver errors, so this is the only way to distinguish a unique
+// constraint violation from any other write failure.
+const mysqlDuplicateEntry = 1062
+
+func isDuplicateKeyError(err error) bool {
+	var mysqlErr *mysql.MySQLError
+	return errors.As(err, &mysqlErr) && mysqlErr.Number == mysqlDuplicateEntry
+}
 
 func pathId(ctx *fiber.Ctx) (int, error) {
 	id, err := strconv.Atoi(ctx.Params("id"))
