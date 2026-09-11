@@ -1,16 +1,6 @@
 package httpx
 
-// Request DTOs.
-//
-// Every handler parses into one of these rather than map[string]string. The
-// original code read request fields by string key, which meant the wire
-// contract existed only as literals scattered through handlers — and two
-// handlers disagreed about the same field: Register read "firstName" while
-// UpdateUserInfo read "firstname". The frontend sends camelCase, so renaming
-// yourself through the UI silently did nothing (ASSESSMENT 4x).
-//
-// With a struct, the json tag IS the contract, it is declared once, and the
-// compiler checks every use of the field.
+// Request DTOs. The json tags are the wire contract.
 
 type LoginRequest struct {
 	Email    string `json:"email"`
@@ -51,9 +41,6 @@ type UpdateUserRequest struct {
 	RoleId    uint   `json:"roleId"`
 }
 
-// RoleRequest replaces the unchecked fiber.Map type assertions in
-// role_controller.go, which panicked whenever a client sent permission ids as
-// JSON numbers rather than strings (ASSESSMENT 4n).
 type RoleRequest struct {
 	Name        string `json:"name"`
 	Permissions []uint `json:"permissions"`

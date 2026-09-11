@@ -14,8 +14,8 @@ import (
 )
 
 func main() {
-	// .env is a local-development convenience. In production the platform
-	// supplies the environment directly, so a missing file is not an error.
+	// In production the platform supplies the environment, so a missing .env
+	// is not an error.
 	if err := godotenv.Load(".env"); err != nil && !os.IsNotExist(err) {
 		log.Printf("config: .env not loaded (%v); reading environment directly", err)
 	}
@@ -35,8 +35,7 @@ func main() {
 		BodyLimit: int(cfg.MaxUploadBytes) + (1 << 20), // upload cap plus headroom
 	})
 
-	// An explicit origin, never "*". Fiber rejects wildcard-with-credentials
-	// at runtime, and it would be a CSRF hole regardless (ASSESSMENT 4e).
+	// Must be an explicit origin: wildcard-with-credentials is a CSRF hole.
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     cfg.AllowedOrigin,
 		AllowCredentials: true,

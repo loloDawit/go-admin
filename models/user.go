@@ -17,13 +17,6 @@ type User struct {
 	Role      Role   `json:"role" gorm:"foreignKey:RoleId"`
 }
 
-// SetPassword hashes plain at the hasher's configured cost and stores it.
-// The Hasher is an explicit parameter so the cost is always a visible
-// dependency rather than a package-level constant.
-//
-// The previous implementation discarded bcrypt's error AND ignored its
-// argument, hashing the literal string "test" for every user — so every
-// account shared one password (ASSESSMENT 4a).
 func (user *User) SetPassword(h auth.Hasher, plain string) error {
 	hashed, err := h.Hash(plain)
 	if err != nil {
@@ -33,9 +26,8 @@ func (user *User) SetPassword(h auth.Hasher, plain string) error {
 	return nil
 }
 
+// Cost is read from the stored hash, so any Hasher verifies any hash.
 func (user *User) CompareHashAndPassword(plain string) error {
-	// Verification reads the cost from the stored hash, so any Hasher works —
-	// including for hashes written when the configured cost was different.
 	return auth.Hasher{}.Check(user.Password, plain)
 }
 
@@ -54,14 +46,7 @@ func (user *User) Take(db *gorm.DB, limit int, offset int) interface{} {
 	return users
 }
 
-// Validate checks the fields a User carries.
-//
-// It deliberately does NOT check Password: the plaintext never reaches this
-// struct (SetPassword stores only the hash), so a check here could only ever
-// inspect a bcrypt digest. Password rules belong with the hasher.
-//
-// The original took an `action string` parameter that it never read
-// (ASSESSMENT 4z).
+// Password is excluded: this struct only ever holds the hash.
 func (user *User) Validate() error {
 	if user.FirstName == "" || user.LastName == "" {
 		return errs.NameRequired

@@ -2,10 +2,7 @@ package errs
 
 import "net/http"
 
-// The complete set of application errors.
-//
-// Adding one: declare it here, in the group it belongs to, with a code that
-// is unique across the whole file (registry_test.go enforces uniqueness).
+// Declare new errors here. Codes must be unique; registry_test.go enforces it.
 
 // --- Request parsing and validation -------------------------------------
 
@@ -24,11 +21,6 @@ var (
 )
 
 // --- Field-level validation ---------------------------------------------
-//
-// These are named rather than folded into ValidationFailed so that a client
-// can react to a specific field problem, and so that no layer needs to write
-// the message inline. Domain code (models) returns these directly; handlers
-// pass them straight to httpx.Fail.
 
 var (
 	NameRequired = define(http.StatusBadRequest, "name_required",
@@ -53,10 +45,8 @@ var (
 // --- Authentication ------------------------------------------------------
 
 var (
-	// InvalidCredentials is returned for BOTH an unknown email and a wrong
-	// password. Distinguishing them turns the login endpoint into a user
-	// enumeration oracle (ASSESSMENT 4i), so there is deliberately no
-	// separate "user not found" error for the login path.
+	// Covers both an unknown email and a wrong password. Splitting these
+	// makes login a user-enumeration oracle.
 	InvalidCredentials = define(http.StatusUnauthorized, "invalid_credentials",
 		"email or password is incorrect")
 
@@ -118,9 +108,8 @@ var (
 // --- Infrastructure ------------------------------------------------------
 
 var (
-	// Database is for query failures. Its Message is deliberately vague: the
-	// driver's own text can disclose schema and must never reach a client.
-	// Wrap the driver error so it reaches the logs instead.
+	// Message stays vague; Wrap the driver error so schema details reach the
+	// log instead of the client.
 	Database = define(http.StatusInternalServerError, "database_error",
 		"a database error occurred")
 
@@ -131,8 +120,7 @@ var (
 		"an unexpected error occurred")
 )
 
-// All is every registered error. It exists so tests can assert invariants
-// across the whole set, and so the catalogue can be dumped for the frontend.
+// All backs the registry invariant tests.
 var All = []*Error{
 	InvalidBody, InvalidID, ValidationFailed, MissingField,
 	NameRequired, EmailRequired, EmailInvalid, RoleRequired,

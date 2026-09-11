@@ -32,6 +32,13 @@
 - **Never hardcode a work factor, limit, or timeout.** Anything an operator
   might tune belongs in `internal/config` with validation. `SetPassword` takes
   an `auth.Hasher`; tests use `auth.NewTestHasher()`.
+- **Comments explain constraints, not changes.** A comment earns its place
+  only if it states something you would violate by "improving" the code — a
+  map-based `Updates` that must not become a struct, two branches that must
+  return the same error. Do not restate what the code says, do not narrate
+  what the old code did (git and `docs/ASSESSMENT.md` hold that), and do not
+  write prose. One line where one line does. The commit message is where the
+  reasoning goes.
 - **Commit after every task.** Conventional commit prefixes (`feat:`, `fix:`, `test:`, `chore:`, `docs:`).
 
 ---
@@ -1699,8 +1706,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// AllPermissions is the complete permission vocabulary. The authorization
-// middleware derives its checks from the same view_/edit_ convention.
+// The authorization middleware derives its checks from these names.
 var AllPermissions = []string{
 	"view_users", "edit_users",
 	"view_products", "edit_products",
@@ -1724,8 +1730,7 @@ var roleGrants = map[string][]string{
 	},
 }
 
-// Run is idempotent: it can be executed on every deploy without duplicating
-// rows or resetting the owner's password.
+// Idempotent: safe to run on every deploy.
 func Run(db *gorm.DB, ownerEmail, ownerPassword string) error {
 	if ownerEmail == "" {
 		return errors.New("owner email is required (set OWNER_EMAIL)")
@@ -1757,8 +1762,7 @@ func Run(db *gorm.DB, ownerEmail, ownerPassword string) error {
 			for _, name := range granted {
 				attach = append(attach, permissions[name])
 			}
-			// Replace rather than Append: re-running must converge on the
-			// declared grant set, not accumulate duplicates.
+			// Replace, not Append: re-running must converge, not accumulate.
 			if err := tx.Model(&role).Association("Permissions").Replace(attach); err != nil {
 				return fmt.Errorf("grant permissions to %q: %w", roleName, err)
 			}
@@ -1768,8 +1772,8 @@ func Run(db *gorm.DB, ownerEmail, ownerPassword string) error {
 		var existing models.User
 		err := tx.Where("email = ?", ownerEmail).First(&existing).Error
 		if err == nil {
-			// The owner already exists. Do NOT reset their password — that
-			// would make every deploy an account takeover.
+			// Never reset an existing owner's password: that would make every
+			// deploy an account takeover.
 			return nil
 		}
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -2070,15 +2074,9 @@ import (
 	"strconv"
 )
 
-// RequirePermission returns middleware enforcing the view_/edit_ convention
-// for one resource: safe methods need view_<resource> OR edit_<resource>,
-// and mutating methods need edit_<resource>.
-//
-// The original IsAuthorized was a plain function each handler had to remember
-// to call, and only user_controller.go ever did — leaving products, orders,
-// roles, permissions, and upload completely unguarded (ASSESSMENT 4b).
-// Applying it to route groups makes authorization the default rather than
-// something a handler opts into.
+// RequirePermission enforces the view_/edit_ convention: safe methods accept
+// either, mutating methods require edit_. Applied to route groups so
+// authorization is the default rather than opt-in.
 func RequirePermission(resource string) fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
 		issuer, err := utils.ParseJWT(ctx.Cookies("jwt"))
@@ -2143,9 +2141,7 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 	api := app.Group("/api/v1")
 
 	// --- Public ---
-	// There is deliberately no /register route. Staff accounts are created
-	// by an admin; the first account comes from `make seed`.
-	// See docs/decisions/0001-remove-public-registration.md.
+	// No /register by design; see docs/decisions/0001-remove-public-registration.md.
 	api.Post("/login", controllers.Login(cfg))
 
 	// --- Authenticated ---
@@ -2159,8 +2155,7 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 	authed.Put("/user/password", controllers.UpdatePassword)
 
 	// --- Permission-gated resources ---
-	// Every group below is guarded. Adding a route inside one of these
-	// groups inherits its check; that is the point.
+	// A route added to one of these groups inherits its check.
 	users := authed.Group("", middlewares.RequirePermission("users"))
 	users.Get("/users", controllers.GetAllUsers)
 	users.Post("/users", controllers.CreateUser)
@@ -2373,9 +2368,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// pathId parses and validates the :id path parameter. The original code used
-// `id, _ := strconv.Atoi(ctx.Params("id"))` everywhere, so /product/abc
-// silently became product 0 (ASSESSMENT 4q).
+
 func pathId(ctx *fiber.Ctx) (int, error) {
 	id, err := strconv.Atoi(ctx.Params("id"))
 	if err != nil || id <= 0 {
@@ -2384,9 +2377,8 @@ func pathId(ctx *fiber.Ctx) (int, error) {
 	return id, nil
 }
 
-// notFoundOrDBError maps a GORM lookup error to the right response. Find on a
-// missing row returns a zero-valued struct with no error, which is why the
-// original handlers returned 200 with empty objects (ASSESSMENT 4o).
+// Callers must use First, not Find: Find returns a zero-valued struct and no
+// error for a missing row.
 func notFoundOrDBError(ctx *fiber.Ctx, err error, resource string) error {
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return httpx.Fail(ctx, errs.NotFound.WithMessage("%s not found", resource))
@@ -2444,7 +2436,7 @@ func CreateProduct(ctx *fiber.Ctx) error {
 		return httpx.Fail(ctx, errs.ValidationFailed.WithMessage("price must not be negative"))
 	}
 
-	// Built from the DTO, never from a struct the client can set Id on.
+	// Built from the DTO so the client cannot set Id.
 	product := models.Product{
 		Title:       req.Title,
 		Description: req.Description,
@@ -2474,9 +2466,8 @@ func UpdateProduct(ctx *fiber.Ctx) error {
 		return notFoundOrDBError(ctx, err, "product")
 	}
 
-	// A map, not a struct: GORM's struct form skips zero values, so a struct
-	// update could never blank a description or set a price to 0 (4p).
-	// The id comes from the path only — the body cannot redirect it (4g).
+	// Must be a map: the struct form skips zero values. Id comes from the
+	// path only.
 	if err := database.DB.Model(&product).Updates(map[string]any{
 		"title":       req.Title,
 		"description": req.Description,
@@ -2642,8 +2633,7 @@ type Order struct {
 	Name  string  `json:"name" gorm:"-"`
 	Total float64 `json:"total" gorm:"-"`
 
-	// time.Time, not string. GORM only auto-populates these when they are
-	// time.Time; as strings they stayed empty and broke the chart (4j).
+	// Must be time.Time: GORM only auto-populates these when they are.
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 
@@ -2682,8 +2672,7 @@ type Sales struct {
 func Chart(ctx *fiber.Ctx) error {
 	var sales []Sales
 
-	// DATE() rather than DATE_FORMAT: now that created_at is a real DATETIME
-	// this groups correctly, and the alias no longer collides with the column.
+	// Requires created_at to be a real DATETIME.
 	err := database.DB.Raw(`
 		SELECT DATE(o.created_at) AS date,
 		       SUM(oi.price * oi.quantity) AS sum
@@ -2704,10 +2693,7 @@ func Chart(ctx *fiber.Ctx) error {
 
 ```go
 func Export(ctx *fiber.Ctx) error {
-	// A per-request temp file. The original wrote to a single shared
-	// ./csv/orders.csv, so concurrent exports corrupted each other, and
-	// os.Create failed outright when ./csv did not exist — which it never
-	// does on a fresh clone, because it is gitignored.
+	// Per-request: a shared path corrupts concurrent exports.
 	file, err := os.CreateTemp("", "orders-*.csv")
 	if err != nil {
 		return httpx.Fail(ctx, errs.ExportFailed)
@@ -2747,8 +2733,7 @@ func writeOrdersCSV(w io.Writer) error {
 		for _, item := range order.OrderItems {
 			if err := writer.Write([]string{
 				"", "", "", item.ProductTitle,
-				// %.2f, not Itoa(int(price)) — the original truncated every
-				// price to a whole number, losing money in the export.
+
 				strconv.FormatFloat(item.Price, 'f', 2, 64),
 				strconv.FormatUint(uint64(item.Quantity), 10),
 			}); err != nil {
@@ -2961,9 +2946,7 @@ import (
 	"github.com/loloDawit/go-admin/internal/httpx"
 )
 
-// allowedImageTypes is a MIME allowlist, checked against SNIFFED content
-// rather than the client-supplied Content-Type header, which is trivially
-// forged.
+// Checked against sniffed content, not the client's Content-Type header.
 var allowedImageTypes = map[string]string{
 	"image/jpeg": ".jpg",
 	"image/png":  ".png",
@@ -2972,12 +2955,6 @@ var allowedImageTypes = map[string]string{
 }
 
 // Upload stores one image and returns its public URL.
-//
-// The original took file.Filename straight from the client and concatenated
-// it into "./uploads/"+filename — no traversal check, no type check, no size
-// limit, and same-name uploads silently overwrote each other. It also
-// returned a URL hardcoded to port 3000 while the API serves on 8080, so the
-// feature returned broken links even on the happy path (ASSESSMENT 4f).
 func Upload(cfg *config.Config) fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
 		form, err := ctx.MultipartForm()
@@ -3001,8 +2978,7 @@ func Upload(cfg *config.Config) fiber.Handler {
 			return httpx.Fail(ctx, errs.UploadUnsupportedType)
 		}
 
-		// A random name, so nothing the client sends reaches the filesystem:
-		// no traversal, no overwrite, no executable extension.
+		// Random, so no client-supplied bytes reach the filesystem.
 		name, err := randomName(ext)
 		if err != nil {
 			return httpx.Fail(ctx, errs.UploadFailed)
@@ -3010,8 +2986,7 @@ func Upload(cfg *config.Config) fiber.Handler {
 
 		dest := filepath.Join(cfg.UploadDir, name)
 
-		// Defence in depth: confirm the resolved path is still inside the
-		// upload directory even though the name is generated.
+		// Defence in depth; the name is already generated.
 		absDir, _ := filepath.Abs(cfg.UploadDir)
 		absDest, _ := filepath.Abs(dest)
 		if !strings.HasPrefix(absDest, absDir+string(os.PathSeparator)) {
@@ -3028,9 +3003,7 @@ func Upload(cfg *config.Config) fiber.Handler {
 	}
 }
 
-// sniffImageType reads the first 512 bytes and asks net/http to identify the
-// content. The client's Content-Type header is ignored: it is attacker-
-// controlled and says nothing about the actual bytes.
+// The client's Content-Type is ignored: it is attacker-controlled.
 func sniffImageType(header *multipart.FileHeader) (string, error) {
 	f, err := header.Open()
 	if err != nil {
@@ -3154,11 +3127,7 @@ export class ApiRequestError extends Error {
   }
 }
 
-/**
- * One place that knows the base URL, sends credentials, and turns a non-2xx
- * response into a typed error. Previously every component hand-built an axios
- * config with a hardcoded localhost URL and a //@ts-ignore above it.
- */
+/** Turns a non-2xx response into a typed error. */
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${BASE_URL}/api/v1${path}`, {
     ...init,
@@ -3171,7 +3140,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     try {
       body = await response.json();
     } catch {
-      // A non-JSON error body (a proxy error page, say) keeps the default.
+      // A non-JSON body (a proxy error page) keeps the default.
     }
     throw new ApiRequestError(response.status, body.code, body.message);
   }

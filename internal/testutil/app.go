@@ -16,9 +16,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// TestConfig mirrors a valid production config with test-safe values. The
-// bcrypt cost is the cheapest bcrypt allows: hashing otherwise dominates the
-// runtime of every test that creates a user.
 func TestConfig() *config.Config {
 	return &config.Config{
 		DBDSN:          "unused-in-tests",
@@ -33,8 +30,8 @@ func TestConfig() *config.Config {
 	}
 }
 
-// NewApp builds the real routed application. Tests exercise the same routes
-// and the same middleware chain as production — there is no test-only wiring.
+// NewApp builds the real routed application: same routes, same middleware
+// chain, no test-only wiring.
 func NewApp(t *testing.T) *fiber.App {
 	t.Helper()
 
@@ -46,7 +43,6 @@ func NewApp(t *testing.T) *fiber.App {
 	return app
 }
 
-// NewRequest builds a JSON request, optionally carrying a session cookie.
 func NewRequest(method, target string, body io.Reader, cookie *http.Cookie) *http.Request {
 	req := httptest.NewRequest(method, target, body)
 	req.Header.Set("Content-Type", "application/json")
@@ -56,12 +52,9 @@ func NewRequest(method, target string, body io.Reader, cookie *http.Cookie) *htt
 	return req
 }
 
-// JSON is a convenience for request bodies.
 func JSON(s string) io.Reader { return strings.NewReader(s) }
 
-// SeedUser creates a user holding the named role, creating the role if it
-// does not exist. The password goes through the real hasher so that login
-// tests are honest.
+// The password goes through the real hasher so login tests are honest.
 func SeedUser(t *testing.T, db *gorm.DB, email, password, roleName string) *models.User {
 	t.Helper()
 
@@ -96,7 +89,6 @@ func SeedRole(t *testing.T, db *gorm.DB, name string) *models.Role {
 	return &role
 }
 
-// GrantPermission attaches a permission to a role, creating either if needed.
 func GrantPermission(t *testing.T, db *gorm.DB, roleName, permission string) {
 	t.Helper()
 
@@ -112,7 +104,6 @@ func GrantPermission(t *testing.T, db *gorm.DB, roleName, permission string) {
 	}
 }
 
-// Login performs a real login and returns the session cookie.
 func Login(t *testing.T, app *fiber.App, email, password string) *http.Cookie {
 	t.Helper()
 

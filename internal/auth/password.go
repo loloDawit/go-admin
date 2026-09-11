@@ -1,7 +1,4 @@
-// Package auth holds password hashing. It is deliberately separate from the
-// models package so it can be tested without a database — the original code
-// buried this logic in models.User, which is why the bug it replaces
-// (hashing the literal "test" for every account) survived unnoticed.
+// Package auth hashes and verifies passwords.
 package auth
 
 import (
@@ -10,29 +7,19 @@ import (
 )
 
 const (
-	// DefaultCost is the cost used when configuration does not specify one.
-	// ~250ms on current hardware: slow enough to resist offline cracking,
-	// fast enough not to be a login DoS vector. The original code hardcoded
-	// 14 (~1s per hash), which is also why its test suite would have crawled.
-	DefaultCost = 12
+	DefaultCost = 12 // ~250ms: resists offline cracking without becoming a login DoS
 
-	// MinAllowedCost is the floor we accept from configuration. bcrypt itself
-	// permits 4, but anything below 10 is not defensible for real passwords.
-	// Tests may drop below this by constructing a Hasher directly.
+	// bcrypt permits 4, but below 10 is not defensible for real passwords.
+	// Tests bypass this via NewTestHasher.
 	MinAllowedCost = 10
 )
 
-// Hasher hashes and verifies passwords at a configured cost. It is a value,
-// not a package-level global, so the cost is always an explicit dependency of
-// whatever needs to hash — and so tests can use a cheap cost without mutating
-// shared state.
+// Hasher is a value rather than a global so cost stays an explicit dependency.
 type Hasher struct {
 	cost int
 }
 
-// NewHasher returns a Hasher at the given cost, clamped to bcrypt's own
-// limits. Validation of operator-supplied values belongs in config; this
-// clamp is a last line of defence against a nonsensical cost reaching bcrypt.
+// Operator-supplied costs are validated in config; this clamp is a backstop.
 func NewHasher(cost int) Hasher {
 	switch {
 	case cost < bcrypt.MinCost:
@@ -43,8 +30,8 @@ func NewHasher(cost int) Hasher {
 	return Hasher{cost: cost}
 }
 
-// NewTestHasher returns the cheapest possible Hasher. Hashing dominates the
-// runtime of any test that creates a user, so tests should always use this.
+// NewTestHasher is the cheapest cost bcrypt allows. Use it in every test that
+// creates a user; hashing otherwise dominates the suite's runtime.
 func NewTestHasher() Hasher { return Hasher{cost: bcrypt.MinCost} }
 
 func (h Hasher) Cost() int { return h.cost }
@@ -55,9 +42,7 @@ func (h Hasher) Hash(plain string) (string, error) {
 	}
 	cost := h.cost
 	if cost == 0 {
-		// A zero-value Hasher{} would otherwise silently hash at bcrypt's
-		// minimum. Treat it as the safe default instead.
-		cost = DefaultCost
+		cost = DefaultCost // a zero-value Hasher must not hash at bcrypt's minimum
 	}
 	hashed, err := bcrypt.GenerateFromPassword([]byte(plain), cost)
 	if err != nil {
@@ -66,9 +51,7 @@ func (h Hasher) Hash(plain string) (string, error) {
 	return string(hashed), nil
 }
 
-// Check verifies plain against hash. It is a method for symmetry, but the
-// cost is read from the stored hash, so any Hasher can verify any hash —
-// including one written when the configured cost was different.
+// Cost is read from the stored hash, so any Hasher verifies any hash.
 func (h Hasher) Check(hash, plain string) error {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(plain))
 }

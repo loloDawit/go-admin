@@ -8,18 +8,10 @@ import (
 	"gorm.io/gorm"
 )
 
-// DB is a package-level global. This is a known wart inherited from the
-// original code: it prevents dependency injection and forces tests to assign
-// to it directly. M1 replaces it with an injected store. Do not build new
-// code that depends on it being global.
+// Deprecated: global state, replaced by an injected store in M1. Do not add
+// new code that depends on it.
 var DB *gorm.DB
 
-// Connect opens a connection using the supplied DSN and runs AutoMigrate.
-// It returns an error instead of panicking so main can report it cleanly.
-//
-// AutoMigrate is itself a known wart (ASSESSMENT 4w) — it cannot be reviewed,
-// rolled back, or ordered. M1 replaces it with golang-migrate. M0 keeps it so
-// that this milestone changes no schema semantics.
 func Connect(dsn string) (*gorm.DB, error) {
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
@@ -34,8 +26,8 @@ func Connect(dsn string) (*gorm.DB, error) {
 	return db, nil
 }
 
-// Migrate applies the schema. Exported so the test harness can build a
-// database without going through Connect's global assignment.
+// Migrate is exported so the test harness can build a database without
+// Connect's global assignment. AutoMigrate is replaced by golang-migrate in M1.
 func Migrate(db *gorm.DB) error {
 	if err := db.AutoMigrate(
 		&models.User{},

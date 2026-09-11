@@ -1,7 +1,6 @@
-// Package testutil provides integration-test infrastructure. It spins a real
-// MySQL container so tests exercise the same driver, dialect, and constraint
-// behaviour as production — sqlite-in-memory would hide exactly the GORM
-// bugs this milestone exists to fix.
+// Package testutil provides integration-test infrastructure. It uses a real
+// MySQL container: sqlite-in-memory would hide the dialect-specific GORM
+// behaviour these tests exist to pin down.
 package testutil
 
 import (
@@ -23,9 +22,8 @@ var (
 	initErr  error
 )
 
-// NewDB returns a migrated, empty database. The container is started once per
-// `go test` process and reused; each call truncates every table so tests do
-// not leak state into one another.
+// NewDB returns a migrated, empty database. One container per test process;
+// every call truncates.
 func NewDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
@@ -48,8 +46,7 @@ func NewDB(t *testing.T) *gorm.DB {
 			return
 		}
 
-		// The container reports ready before MySQL accepts connections;
-		// retry briefly rather than failing the whole suite on a cold start.
+		// The container reports ready before MySQL accepts connections.
 		var db *gorm.DB
 		for i := 0; i < 30; i++ {
 			db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{
@@ -78,9 +75,7 @@ func NewDB(t *testing.T) *gorm.DB {
 
 	truncateAll(t, sharedDB)
 
-	// M0 wart: controllers read the package-level global. Assign it so
-	// handlers under test hit the container. Removed in M1.
-	database.DB = sharedDB
+	database.DB = sharedDB // controllers still read the global; removed in M1
 
 	return sharedDB
 }

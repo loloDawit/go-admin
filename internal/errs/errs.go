@@ -1,17 +1,9 @@
-// Package errs is the single registry of application errors.
+// Package errs is the single registry of application errors. Handlers return
+// these values instead of building statuses and messages inline;
+// convention_test.go enforces that.
 //
-// Every error the API can return is declared in registry.go with a stable
-// machine-readable Code, a client-safe Message, and the HTTP Status it maps
-// to. Handlers return these values rather than constructing status codes and
-// message strings inline, so that:
-//
-//   - a client can switch on Code without parsing prose;
-//   - changing a message or status happens in exactly one place;
-//   - no handler can invent a code that the frontend has never seen.
-//
-// This package deliberately imports no web framework. The HTTP mapping lives
-// in internal/httpx, so errs can be used from seeding, CLI commands, and
-// domain code that has no request in hand.
+// It imports no web framework, so seeding and CLI code can use it. The HTTP
+// mapping lives in internal/httpx.
 package errs
 
 import (
@@ -20,22 +12,12 @@ import (
 	"net/http"
 )
 
-// Error is an application error. Values in the registry are treated as
-// immutable templates: Wrap and WithMessage return copies.
+// Registry values are immutable templates; Wrap and WithMessage copy.
 type Error struct {
-	// Code is a stable, machine-readable identifier. It is part of the API
-	// contract — renaming one is a breaking change.
-	Code string
-
-	// Message is safe to return to a client. It must never contain driver
-	// output, SQL, file paths, or anything else that leaks internals.
-	Message string
-
-	// Status is the HTTP status this error maps to.
-	Status int
-
-	// cause is the underlying error. It is logged, never serialized.
-	cause error
+	Code    string // part of the API contract; renaming one is a breaking change
+	Message string // client-safe: never driver output, SQL, or paths
+	Status  int
+	cause   error // logged, never serialized
 }
 
 func (e *Error) Error() string {
@@ -47,8 +29,7 @@ func (e *Error) Error() string {
 
 func (e *Error) Unwrap() error { return e.cause }
 
-// Is matches on Code, so a wrapped copy still satisfies errors.Is against the
-// registry entry it was derived from.
+// Matches on Code so wrapped copies satisfy errors.Is against their template.
 func (e *Error) Is(target error) bool {
 	var t *Error
 	if !errors.As(target, &t) {
@@ -57,35 +38,29 @@ func (e *Error) Is(target error) bool {
 	return t.Code == e.Code
 }
 
-// Wrap returns a copy carrying cause. The cause is available to logs via
-// errors.Unwrap but is never sent to the client.
+// Wrap attaches a cause for logging. It never reaches the client.
 func (e *Error) Wrap(cause error) *Error {
 	c := *e
 	c.cause = cause
 	return &c
 }
 
-// WithMessage returns a copy with a more specific client-facing message,
-// keeping the same Code and Status. Use it to add detail a caller can act on
-// ("title is required"), never to add internal detail.
+// WithMessage adds detail a caller can act on, never internal detail.
 func (e *Error) WithMessage(format string, args ...any) *Error {
 	c := *e
 	c.Message = fmt.Sprintf(format, args...)
 	return &c
 }
 
-// Cause returns the wrapped error, or nil.
 func (e *Error) Cause() error { return e.cause }
 
-// define registers an error. It is the only constructor; every application
-// error must be declared in registry.go so the set stays enumerable.
+// The only constructor, so the error set stays enumerable.
 func define(status int, code, message string) *Error {
 	return &Error{Status: status, Code: code, Message: message}
 }
 
-// From maps any error to an *Error. An unrecognised error becomes Internal
-// with the original wrapped as the cause, so an unexpected failure can never
-// leak its text to a client.
+// Unregistered errors become Internal with the original as cause, so no
+// unexpected failure can leak its text to a client.
 func From(err error) *Error {
 	if err == nil {
 		return nil
@@ -97,7 +72,6 @@ func From(err error) *Error {
 	return Internal.Wrap(err)
 }
 
-// StatusOf returns the HTTP status for any error.
 func StatusOf(err error) int {
 	if err == nil {
 		return http.StatusOK
