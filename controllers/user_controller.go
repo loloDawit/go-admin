@@ -12,7 +12,8 @@ import (
 
 func GetAllUsers(ctx *fiber.Ctx) error {
 	page, _ := strconv.Atoi(ctx.Query("page", "1"))
-	return ctx.JSON(models.Paginate(database.DB, &models.User{}, page))
+	perPage, _ := strconv.Atoi(ctx.Query("perPage", "0"))
+	return ctx.JSON(models.Paginate(database.DB, &models.User{}, page, perPage))
 }
 
 func GetUser(ctx *fiber.Ctx) error {

@@ -12,7 +12,8 @@ import (
 
 func GetAllOrders(ctx *fiber.Ctx) error {
 	page, _ := strconv.Atoi(ctx.Query("page", "1"))
-	return ctx.JSON(models.Paginate(database.DB, &models.Order{}, page))
+	perPage, _ := strconv.Atoi(ctx.Query("perPage", "0"))
+	return ctx.JSON(models.Paginate(database.DB, &models.Order{}, page, perPage))
 }
 
 func GetOrder(ctx *fiber.Ctx) error {
