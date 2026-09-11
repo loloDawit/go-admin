@@ -30,26 +30,36 @@ func GetUser(ctx *fiber.Ctx) error {
 func UpdateUser(ctx *fiber.Ctx) error {
 	id, _ := strconv.Atoi(ctx.Params("id"))
 
-	user := models.User{
-		Id: id,
+	var req httpx.UpdateUserRequest
+	if err := ctx.BodyParser(&req); err != nil {
+		return httpx.Fail(ctx, errs.InvalidBody.Wrap(err))
 	}
 
-	if err := ctx.BodyParser(&user); err != nil {
-		return err
+	updates := map[string]any{
+		"first_name": req.FirstName,
+		"last_name":  req.LastName,
+		"email":      req.Email,
 	}
 
-	if user.RoleId != 0 {
+	if req.RoleId != 0 {
 		var targetRole models.Role
-		if err := database.DB.Preload("Permissions").First(&targetRole, user.RoleId).Error; err != nil {
+		if err := database.DB.Preload("Permissions").First(&targetRole, req.RoleId).Error; err != nil {
 			return notFoundOrDBError(ctx, err, "role")
 		}
 		if err := ensureCanAssignRole(ctx, targetRole); err != nil {
 			return httpx.Fail(ctx, err)
 		}
+		updates["role_id"] = req.RoleId
 	}
 
-	database.DB.Model(&user).Updates(user)
+	if err := database.DB.Model(&models.User{Id: id}).Updates(updates).Error; err != nil {
+		return httpx.Fail(ctx, errs.Database.Wrap(err))
+	}
 
+	var user models.User
+	if err := database.DB.First(&user, id).Error; err != nil {
+		return notFoundOrDBError(ctx, err, "user")
+	}
 	return ctx.JSON(user)
 }
 

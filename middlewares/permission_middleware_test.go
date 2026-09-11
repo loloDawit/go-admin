@@ -8,8 +8,6 @@ import (
 	"github.com/loloDawit/go-admin/internal/testutil"
 )
 
-// The headline regression test: before this task, a user with NO permissions
-// could create products, because no product route consulted IsAuthorized.
 func TestWriteRoutesRejectUserWithoutEditPermission(t *testing.T) {
 	db := testutil.NewDB(t)
 	app := testutil.NewApp(t)

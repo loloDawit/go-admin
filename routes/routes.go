@@ -12,11 +12,9 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 
 	api := app.Group("/api/v1")
 
-	// --- Public ---
 	// No /register by design; see docs/decisions/0001-remove-public-registration.md.
 	api.Post("/login", controllers.Login)
 
-	// --- Authenticated ---
 	authed := api.Group("", middlewares.IsAuthenticated)
 
 	// Self-service: any signed-in user may read and edit their own account.
@@ -26,7 +24,6 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 	authed.Put("/user/info", controllers.UpdateUserInfo)
 	authed.Put("/user/password", controllers.UpdatePassword)
 
-	// --- Permission-gated resources ---
 	// Attached per route, not via a sibling Group(""): Fiber stacks a second
 	// Group("", mw) onto every route sharing that empty prefix instead of
 	// scoping it to its own routes.
@@ -43,7 +40,7 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 	authed.Get("/product/:id", products, controllers.GetProduct)
 	authed.Put("/product/:id", products, controllers.UpdateProduct)
 	authed.Delete("/product/:id", products, controllers.DeleteProduct)
-	authed.Post("/upload", products, controllers.Upload) // becomes Upload(cfg) in Task 10
+	authed.Post("/upload", products, controllers.Upload)
 
 	orders := middlewares.RequirePermission("orders")
 	authed.Get("/orders", orders, controllers.GetAllOrders)
@@ -51,7 +48,7 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 	authed.Get("/order/:id", orders, controllers.GetOrder)
 	authed.Put("/order/:id", orders, controllers.UpdateOrder)
 	authed.Delete("/order/:id", orders, controllers.DeleteOrder)
-	authed.Get("/export", orders, controllers.Export) // was POST; a download is a GET
+	authed.Get("/export", orders, controllers.Export)
 	authed.Get("/chart", orders, controllers.Chart)
 
 	roles := middlewares.RequirePermission("roles")
@@ -63,7 +60,6 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 	authed.Get("/permissions", roles, controllers.GetAllPermissions)
 	authed.Post("/permissions", roles, controllers.CreatePermission)
 
-	// Uploaded files. Served from the configured directory rather than a
-	// hardcoded path.
+	// Uploaded files.
 	app.Static("/api/v1/uploads", cfg.UploadDir)
 }

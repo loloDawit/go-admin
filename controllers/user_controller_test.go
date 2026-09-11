@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/loloDawit/go-admin/internal/testutil"
+	"github.com/loloDawit/go-admin/models"
 )
 
 func TestCreateUserWithAdminSuppliedPasswordCanLogIn(t *testing.T) {
@@ -167,6 +168,50 @@ func TestUpdateUserRejectsRoleExceedingCallersOwn(t *testing.T) {
 	}
 	if resp.StatusCode != http.StatusForbidden {
 		t.Fatalf("want 403 when self-assigning a role that exceeds the caller's own permissions, got %d", resp.StatusCode)
+	}
+}
+
+// PUT /user/:id must not accept a nested "role" object: models.User carries
+// a bindable Role association, and saving it through GORM inserts
+// role_permissions rows directly, bypassing ensureCanAssignRole's roleId check
+// entirely.
+func TestUpdateUserRejectsNestedRoleAssociationPermissionInjection(t *testing.T) {
+	db := testutil.NewDB(t)
+	app := testutil.NewApp(t)
+
+	admin := testutil.SeedUser(t, db, "admin8@example.com", "s3cret-password", "admin8role")
+	testutil.GrantPermission(t, db, "admin8role", "edit_users")
+	adminCookie := testutil.Login(t, app, "admin8@example.com", "s3cret-password")
+
+	var adminRole models.Role
+	if err := db.Where("name = ?", "admin8role").First(&adminRole).Error; err != nil {
+		t.Fatalf("find caller role: %v", err)
+	}
+
+	var editRoles models.Permission
+	if err := db.Where(models.Permission{Name: "edit_roles"}).
+		FirstOrCreate(&editRoles, models.Permission{Name: "edit_roles"}).Error; err != nil {
+		t.Fatalf("seed edit_roles permission: %v", err)
+	}
+
+	body := `{"role":{"id":` + strconv.Itoa(int(adminRole.Id)) +
+		`,"permissions":[{"id":` + strconv.Itoa(int(editRoles.Id)) + `}]}}`
+
+	req := testutil.NewRequest(http.MethodPut, "/api/v1/user/"+strconv.Itoa(admin.Id),
+		testutil.JSON(body), adminCookie)
+
+	if _, err := app.Test(req, -1); err != nil {
+		t.Fatalf("request: %v", err)
+	}
+
+	var reloaded models.Role
+	if err := db.Preload("Permissions").First(&reloaded, adminRole.Id).Error; err != nil {
+		t.Fatalf("reload caller role: %v", err)
+	}
+	for _, p := range reloaded.Permissions {
+		if p.Name == "edit_roles" {
+			t.Fatal("caller's role gained edit_roles through a nested role association in the request body")
+		}
 	}
 }
 

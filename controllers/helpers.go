@@ -51,11 +51,14 @@ func ensureCanAssignRole(ctx *fiber.Ctx, target models.Role) error {
 
 	var caller models.User
 	if err := database.DB.First(&caller, callerId).Error; err != nil {
-		return errs.Database.Wrap(err)
+		return errs.SessionInvalid.Wrap(err)
 	}
 
 	var callerRole models.Role
 	if err := database.DB.Preload("Permissions").First(&callerRole, caller.RoleId).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errs.NoRoleAssigned
+		}
 		return errs.Database.Wrap(err)
 	}
 

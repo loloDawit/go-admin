@@ -1,6 +1,7 @@
 package middlewares
 
 import (
+	"errors"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
@@ -9,11 +10,9 @@ import (
 	"github.com/loloDawit/go-admin/internal/httpx"
 	"github.com/loloDawit/go-admin/models"
 	"github.com/loloDawit/go-admin/utils"
+	"gorm.io/gorm"
 )
 
-// RequirePermission enforces the view_/edit_ convention: safe methods accept
-// either, mutating methods require edit_. Attached at every resource route so
-// authorization is the default rather than opt-in.
 func RequirePermission(resource string) fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
 		issuer, err := utils.ParseJWT(ctx.Cookies("jwt"))
@@ -37,6 +36,9 @@ func RequirePermission(resource string) fiber.Handler {
 
 		var role models.Role
 		if err := database.DB.Preload("Permissions").First(&role, user.RoleId).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return httpx.Fail(ctx, errs.NoRoleAssigned)
+			}
 			return httpx.Fail(ctx, errs.Database.Wrap(err))
 		}
 
