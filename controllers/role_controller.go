@@ -11,7 +11,7 @@ import (
 func GetAllRoles(ctx *fiber.Ctx) error {
 	var roles []models.Role
 
-	database.DB.Preload("Permissions").Find(&roles)
+	database.DB.Find(&roles)
 
 	return ctx.JSON(roles)
 }
@@ -29,9 +29,9 @@ func GetRole(ctx *fiber.Ctx) error {
 	return ctx.JSON(role)
 }
 
-// loadPermissions loads every requested permission and fails if any id does
-// not exist, so an unknown id cannot be upserted as a blank permission row
-// through the association save below.
+// The existence check prevents an unknown id from being silently upserted
+// as a blank row: GORM's default many2many save creates any Permission that
+// doesn't already exist rather than rejecting it.
 func loadPermissions(ids []uint) ([]models.Permission, error) {
 	if len(ids) == 0 {
 		return nil, nil
