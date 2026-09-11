@@ -6,8 +6,10 @@ import (
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/gofiber/fiber/v2"
+	"github.com/loloDawit/go-admin/database"
 	"github.com/loloDawit/go-admin/internal/errs"
 	"github.com/loloDawit/go-admin/internal/httpx"
+	"github.com/loloDawit/go-admin/models"
 	"gorm.io/gorm"
 )
 
@@ -36,4 +38,36 @@ func notFoundOrDBError(ctx *fiber.Ctx, err error, resource string) error {
 		return httpx.Fail(ctx, errs.NotFound.WithMessage("%s not found", resource))
 	}
 	return httpx.Fail(ctx, errs.Database.Wrap(err))
+}
+
+// ensureCanAssignRole rejects a target role whose permission set is not a
+// subset of the caller's own; otherwise edit_users lets any holder mint an
+// owner.
+func ensureCanAssignRole(ctx *fiber.Ctx, target models.Role) error {
+	callerId, err := currentUserId(ctx)
+	if err != nil {
+		return errs.Unauthenticated
+	}
+
+	var caller models.User
+	if err := database.DB.First(&caller, callerId).Error; err != nil {
+		return errs.Database.Wrap(err)
+	}
+
+	var callerRole models.Role
+	if err := database.DB.Preload("Permissions").First(&callerRole, caller.RoleId).Error; err != nil {
+		return errs.Database.Wrap(err)
+	}
+
+	granted := make(map[string]bool, len(callerRole.Permissions))
+	for _, p := range callerRole.Permissions {
+		granted[p.Name] = true
+	}
+
+	for _, p := range target.Permissions {
+		if !granted[p.Name] {
+			return errs.Forbidden
+		}
+	}
+	return nil
 }

@@ -10,54 +10,60 @@ import (
 func SetupRoutes(app *fiber.App, cfg *config.Config) {
 	controllers.Configure(cfg)
 
-	app.Post("/api/v1/login", controllers.Login)
+	api := app.Group("/api/v1")
 
-	// private routes
-	app.Use(middlewares.IsAuthenticated)
-	// Auth routes
-	app.Put("/api/v1/user/info", controllers.UpdateUserInfo)
-	app.Put("/api/v1/user/password", controllers.UpdatePassword)
-	app.Post("/api/v1/logout", controllers.Logout)
-	app.Get("/api/v1/user", controllers.User)
+	// --- Public ---
+	// No /register by design; see docs/decisions/0001-remove-public-registration.md.
+	api.Post("/login", controllers.Login)
 
-	// users routes
-	app.Get("/api/v1/users", controllers.GetAllUsers)
-	app.Post("/api/v1/users", controllers.CreateUser)
-	app.Get("/api/v1/user/:id", controllers.GetUser)
-	app.Put("/api/v1/user/:id", controllers.UpdateUser)
-	app.Delete("/api/v1/user/:id", controllers.DeleteUser)
+	// --- Authenticated ---
+	authed := api.Group("", middlewares.IsAuthenticated)
 
-	// products routes
-	app.Get("/api/v1/products", controllers.GetAllProducts)
-	app.Post("/api/v1/products", controllers.CreateProduct)
-	app.Get("/api/v1/product/:id", controllers.GetProduct)
-	app.Put("/api/v1/product/:id", controllers.UpdateProduct)
-	app.Delete("/api/v1/product/:id", controllers.DeleteProduct)
+	// Self-service: any signed-in user may read and edit their own account.
+	// These need no resource permission — the handler scopes to the caller.
+	authed.Get("/user", controllers.User)
+	authed.Post("/logout", controllers.Logout)
+	authed.Put("/user/info", controllers.UpdateUserInfo)
+	authed.Put("/user/password", controllers.UpdatePassword)
 
-	// order routes
-	app.Get("/api/v1/orders", controllers.GetAllOrders)
-	app.Post("/api/v1/orders", controllers.CreateOrder)
-	app.Get("/api/v1/order/:id", controllers.GetOrder)
-	app.Put("/api/v1/order/:id", controllers.UpdateOrder)
-	app.Delete("/api/v1/order/:id", controllers.DeleteOrder)
-	app.Post("/api/v1/export", controllers.Export)
-	app.Get("/api/v1/chart", controllers.Chart)
+	// --- Permission-gated resources ---
+	// Attached per route, not via a sibling Group(""): Fiber stacks a second
+	// Group("", mw) onto every route sharing that empty prefix instead of
+	// scoping it to its own routes.
+	users := middlewares.RequirePermission("users")
+	authed.Get("/users", users, controllers.GetAllUsers)
+	authed.Post("/users", users, controllers.CreateUser)
+	authed.Get("/user/:id", users, controllers.GetUser)
+	authed.Put("/user/:id", users, controllers.UpdateUser)
+	authed.Delete("/user/:id", users, controllers.DeleteUser)
 
-	// roles routes
-	app.Get("/api/v1/roles", controllers.GetAllRoles)
-	app.Post("/api/v1/roles", controllers.CreateRole)
-	app.Get("/api/v1/role/:id", controllers.GetRole)
-	app.Put("/api/v1/role/:id", controllers.UpdateRole)
-	app.Delete("/api/v1/role/:id", controllers.DeleteRole)
+	products := middlewares.RequirePermission("products")
+	authed.Get("/products", products, controllers.GetAllProducts)
+	authed.Post("/products", products, controllers.CreateProduct)
+	authed.Get("/product/:id", products, controllers.GetProduct)
+	authed.Put("/product/:id", products, controllers.UpdateProduct)
+	authed.Delete("/product/:id", products, controllers.DeleteProduct)
+	authed.Post("/upload", products, controllers.Upload) // becomes Upload(cfg) in Task 10
 
-	// permission routes
-	app.Get("/api/v1/permissions", controllers.GetAllPermissions)
-	app.Post("/api/v1/permissions", controllers.CreatPermissons)
+	orders := middlewares.RequirePermission("orders")
+	authed.Get("/orders", orders, controllers.GetAllOrders)
+	authed.Post("/orders", orders, controllers.CreateOrder)
+	authed.Get("/order/:id", orders, controllers.GetOrder)
+	authed.Put("/order/:id", orders, controllers.UpdateOrder)
+	authed.Delete("/order/:id", orders, controllers.DeleteOrder)
+	authed.Get("/export", orders, controllers.Export) // was POST; a download is a GET
+	authed.Get("/chart", orders, controllers.Chart)
 
-	app.Post("/api/v1/upload", controllers.Upload)
+	roles := middlewares.RequirePermission("roles")
+	authed.Get("/roles", roles, controllers.GetAllRoles)
+	authed.Post("/roles", roles, controllers.CreateRole)
+	authed.Get("/role/:id", roles, controllers.GetRole)
+	authed.Put("/role/:id", roles, controllers.UpdateRole)
+	authed.Delete("/role/:id", roles, controllers.DeleteRole)
+	authed.Get("/permissions", roles, controllers.GetAllPermissions)
+	authed.Post("/permissions", roles, controllers.CreatePermission)
 
-	//static
-
-	app.Static("/api/v1/uploads", "./uploads")
-
+	// Uploaded files. Served from the configured directory rather than a
+	// hardcoded path.
+	app.Static("/api/v1/uploads", cfg.UploadDir)
 }

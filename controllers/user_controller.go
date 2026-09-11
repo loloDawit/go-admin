@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"github.com/loloDawit/go-admin/middlewares"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
@@ -12,17 +11,11 @@ import (
 )
 
 func GetAllUsers(ctx *fiber.Ctx) error {
-	if err := middlewares.IsAuthorized(ctx, "users"); err != nil {
-		return err
-	}
 	page, _ := strconv.Atoi(ctx.Query("page", "1"))
 	return ctx.JSON(models.Paginate(database.DB, &models.User{}, page))
 }
 
 func GetUser(ctx *fiber.Ctx) error {
-	if err := middlewares.IsAuthorized(ctx, "users"); err != nil {
-		return err
-	}
 	id, _ := strconv.Atoi(ctx.Params("id"))
 
 	user := models.User{
@@ -35,9 +28,6 @@ func GetUser(ctx *fiber.Ctx) error {
 }
 
 func UpdateUser(ctx *fiber.Ctx) error {
-	if err := middlewares.IsAuthorized(ctx, "users"); err != nil {
-		return err
-	}
 	id, _ := strconv.Atoi(ctx.Params("id"))
 
 	user := models.User{
@@ -48,15 +38,22 @@ func UpdateUser(ctx *fiber.Ctx) error {
 		return err
 	}
 
+	if user.RoleId != 0 {
+		var targetRole models.Role
+		if err := database.DB.Preload("Permissions").First(&targetRole, user.RoleId).Error; err != nil {
+			return notFoundOrDBError(ctx, err, "role")
+		}
+		if err := ensureCanAssignRole(ctx, targetRole); err != nil {
+			return httpx.Fail(ctx, err)
+		}
+	}
+
 	database.DB.Model(&user).Updates(user)
 
 	return ctx.JSON(user)
 }
 
 func DeleteUser(ctx *fiber.Ctx) error {
-	if err := middlewares.IsAuthorized(ctx, "users"); err != nil {
-		return err
-	}
 	id, _ := strconv.Atoi(ctx.Params("id"))
 
 	user := models.User{
@@ -71,10 +68,6 @@ func DeleteUser(ctx *fiber.Ctx) error {
 }
 
 func CreateUser(ctx *fiber.Ctx) error {
-	if err := middlewares.IsAuthorized(ctx, "users"); err != nil {
-		return err
-	}
-
 	var req httpx.CreateUserRequest
 	if err := ctx.BodyParser(&req); err != nil {
 		return httpx.Fail(ctx, errs.InvalidBody.Wrap(err))
@@ -90,10 +83,15 @@ func CreateUser(ctx *fiber.Ctx) error {
 	if err := user.Validate(); err != nil {
 		return httpx.Fail(ctx, err)
 	}
+
+	var targetRole models.Role
 	// Without this check an unknown roleId fails Create on the FK constraint,
 	// which the generic branch below would misreport as EmailTaken.
-	if err := database.DB.First(&models.Role{}, req.RoleId).Error; err != nil {
+	if err := database.DB.Preload("Permissions").First(&targetRole, req.RoleId).Error; err != nil {
 		return notFoundOrDBError(ctx, err, "role")
+	}
+	if err := ensureCanAssignRole(ctx, targetRole); err != nil {
+		return httpx.Fail(ctx, err)
 	}
 	if err := user.SetPassword(hasher, req.Password); err != nil {
 		return httpx.Fail(ctx, err)

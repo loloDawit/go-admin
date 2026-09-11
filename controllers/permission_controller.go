@@ -14,7 +14,7 @@ func GetAllPermissions(ctx *fiber.Ctx) error {
 	return ctx.JSON(permissons)
 }
 
-func CreatPermissons(ctx *fiber.Ctx) error {
+func CreatePermission(ctx *fiber.Ctx) error {
 	var permissons models.Permission
 
 	if err := ctx.BodyParser(&permissons); err != nil {

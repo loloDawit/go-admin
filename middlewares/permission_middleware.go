@@ -1,52 +1,62 @@
 package middlewares
 
 import (
-	"fmt"
+	"strconv"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/loloDawit/go-admin/database"
 	"github.com/loloDawit/go-admin/internal/errs"
+	"github.com/loloDawit/go-admin/internal/httpx"
 	"github.com/loloDawit/go-admin/models"
 	"github.com/loloDawit/go-admin/utils"
-	"strconv"
 )
 
-func IsAuthorized(ctx *fiber.Ctx, page string) error {
+// RequirePermission enforces the view_/edit_ convention: safe methods accept
+// either, mutating methods require edit_. Attached at every resource route so
+// authorization is the default rather than opt-in.
+func RequirePermission(resource string) fiber.Handler {
+	return func(ctx *fiber.Ctx) error {
+		issuer, err := utils.ParseJWT(ctx.Cookies("jwt"))
+		if err != nil {
+			return httpx.Fail(ctx, errs.Unauthenticated)
+		}
 
-	cookie := ctx.Cookies("jwt")
+		userId, err := strconv.Atoi(issuer)
+		if err != nil {
+			return httpx.Fail(ctx, errs.SessionInvalid)
+		}
 
-	Id, err := utils.ParseJWT(cookie)
-	if err != nil {
-		return err
-	}
+		var user models.User
+		if err := database.DB.First(&user, userId).Error; err != nil {
+			return httpx.Fail(ctx, errs.SessionInvalid.Wrap(err))
+		}
 
-	userId, _ := strconv.Atoi(Id)
+		if user.RoleId == 0 {
+			return httpx.Fail(ctx, errs.NoRoleAssigned)
+		}
 
-	user := models.User{
-		Id: userId,
-	}
+		var role models.Role
+		if err := database.DB.Preload("Permissions").First(&role, user.RoleId).Error; err != nil {
+			return httpx.Fail(ctx, errs.Database.Wrap(err))
+		}
 
-	database.DB.Preload("Role").Find(&user)
+		required := "edit_" + resource
+		alsoAccepted := ""
+		if isSafeMethod(ctx.Method()) {
+			alsoAccepted = "view_" + resource
+		}
 
-	role := models.Role{
-		Id: user.RoleId,
-	}
-
-	database.DB.Preload("Permissions").Find(&role)
-
-	if ctx.Method() == "GET" {
-		for _, permission := range role.Permissions {
-			fmt.Println(permission.Name, page)
-			if permission.Name == "view_"+page || permission.Name == "edit_"+page {
-				return nil
+		for _, p := range role.Permissions {
+			if p.Name == required || (alsoAccepted != "" && p.Name == alsoAccepted) {
+				ctx.Locals("userId", userId)
+				return ctx.Next()
 			}
 		}
-	} else {
-		for _, permission := range role.Permissions {
-			if permission.Name == "edit_"+page {
-				return nil
-			}
-		}
-	}
 
-	return errs.Forbidden
+		return httpx.Fail(ctx, errs.Forbidden)
+	}
+}
+
+func isSafeMethod(method string) bool {
+	return method == fiber.MethodGet || method == fiber.MethodHead || method == fiber.MethodOptions
 }

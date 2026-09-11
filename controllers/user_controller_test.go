@@ -123,6 +123,53 @@ func TestCreateUserRejectsNonexistentRole(t *testing.T) {
 	}
 }
 
+func TestCreateUserRejectsRoleExceedingCallersOwn(t *testing.T) {
+	db := testutil.NewDB(t)
+	app := testutil.NewApp(t)
+
+	testutil.SeedUser(t, db, "admin6@example.com", "s3cret-password", "admin")
+	testutil.GrantPermission(t, db, "admin", "edit_users")
+	adminCookie := testutil.Login(t, app, "admin6@example.com", "s3cret-password")
+
+	ownerRole := testutil.SeedRole(t, db, "owner")
+	testutil.GrantPermission(t, db, "owner", "edit_roles")
+
+	req := testutil.NewRequest(http.MethodPost, "/api/v1/users",
+		testutil.JSON(`{"firstName":"Eve","lastName":"Escalate","email":"eve@example.com","password":"whatever-pw","roleId":`+
+			strconv.Itoa(int(ownerRole.Id))+`}`), adminCookie)
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("want 403 when assigning a role that exceeds the caller's own permissions, got %d", resp.StatusCode)
+	}
+}
+
+func TestUpdateUserRejectsRoleExceedingCallersOwn(t *testing.T) {
+	db := testutil.NewDB(t)
+	app := testutil.NewApp(t)
+
+	admin := testutil.SeedUser(t, db, "admin7@example.com", "s3cret-password", "admin")
+	testutil.GrantPermission(t, db, "admin", "edit_users")
+	adminCookie := testutil.Login(t, app, "admin7@example.com", "s3cret-password")
+
+	ownerRole := testutil.SeedRole(t, db, "owner")
+	testutil.GrantPermission(t, db, "owner", "edit_roles")
+
+	req := testutil.NewRequest(http.MethodPut, "/api/v1/user/"+strconv.Itoa(admin.Id),
+		testutil.JSON(`{"roleId":`+strconv.Itoa(int(ownerRole.Id))+`}`), adminCookie)
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("want 403 when self-assigning a role that exceeds the caller's own permissions, got %d", resp.StatusCode)
+	}
+}
+
 func TestCreateUserRejectsDuplicateEmail(t *testing.T) {
 	db := testutil.NewDB(t)
 	app := testutil.NewApp(t)
