@@ -49,12 +49,35 @@ func TestRunIsIdempotent(t *testing.T) {
 		t.Fatalf("seed run 0: %v", err)
 	}
 
-	// Re-run with a different password and 2 more times: row counts alone
-	// can't tell a Replace from an Append, and can't tell whether the owner's
-	// password got overwritten, so both are checked explicitly below.
+	// staff is used because its 5 declared permissions are a strict subset of
+	// all 8, so an injected extra permission has somewhere to be dropped from.
+	var staff models.Role
+	if err := db.Where("name = ?", "staff").First(&staff).Error; err != nil {
+		t.Fatalf("staff role missing: %v", err)
+	}
+	var injected models.Permission
+	if err := db.Where("name = ?", "edit_roles").First(&injected).Error; err != nil {
+		t.Fatalf("edit_roles permission missing: %v", err)
+	}
+	if err := db.Model(&staff).Association("Permissions").Append(&injected); err != nil {
+		t.Fatalf("inject extra permission into staff: %v", err)
+	}
+
 	for i := 1; i < 3; i++ {
 		if err := seed.Run(db, auth.NewTestHasher(), "owner@example.com", "a-different-password"); err != nil {
 			t.Fatalf("seed run %d: %v", i, err)
+		}
+	}
+
+	if err := db.Preload("Permissions").Where("name = ?", "staff").First(&staff).Error; err != nil {
+		t.Fatalf("staff role missing after re-run: %v", err)
+	}
+	if len(staff.Permissions) != 5 {
+		t.Errorf("re-running must replace, not accumulate, a role's grants: staff has %d permissions, want 5", len(staff.Permissions))
+	}
+	for _, p := range staff.Permissions {
+		if p.Name == "edit_roles" {
+			t.Error("re-running must drop a grant no longer declared for the role; staff still holds edit_roles")
 		}
 	}
 
