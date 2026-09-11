@@ -8,6 +8,9 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+
+	"github.com/loloDawit/go-admin/internal/auth"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // minSecretLen is the shortest session signing key we accept. 32 bytes is the
@@ -23,12 +26,16 @@ type Config struct {
 	UploadDir      string
 	MaxUploadBytes int64
 	AppEnv         string
+	BcryptCost     int
 }
 
 // IsProduction reports whether the app is running in production. It gates the
 // Secure flag on the session cookie: Secure cookies are not sent over plain
 // HTTP, so forcing it on in local development would break login on :3000.
 func (c *Config) IsProduction() bool { return c.AppEnv == "production" }
+
+// Hasher returns a password hasher at the configured cost.
+func (c *Config) Hasher() auth.Hasher { return auth.NewHasher(c.BcryptCost) }
 
 // Load reads configuration from the environment and validates it. It returns
 // an error rather than panicking so that main can decide how to report the
@@ -49,6 +56,12 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("MAX_UPLOAD_BYTES must be an integer: %w", err)
 	}
 	cfg.MaxUploadBytes = maxUpload
+
+	bcryptCost, err := strconv.Atoi(withDefault("BCRYPT_COST", strconv.Itoa(auth.DefaultCost)))
+	if err != nil {
+		return nil, fmt.Errorf("BCRYPT_COST must be an integer: %w", err)
+	}
+	cfg.BcryptCost = bcryptCost
 
 	if err := cfg.validate(); err != nil {
 		return nil, err
@@ -73,6 +86,12 @@ func (c *Config) validate() error {
 	}
 	if c.MaxUploadBytes <= 0 {
 		errs = append(errs, errors.New("MAX_UPLOAD_BYTES must be positive"))
+	}
+	// Too low is a security problem; too high is a login-latency DoS.
+	if c.BcryptCost < auth.MinAllowedCost || c.BcryptCost > bcrypt.MaxCost {
+		errs = append(errs, fmt.Errorf(
+			"BCRYPT_COST must be between %d and %d (default %d)",
+			auth.MinAllowedCost, bcrypt.MaxCost, auth.DefaultCost))
 	}
 
 	return errors.Join(errs...)

@@ -39,7 +39,12 @@ func Register(ctx *fiber.Ctx) error {
 			"error": err.Error(),
 		})
 	}
-	user.SetPassword(data["password"])
+	if err := user.SetPassword(hasher, data["password"]); err != nil {
+		ctx.Status(400)
+		return ctx.JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
 	if result := database.DB.Create(&user); result.Error != nil {
 		ctx.Status(400)
 		return ctx.JSON(fiber.Map{
@@ -169,7 +174,12 @@ func UpdatePassword(ctx *fiber.Ctx) error {
 	user := models.User{
 		Id: userId,
 	}
-	user.SetPassword(data["password"])
+	if err := user.SetPassword(hasher, data["password"]); err != nil {
+		ctx.Status(400)
+		return ctx.JSON(fiber.Map{
+			"msg": err.Error(),
+		})
+	}
 
 	database.DB.Model(&user).Where("id=?", id).Updates(user)
 

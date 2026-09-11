@@ -78,8 +78,18 @@ func CreateUser(ctx *fiber.Ctx) error {
 		return err
 	}
 
-	user.SetPassword("124")
+	// The initial password is still hardcoded here; Task 6 replaces this with
+	// an admin-supplied value once registration becomes invite-only. Until
+	// then this at least fails loudly rather than silently storing a digest
+	// of a string nobody knows.
+	if err := user.SetPassword(hasher, "124"); err != nil {
+		ctx.Status(400)
+		return ctx.JSON(fiber.Map{"error": err.Error()})
+	}
 
-	database.DB.Create(&user)
+	if err := database.DB.Create(&user).Error; err != nil {
+		ctx.Status(400)
+		return ctx.JSON(fiber.Map{"error": "could not create the user"})
+	}
 	return ctx.JSON(user)
 }

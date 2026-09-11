@@ -3,7 +3,7 @@ package models
 import (
 	"errors"
 	"github.com/badoux/checkmail"
-	"golang.org/x/crypto/bcrypt"
+	"github.com/loloDawit/go-admin/internal/auth"
 	"gorm.io/gorm"
 )
 
@@ -17,13 +17,26 @@ type User struct {
 	Role      Role   `json:"role" gorm:"foreignKey:RoleId"`
 }
 
-func (user *User) SetPassword(password string) {
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("test"), 14)
-	user.Password = string(hashedPassword)
+// SetPassword hashes plain at the hasher's configured cost and stores it.
+// The Hasher is an explicit parameter so the cost is always a visible
+// dependency rather than a package-level constant.
+//
+// The previous implementation discarded bcrypt's error AND ignored its
+// argument, hashing the literal string "test" for every user — so every
+// account shared one password (ASSESSMENT 4a).
+func (user *User) SetPassword(h auth.Hasher, plain string) error {
+	hashed, err := h.Hash(plain)
+	if err != nil {
+		return err
+	}
+	user.Password = hashed
+	return nil
 }
 
-func (user *User) CompareHashAndPassword(password string) error {
-	return bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
+func (user *User) CompareHashAndPassword(plain string) error {
+	// Verification reads the cost from the stored hash, so any Hasher works —
+	// including for hashes written when the configured cost was different.
+	return auth.Hasher{}.Check(user.Password, plain)
 }
 
 func (user *User) Count(db *gorm.DB) int64 {
@@ -37,7 +50,7 @@ func (user *User) Count(db *gorm.DB) int64 {
 func (user *User) Take(db *gorm.DB, limit int, offset int) interface{} {
 	var users []User
 
-	db.Preload("role").Offset(offset).Limit(limit).Find(&users)
+	db.Preload("Role").Offset(offset).Limit(limit).Find(&users)
 	return users
 }
 
