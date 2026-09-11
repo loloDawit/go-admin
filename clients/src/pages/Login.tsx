@@ -61,6 +61,10 @@ const Login: FunctionComponent<LoginProps> = () => {
         <button className="w-100 btn btn-lg btn-primary" type="submit">
           Submit
         </button>
+
+        <p className="mt-3 text-muted">
+          Need an account? Contact your administrator.
+        </p>
       </form>
     </main>
   );

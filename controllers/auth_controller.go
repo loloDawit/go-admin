@@ -21,39 +21,6 @@ const (
 	sessionTTL = 24 * time.Hour
 )
 
-// Deprecated: public and grants the admin role. Removed in Task 6 once the
-// seed command exists. See docs/decisions/0001-remove-public-registration.md.
-func Register(ctx *fiber.Ctx) error {
-	var req httpx.RegisterRequest
-	if err := ctx.BodyParser(&req); err != nil {
-		return httpx.Fail(ctx, errs.InvalidBody.Wrap(err))
-	}
-
-	if req.Password != req.PasswordConfirm {
-		return httpx.Fail(ctx, errs.PasswordMismatch)
-	}
-
-	user := models.User{
-		FirstName: req.FirstName,
-		LastName:  req.LastName,
-		Email:     req.Email,
-		RoleId:    1,
-	}
-
-	if err := user.Validate(); err != nil {
-		return httpx.Fail(ctx, errs.ValidationFailed.WithMessage("%s", err))
-	}
-	if err := user.SetPassword(hasher, req.Password); err != nil {
-		return httpx.Fail(ctx, err)
-	}
-
-	if err := database.DB.Create(&user).Error; err != nil {
-		return httpx.Fail(ctx, errs.EmailTaken.Wrap(err))
-	}
-
-	return ctx.Status(fiber.StatusCreated).JSON(user)
-}
-
 func Login(ctx *fiber.Ctx) error {
 	var req httpx.LoginRequest
 	if err := ctx.BodyParser(&req); err != nil {

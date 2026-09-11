@@ -6,6 +6,8 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/loloDawit/go-admin/database"
+	"github.com/loloDawit/go-admin/internal/errs"
+	"github.com/loloDawit/go-admin/internal/httpx"
 	"github.com/loloDawit/go-admin/models"
 )
 
@@ -72,24 +74,34 @@ func CreateUser(ctx *fiber.Ctx) error {
 	if err := middlewares.IsAuthorized(ctx, "users"); err != nil {
 		return err
 	}
-	var user models.User
 
-	if err := ctx.BodyParser(&user); err != nil {
-		return err
+	var req httpx.CreateUserRequest
+	if err := ctx.BodyParser(&req); err != nil {
+		return httpx.Fail(ctx, errs.InvalidBody.Wrap(err))
 	}
 
-	// The initial password is still hardcoded here; Task 6 replaces this with
-	// an admin-supplied value once registration becomes invite-only. Until
-	// then this at least fails loudly rather than silently storing a digest
-	// of a string nobody knows.
-	if err := user.SetPassword(hasher, "124"); err != nil {
-		ctx.Status(400)
-		return ctx.JSON(fiber.Map{"error": err.Error()})
+	user := models.User{
+		FirstName: req.FirstName,
+		LastName:  req.LastName,
+		Email:     req.Email,
+		RoleId:    req.RoleId,
+	}
+
+	if err := user.Validate(); err != nil {
+		return httpx.Fail(ctx, err)
+	}
+	// Without this check an unknown roleId fails Create on the FK constraint,
+	// which the generic branch below would misreport as EmailTaken.
+	if err := database.DB.First(&models.Role{}, req.RoleId).Error; err != nil {
+		return notFoundOrDBError(ctx, err, "role")
+	}
+	if err := user.SetPassword(hasher, req.Password); err != nil {
+		return httpx.Fail(ctx, err)
 	}
 
 	if err := database.DB.Create(&user).Error; err != nil {
-		ctx.Status(400)
-		return ctx.JSON(fiber.Map{"error": "could not create the user"})
+		return httpx.Fail(ctx, errs.EmailTaken.Wrap(err))
 	}
-	return ctx.JSON(user)
+
+	return ctx.Status(fiber.StatusCreated).JSON(user)
 }

@@ -57,5 +57,8 @@ func (user *User) Validate() error {
 	if err := checkmail.ValidateFormat(user.Email); err != nil {
 		return errs.EmailInvalid.Wrap(err)
 	}
+	if user.RoleId == 0 {
+		return errs.RoleRequired
+	}
 	return nil
 }
