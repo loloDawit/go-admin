@@ -42,6 +42,17 @@ type PermissionRequest struct {
 	Name string `json:"name"`
 }
 
+type OrderRequest struct {
+	Email      string             `json:"email"`
+	OrderItems []OrderItemRequest `json:"orderItems"`
+}
+
+type OrderItemRequest struct {
+	ProductTitle string  `json:"productTitle"`
+	Price        float32 `json:"price"`
+	Quantity     uint    `json:"quantity"`
+}
+
 type ProductRequest struct {
 	Title       string  `json:"title"`
 	Description string  `json:"description"`

@@ -1,108 +1,129 @@
 package controllers
 
 import (
-	"strconv"
-
 	"github.com/gofiber/fiber/v2"
 	"github.com/loloDawit/go-admin/database"
+	"github.com/loloDawit/go-admin/internal/errs"
+	"github.com/loloDawit/go-admin/internal/httpx"
 	"github.com/loloDawit/go-admin/models"
 )
 
-// GetAllRoles @returns all roles in json format
 func GetAllRoles(ctx *fiber.Ctx) error {
 	var roles []models.Role
 
-	database.DB.Find(&roles)
+	database.DB.Preload("Permissions").Find(&roles)
 
 	return ctx.JSON(roles)
 }
 
-// GetRole @returns a single role in json format
 func GetRole(ctx *fiber.Ctx) error {
-	id, _ := strconv.Atoi(ctx.Params("id"))
-
-	role := models.Role{
-		Id: uint(id),
+	id, err := pathId(ctx)
+	if err != nil {
+		return httpx.Fail(ctx, err)
 	}
 
-	database.DB.Preload("Permissions").Find(&role)
-
+	var role models.Role
+	if err := database.DB.Preload("Permissions").First(&role, id).Error; err != nil {
+		return notFoundOrDBError(ctx, err, "role")
+	}
 	return ctx.JSON(role)
 }
 
+// loadPermissions loads every requested permission and fails if any id does
+// not exist, so an unknown id cannot be upserted as a blank permission row
+// through the association save below.
+func loadPermissions(ids []uint) ([]models.Permission, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var permissions []models.Permission
+	if err := database.DB.Find(&permissions, ids).Error; err != nil {
+		return nil, errs.Database.Wrap(err)
+	}
+	if len(permissions) != len(ids) {
+		return nil, errs.NotFound.WithMessage("one or more permissions not found")
+	}
+	return permissions, nil
+}
+
 func UpdateRole(ctx *fiber.Ctx) error {
-	id, _ := strconv.Atoi(ctx.Params("id"))
-	var roleDTO fiber.Map
-
-	if err := ctx.BodyParser(&roleDTO); err != nil {
-		return err
+	id, err := pathId(ctx)
+	if err != nil {
+		return httpx.Fail(ctx, err)
 	}
 
-	list := roleDTO["permissions"].([]interface{})
-
-	permissions := make([]models.Permission, len(list))
-
-	for i, permissionId := range list {
-		id, _ := strconv.Atoi(permissionId.(string))
-
-		permissions[i] = models.Permission{
-			Id: uint(id),
-		}
+	var req httpx.RoleRequest
+	if err := ctx.BodyParser(&req); err != nil {
+		return httpx.Fail(ctx, errs.InvalidBody)
+	}
+	if req.Name == "" {
+		return httpx.Fail(ctx, errs.MissingField.WithMessage("name is required"))
 	}
 
-	// remove old permission and attach a new one
-	var result interface{}
-
-	database.DB.Table("role_permissions").Where("role_id", id).Delete(result)
-
-	role := models.Role{
-		Id:          uint(id),
-		Name:        roleDTO["name"].(string),
-		Permissions: permissions,
+	var role models.Role
+	if err := database.DB.First(&role, id).Error; err != nil {
+		return notFoundOrDBError(ctx, err, "role")
 	}
 
-	database.DB.Model(&role).Updates(role)
+	permissions, err := loadPermissions(req.Permissions)
+	if err != nil {
+		return httpx.Fail(ctx, err)
+	}
 
+	if err := database.DB.Model(&role).Updates(map[string]any{
+		"name": req.Name,
+	}).Error; err != nil {
+		return httpx.Fail(ctx, errs.Database.Wrap(err))
+	}
+
+	if err := database.DB.Model(&role).Association("Permissions").Replace(permissions); err != nil {
+		return httpx.Fail(ctx, errs.Database.Wrap(err))
+	}
+
+	if err := database.DB.Preload("Permissions").First(&role, id).Error; err != nil {
+		return notFoundOrDBError(ctx, err, "role")
+	}
 	return ctx.JSON(role)
 }
 
 func DeleteRole(ctx *fiber.Ctx) error {
-	id, _ := strconv.Atoi(ctx.Params("id"))
-
-	role := models.Role{
-		Id: uint(id),
+	id, err := pathId(ctx)
+	if err != nil {
+		return httpx.Fail(ctx, err)
 	}
 
-	database.DB.Delete(&role)
+	result := database.DB.Delete(&models.Role{}, id)
+	if result.Error != nil {
+		return httpx.Fail(ctx, errs.Database.Wrap(result.Error))
+	}
+	if result.RowsAffected == 0 {
+		return httpx.Fail(ctx, errs.NotFound)
+	}
 
-	return ctx.JSON(fiber.Map{
-		"msg": "success",
-	})
+	return ctx.SendStatus(fiber.StatusNoContent)
 }
 
 func CreateRole(ctx *fiber.Ctx) error {
-	var roleDTO fiber.Map
-
-	if err := ctx.BodyParser(&roleDTO); err != nil {
-		return err
+	var req httpx.RoleRequest
+	if err := ctx.BodyParser(&req); err != nil {
+		return httpx.Fail(ctx, errs.InvalidBody)
+	}
+	if req.Name == "" {
+		return httpx.Fail(ctx, errs.MissingField.WithMessage("name is required"))
 	}
 
-	list := roleDTO["permissions"].([]interface{})
-
-	permissions := make([]models.Permission, len(list))
-
-	for i, permissionId := range list {
-		id, _ := strconv.Atoi(permissionId.(string))
-		permissions[i] = models.Permission{
-			Id: uint(id),
-		}
+	permissions, err := loadPermissions(req.Permissions)
+	if err != nil {
+		return httpx.Fail(ctx, err)
 	}
 
 	role := models.Role{
-		Name:        roleDTO["name"].(string),
+		Name:        req.Name,
 		Permissions: permissions,
 	}
 
-	database.DB.Create(&role)
-	return ctx.JSON(role)
+	if err := database.DB.Create(&role).Error; err != nil {
+		return httpx.Fail(ctx, errs.Database.Wrap(err))
+	}
+	return ctx.Status(fiber.StatusCreated).JSON(role)
 }

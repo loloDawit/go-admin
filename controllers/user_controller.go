@@ -17,19 +17,23 @@ func GetAllUsers(ctx *fiber.Ctx) error {
 }
 
 func GetUser(ctx *fiber.Ctx) error {
-	id, _ := strconv.Atoi(ctx.Params("id"))
-
-	user := models.User{
-		Id: id,
+	id, err := pathId(ctx)
+	if err != nil {
+		return httpx.Fail(ctx, err)
 	}
 
-	database.DB.Preload("Role").Find(&user)
-
+	var user models.User
+	if err := database.DB.Preload("Role").First(&user, id).Error; err != nil {
+		return notFoundOrDBError(ctx, err, "user")
+	}
 	return ctx.JSON(user)
 }
 
 func UpdateUser(ctx *fiber.Ctx) error {
-	id, _ := strconv.Atoi(ctx.Params("id"))
+	id, err := pathId(ctx)
+	if err != nil {
+		return httpx.Fail(ctx, err)
+	}
 
 	var req httpx.UpdateUserRequest
 	if err := ctx.BodyParser(&req); err != nil {
@@ -65,17 +69,20 @@ func UpdateUser(ctx *fiber.Ctx) error {
 }
 
 func DeleteUser(ctx *fiber.Ctx) error {
-	id, _ := strconv.Atoi(ctx.Params("id"))
-
-	user := models.User{
-		Id: id,
+	id, err := pathId(ctx)
+	if err != nil {
+		return httpx.Fail(ctx, err)
 	}
 
-	database.DB.Delete(&user)
+	result := database.DB.Delete(&models.User{}, id)
+	if result.Error != nil {
+		return httpx.Fail(ctx, errs.Database.Wrap(result.Error))
+	}
+	if result.RowsAffected == 0 {
+		return httpx.Fail(ctx, errs.NotFound)
+	}
 
-	return ctx.JSON(fiber.Map{
-		"msg": "success",
-	})
+	return ctx.SendStatus(fiber.StatusNoContent)
 }
 
 func CreateUser(ctx *fiber.Ctx) error {
