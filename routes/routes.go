@@ -3,10 +3,11 @@ package routes
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/loloDawit/go-admin/controllers"
+	"github.com/loloDawit/go-admin/internal/config"
 	"github.com/loloDawit/go-admin/middlewares"
 )
 
-func SetupRoutes(app *fiber.App) {
+func SetupRoutes(app *fiber.App, cfg *config.Config) {
 	app.Post("/api/v1/register", controllers.Register)
 	app.Post("/api/v1/login", controllers.Login)
 

@@ -1,0 +1,22 @@
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: go_admin
+      MYSQL_USER: go_admin
+      MYSQL_PASSWORD: go_admin
+    ports:
+      - "3306:3306"
+    volumes:
+      - dbdata:/var/lib/mysql
+    healthcheck:
+      # Without this, `make dev` races the database and the API dies on boot.
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-ugo_admin", "-pgo_admin"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  dbdata:
