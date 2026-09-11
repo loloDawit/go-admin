@@ -22,6 +22,16 @@
 - **Tests come first.** Every defect fix in Tasks 3–11 begins with a test that *fails against current code*. A fix whose test passes before the fix is applied is a bad test — rewrite it.
 - **`database.DB` stays a package-level global in M0.** Tests assign to it directly. This is a known wart, documented, and removed in M1 via dependency injection. Do not fix it here.
 - **Do not change frontend framework, styling, or add screens.** Frontend changes in M0 are limited to: deleting the registration page, correcting the broken type contract, removing `//@ts-ignore`, and adding error handling to login.
+- **Never construct an error inline.** Every failure returns a value from
+  `internal/errs` via `return httpx.Fail(ctx, errs.Something)`. Adding a new
+  failure mode means adding it to `internal/errs/registry.go` first —
+  `registry_test.go` enforces unique codes, well-formed shapes, and that no
+  5xx message leaks internals. Never `errors.New` in a handler, and never put
+  a driver error in a client-facing message; wrap it as the cause instead
+  (`errs.Database.Wrap(err)`), which logs it without serializing it.
+- **Never hardcode a work factor, limit, or timeout.** Anything an operator
+  might tune belongs in `internal/config` with validation. `SetPassword` takes
+  an `auth.Hasher`; tests use `auth.NewTestHasher()`.
 - **Commit after every task.** Conventional commit prefixes (`feat:`, `fix:`, `test:`, `chore:`, `docs:`).
 
 ---
@@ -36,10 +46,11 @@
 | `internal/config/config_test.go` | Unit tests for validation rules. No database. |
 | `internal/testutil/db.go` | Spins a MySQL testcontainer, runs `AutoMigrate`, truncates between tests. |
 | `internal/testutil/app.go` | Builds a Fiber app wired to the test DB; helpers for authenticated requests. |
-| `internal/auth/password.go` | `HashPassword` / `CheckPassword`. Extracted from the `User` model so it is testable in isolation. |
+| ~~`internal/auth/password.go`~~ | **Built in Task 3.** `auth.Hasher` — a value carrying its bcrypt cost, so the work factor is an explicit dependency. |
 | `internal/auth/password_test.go` | Proves a hashed password verifies and a wrong one does not. |
 | `internal/httpx/dto.go` | Typed request DTOs replacing `map[string]string`. |
-| `internal/httpx/respond.go` | `Error(ctx, status, code, msg)` — one JSON error shape for the whole API. |
+| ~~`internal/httpx/respond.go`~~ | **Built in Task 3.** `httpx.Fail(ctx, err)` maps any error to its response. |
+| ~~`internal/errs/`~~ | **Built in Task 3.** The single registry of every application error (code, client-safe message, HTTP status). |
 | `cmd/seed/main.go` | Idempotent seeding of permissions, roles, and the owner account. |
 | `docker-compose.yml` | MySQL 8 for local development. |
 | `.env.example` | Committed template. Placeholders only. |
@@ -851,10 +862,15 @@ Add `"github.com/loloDawit/go-admin/internal/auth"` to the imports.
 
 - [ ] **Step 6: Fix every caller to handle the new error**
 
-`controllers/auth_controller.go` `UpdatePassword` and `controllers/user_controller.go` `CreateUser` both call `SetPassword` and now must check its error. Compile to find them:
+`controllers/auth_controller.go` (`Register`, `UpdatePassword`) and
+`controllers/user_controller.go` (`CreateUser`) all call `SetPassword`.
 
-Run: `go build ./...`
-Expected: errors at each call site. Handle each with a 400 response; do not use `_ =`.
+**The compiler will NOT find these.** A discarded return value in statement
+position is legal Go, so `go build` stays green while three call sites
+silently ignore the error. Find them by grep instead:
+
+Run: `grep -rn 'SetPassword' --include='*.go' . | grep -v _test.go`
+Expected: three call sites. Handle each error; never `_ =`.
 
 - [ ] **Step 7: Also fix `Preload("role")` while in this file (§4m)**
 
@@ -901,7 +917,7 @@ Closes §4x (`map[string]string` request parsing, and the `firstname`/`firstName
 
 **Interfaces:**
 - Consumes: `testutil.NewDB` (Task 2), `auth` (Task 3).
-- Produces: `httpx.LoginRequest`, `httpx.UpdateUserInfoRequest`, `httpx.UpdatePasswordRequest`, `httpx.CreateUserRequest`, `httpx.RoleRequest`; `httpx.Error(ctx, status, code, message) error`.
+- Produces: `httpx.LoginRequest`, `httpx.UpdateUserInfoRequest`, `httpx.UpdatePasswordRequest`, `httpx.CreateUserRequest`, `httpx.RoleRequest`. (`httpx.Fail` and the `errs` registry already exist — built in Task 3.)
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1259,7 +1275,7 @@ func Login(cfg *config.Config) fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
 	var req httpx.LoginRequest
 	if err := ctx.BodyParser(&req); err != nil {
-		return httpx.Error(ctx, fiber.StatusBadRequest, "invalid_body", "could not parse request body")
+		return httpx.Fail(ctx, errs.InvalidBody)
 	}
 
 	var user models.User
@@ -1267,18 +1283,17 @@ func Login(cfg *config.Config) fiber.Handler {
 
 	// Unknown email and wrong password return an identical response, so the
 	// endpoint cannot be used to enumerate accounts (ASSESSMENT 4i).
-	const genericMsg = "email or password is incorrect"
-
+	// errs.InvalidCredentials is deliberately the SAME error for both cases.
 	if result.Error != nil || user.Id == 0 {
-		return httpx.Error(ctx, fiber.StatusUnauthorized, "invalid_credentials", genericMsg)
+		return httpx.Fail(ctx, errs.InvalidCredentials)
 	}
 	if err := user.CompareHashAndPassword(req.Password); err != nil {
-		return httpx.Error(ctx, fiber.StatusUnauthorized, "invalid_credentials", genericMsg)
+		return httpx.Fail(ctx, errs.InvalidCredentials)
 	}
 
 	token, err := utils.GenerateJWT(strconv.Itoa(user.Id))
 	if err != nil {
-		return httpx.Error(ctx, fiber.StatusInternalServerError, "token_error", "could not issue a session")
+		return httpx.Fail(ctx, errs.TokenIssueFailed)
 	}
 
 	ctx.Cookie(&fiber.Cookie{
@@ -1300,12 +1315,12 @@ func Login(cfg *config.Config) fiber.Handler {
 func UpdateUserInfo(ctx *fiber.Ctx) error {
 	var req httpx.UpdateUserInfoRequest
 	if err := ctx.BodyParser(&req); err != nil {
-		return httpx.Error(ctx, fiber.StatusBadRequest, "invalid_body", "could not parse request body")
+		return httpx.Fail(ctx, errs.InvalidBody)
 	}
 
 	userId, err := currentUserId(ctx)
 	if err != nil {
-		return httpx.Error(ctx, fiber.StatusUnauthorized, "unauthorized", "not signed in")
+		return httpx.Fail(ctx, errs.Unauthenticated)
 	}
 
 	// Updates with a map, not a struct: GORM's struct form skips zero values,
@@ -1316,7 +1331,7 @@ func UpdateUserInfo(ctx *fiber.Ctx) error {
 		"email":      req.Email,
 	})
 	if result.Error != nil {
-		return httpx.Error(ctx, fiber.StatusInternalServerError, "db_error", "could not update profile")
+		return httpx.Fail(ctx, errs.Database.Wrap(err))
 	}
 
 	var user models.User
@@ -1327,25 +1342,25 @@ func UpdateUserInfo(ctx *fiber.Ctx) error {
 func UpdatePassword(ctx *fiber.Ctx) error {
 	var req httpx.UpdatePasswordRequest
 	if err := ctx.BodyParser(&req); err != nil {
-		return httpx.Error(ctx, fiber.StatusBadRequest, "invalid_body", "could not parse request body")
+		return httpx.Fail(ctx, errs.InvalidBody)
 	}
 	if req.Password != req.PasswordConfirm {
-		return httpx.Error(ctx, fiber.StatusBadRequest, "password_mismatch", "passwords do not match")
+		return httpx.Fail(ctx, errs.PasswordMismatch)
 	}
 
 	userId, err := currentUserId(ctx)
 	if err != nil {
-		return httpx.Error(ctx, fiber.StatusUnauthorized, "unauthorized", "not signed in")
+		return httpx.Fail(ctx, errs.Unauthenticated)
 	}
 
 	var user models.User
 	if err := user.SetPassword(req.Password); err != nil {
-		return httpx.Error(ctx, fiber.StatusBadRequest, "weak_password", err.Error())
+		return httpx.Fail(ctx, errs.PasswordEmpty)
 	}
 
 	if err := database.DB.Model(&models.User{Id: userId}).
 		Update("password", user.Password).Error; err != nil {
-		return httpx.Error(ctx, fiber.StatusInternalServerError, "db_error", "could not update password")
+		return httpx.Fail(ctx, errs.Database.Wrap(err))
 	}
 
 	return ctx.JSON(fiber.Map{"message": "ok"})
@@ -1843,7 +1858,7 @@ In `controllers/user_controller.go`, replace `CreateUser`. Note `user.SetPasswor
 func CreateUser(ctx *fiber.Ctx) error {
 	var req httpx.CreateUserRequest
 	if err := ctx.BodyParser(&req); err != nil {
-		return httpx.Error(ctx, fiber.StatusBadRequest, "invalid_body", "could not parse request body")
+		return httpx.Fail(ctx, errs.InvalidBody)
 	}
 
 	user := models.User{
@@ -1854,14 +1869,14 @@ func CreateUser(ctx *fiber.Ctx) error {
 	}
 
 	if err := user.Validate(); err != nil {
-		return httpx.Error(ctx, fiber.StatusBadRequest, "validation_error", err.Error())
+		return httpx.Fail(ctx, errs.ValidationFailed.WithMessage("%s", err))
 	}
-	if err := user.SetPassword(req.Password); err != nil {
-		return httpx.Error(ctx, fiber.StatusBadRequest, "weak_password", err.Error())
+	if err := user.SetPassword(cfg.Hasher(), req.Password); err != nil {
+		return httpx.Fail(ctx, err) // already an errs value
 	}
 
 	if err := database.DB.Create(&user).Error; err != nil {
-		return httpx.Error(ctx, fiber.StatusConflict, "create_failed", "could not create the user; the email may already be taken")
+		return httpx.Fail(ctx, errs.EmailTaken)
 	}
 
 	return ctx.Status(fiber.StatusCreated).JSON(user)
@@ -2068,22 +2083,22 @@ func RequirePermission(resource string) fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
 		issuer, err := utils.ParseJWT(ctx.Cookies("jwt"))
 		if err != nil {
-			return httpx.Error(ctx, fiber.StatusUnauthorized, "unauthorized", "not signed in")
+			return httpx.Fail(ctx, errs.Unauthenticated)
 		}
 
 		userId, err := strconv.Atoi(issuer)
 		if err != nil {
-			return httpx.Error(ctx, fiber.StatusUnauthorized, "unauthorized", "malformed session")
+			return httpx.Fail(ctx, errs.Unauthenticated)
 		}
 
 		var user models.User
 		if err := database.DB.First(&user, userId).Error; err != nil {
-			return httpx.Error(ctx, fiber.StatusUnauthorized, "unauthorized", "not signed in")
+			return httpx.Fail(ctx, errs.Unauthenticated)
 		}
 
 		var role models.Role
 		if err := database.DB.Preload("Permissions").First(&role, user.RoleId).Error; err != nil {
-			return httpx.Error(ctx, fiber.StatusForbidden, "forbidden", "no role assigned")
+			return httpx.Fail(ctx, errs.Forbidden)
 		}
 
 		required := "edit_" + resource
@@ -2099,8 +2114,7 @@ func RequirePermission(resource string) fiber.Handler {
 			}
 		}
 
-		return httpx.Error(ctx, fiber.StatusForbidden, "forbidden",
-			"you do not have permission to perform this action")
+		return httpx.Fail(ctx, errs.Forbidden)
 	}
 }
 
@@ -2365,7 +2379,7 @@ import (
 func pathId(ctx *fiber.Ctx) (int, error) {
 	id, err := strconv.Atoi(ctx.Params("id"))
 	if err != nil || id <= 0 {
-		return 0, errors.New("id must be a positive integer")
+		return 0, errs.InvalidID
 	}
 	return id, nil
 }
@@ -2375,9 +2389,10 @@ func pathId(ctx *fiber.Ctx) (int, error) {
 // original handlers returned 200 with empty objects (ASSESSMENT 4o).
 func notFoundOrDBError(ctx *fiber.Ctx, err error, resource string) error {
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return httpx.Error(ctx, fiber.StatusNotFound, "not_found", resource+" not found")
+		return httpx.Fail(ctx, errs.NotFound.WithMessage("%s not found", resource))
 	}
-	return httpx.Error(ctx, fiber.StatusInternalServerError, "db_error", "a database error occurred")
+	// Wrap, so the driver's text reaches the log but never the client.
+	return httpx.Fail(ctx, errs.Database.Wrap(err))
 }
 ```
 
@@ -2406,7 +2421,7 @@ func GetAllProducts(ctx *fiber.Ctx) error {
 func GetProduct(ctx *fiber.Ctx) error {
 	id, err := pathId(ctx)
 	if err != nil {
-		return httpx.Error(ctx, fiber.StatusBadRequest, "invalid_id", err.Error())
+		return httpx.Fail(ctx, err)
 	}
 
 	var product models.Product
@@ -2420,13 +2435,13 @@ func GetProduct(ctx *fiber.Ctx) error {
 func CreateProduct(ctx *fiber.Ctx) error {
 	var req httpx.ProductRequest
 	if err := ctx.BodyParser(&req); err != nil {
-		return httpx.Error(ctx, fiber.StatusBadRequest, "invalid_body", "could not parse request body")
+		return httpx.Fail(ctx, errs.InvalidBody)
 	}
 	if req.Title == "" {
-		return httpx.Error(ctx, fiber.StatusBadRequest, "validation_error", "title is required")
+		return httpx.Fail(ctx, errs.MissingField.WithMessage("title is required"))
 	}
 	if req.Price < 0 {
-		return httpx.Error(ctx, fiber.StatusBadRequest, "validation_error", "price must not be negative")
+		return httpx.Fail(ctx, errs.ValidationFailed.WithMessage("price must not be negative"))
 	}
 
 	// Built from the DTO, never from a struct the client can set Id on.
@@ -2438,7 +2453,7 @@ func CreateProduct(ctx *fiber.Ctx) error {
 	}
 
 	if err := database.DB.Create(&product).Error; err != nil {
-		return httpx.Error(ctx, fiber.StatusInternalServerError, "db_error", "could not create the product")
+		return httpx.Fail(ctx, errs.Database.Wrap(err))
 	}
 	return ctx.Status(fiber.StatusCreated).JSON(product)
 }
@@ -2446,12 +2461,12 @@ func CreateProduct(ctx *fiber.Ctx) error {
 func UpdateProduct(ctx *fiber.Ctx) error {
 	id, err := pathId(ctx)
 	if err != nil {
-		return httpx.Error(ctx, fiber.StatusBadRequest, "invalid_id", err.Error())
+		return httpx.Fail(ctx, err)
 	}
 
 	var req httpx.ProductRequest
 	if err := ctx.BodyParser(&req); err != nil {
-		return httpx.Error(ctx, fiber.StatusBadRequest, "invalid_body", "could not parse request body")
+		return httpx.Fail(ctx, errs.InvalidBody)
 	}
 
 	var product models.Product
@@ -2468,7 +2483,7 @@ func UpdateProduct(ctx *fiber.Ctx) error {
 		"image":       req.Image,
 		"price":       req.Price,
 	}).Error; err != nil {
-		return httpx.Error(ctx, fiber.StatusInternalServerError, "db_error", "could not update the product")
+		return httpx.Fail(ctx, errs.Database.Wrap(err))
 	}
 
 	return ctx.JSON(product)
@@ -2477,15 +2492,15 @@ func UpdateProduct(ctx *fiber.Ctx) error {
 func DeleteProduct(ctx *fiber.Ctx) error {
 	id, err := pathId(ctx)
 	if err != nil {
-		return httpx.Error(ctx, fiber.StatusBadRequest, "invalid_id", err.Error())
+		return httpx.Fail(ctx, err)
 	}
 
 	result := database.DB.Delete(&models.Product{}, id)
 	if result.Error != nil {
-		return httpx.Error(ctx, fiber.StatusInternalServerError, "db_error", "could not delete the product")
+		return httpx.Fail(ctx, errs.Database.Wrap(err))
 	}
 	if result.RowsAffected == 0 {
-		return httpx.Error(ctx, fiber.StatusNotFound, "not_found", "product not found")
+		return httpx.Fail(ctx, errs.NotFound)
 	}
 
 	return ctx.SendStatus(fiber.StatusNoContent)
@@ -2678,7 +2693,7 @@ func Chart(ctx *fiber.Ctx) error {
 		ORDER BY date
 	`).Scan(&sales).Error
 	if err != nil {
-		return httpx.Error(ctx, fiber.StatusInternalServerError, "db_error", "could not build the chart")
+		return httpx.Fail(ctx, errs.Database.Wrap(err))
 	}
 
 	return ctx.JSON(sales)
@@ -2695,13 +2710,13 @@ func Export(ctx *fiber.Ctx) error {
 	// does on a fresh clone, because it is gitignored.
 	file, err := os.CreateTemp("", "orders-*.csv")
 	if err != nil {
-		return httpx.Error(ctx, fiber.StatusInternalServerError, "export_failed", "could not create the export")
+		return httpx.Fail(ctx, errs.ExportFailed)
 	}
 	defer os.Remove(file.Name())
 	defer file.Close()
 
 	if err := writeOrdersCSV(file); err != nil {
-		return httpx.Error(ctx, fiber.StatusInternalServerError, "export_failed", "could not write the export")
+		return httpx.Fail(ctx, errs.ExportFailed)
 	}
 
 	ctx.Set("Content-Disposition", `attachment; filename="orders.csv"`)
@@ -2967,31 +2982,30 @@ func Upload(cfg *config.Config) fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
 		form, err := ctx.MultipartForm()
 		if err != nil {
-			return httpx.Error(ctx, fiber.StatusBadRequest, "invalid_form", "expected a multipart form")
+			return httpx.Fail(ctx, errs.UploadMalformed)
 		}
 
 		files := form.File["image"]
 		if len(files) != 1 {
-			return httpx.Error(ctx, fiber.StatusBadRequest, "invalid_form", "attach exactly one file under the field \"image\"")
+			return httpx.Fail(ctx, errs.UploadMalformed)
 		}
 		header := files[0]
 
 		if header.Size > cfg.MaxUploadBytes {
-			return httpx.Error(ctx, fiber.StatusRequestEntityTooLarge, "file_too_large",
-				fmt.Sprintf("file exceeds the %d byte limit", cfg.MaxUploadBytes))
+			return httpx.Fail(ctx, errs.UploadTooLarge.WithMessage(
+				"the file exceeds the %d byte limit", cfg.MaxUploadBytes))
 		}
 
 		ext, err := sniffImageType(header)
 		if err != nil {
-			return httpx.Error(ctx, fiber.StatusBadRequest, "unsupported_type",
-				"only JPEG, PNG, GIF, and WebP images are accepted")
+			return httpx.Fail(ctx, errs.UploadUnsupportedType)
 		}
 
 		// A random name, so nothing the client sends reaches the filesystem:
 		// no traversal, no overwrite, no executable extension.
 		name, err := randomName(ext)
 		if err != nil {
-			return httpx.Error(ctx, fiber.StatusInternalServerError, "upload_failed", "could not store the file")
+			return httpx.Fail(ctx, errs.UploadFailed)
 		}
 
 		dest := filepath.Join(cfg.UploadDir, name)
@@ -3001,11 +3015,11 @@ func Upload(cfg *config.Config) fiber.Handler {
 		absDir, _ := filepath.Abs(cfg.UploadDir)
 		absDest, _ := filepath.Abs(dest)
 		if !strings.HasPrefix(absDest, absDir+string(os.PathSeparator)) {
-			return httpx.Error(ctx, fiber.StatusBadRequest, "invalid_path", "resolved outside the upload directory")
+			return httpx.Fail(ctx, errs.UploadFailed)
 		}
 
 		if err := ctx.SaveFile(header, dest); err != nil {
-			return httpx.Error(ctx, fiber.StatusInternalServerError, "upload_failed", "could not store the file")
+			return httpx.Fail(ctx, errs.UploadFailed)
 		}
 
 		return ctx.JSON(fiber.Map{
