@@ -1,10 +1,10 @@
 package middlewares
 
 import (
-	"errors"
 	"fmt"
 	"github.com/gofiber/fiber/v2"
 	"github.com/loloDawit/go-admin/database"
+	"github.com/loloDawit/go-admin/internal/errs"
 	"github.com/loloDawit/go-admin/models"
 	"github.com/loloDawit/go-admin/utils"
 	"strconv"
@@ -48,7 +48,5 @@ func IsAuthorized(ctx *fiber.Ctx, page string) error {
 		}
 	}
 
-	ctx.Status(fiber.StatusUnauthorized)
-
-	return errors.New("unauthorized")
+	return errs.Forbidden
 }

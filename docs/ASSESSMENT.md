@@ -271,7 +271,13 @@ If `SECRET` is unset or empty, `GenerateJWT` returns an empty string **and a nil
 
 **(w) `AutoMigrate` instead of migrations. `database/db.go:22`** — `AutoMigrate` never drops or alters columns destructively, cannot be reviewed in a pull request, cannot be rolled back, and gives no record of schema history. It is unsafe as a production deployment mechanism.
 
-**(x) `map[string]string` as the request type.** `Register`, `Login`, `UpdateUserInfo`, and `UpdatePassword` all parse into `map[string]string`, so there is no schema, no type safety, and no validation of unexpected fields. This directly caused a live bug: `Register` reads `data["firstName"]` (camelCase, `auth_controller.go:28`) but `UpdateUserInfo` reads `data["firstname"]` (lowercase, `:139`) — and the frontend sends camelCase. **Profile updates silently blank the user's name.** A typed struct would have caught this at compile time.
+**(x) `map[string]string` as the request type.** `Register`, `Login`, `UpdateUserInfo`, and `UpdatePassword` all parse into `map[string]string`, so there is no schema, no type safety, and no validation of unexpected fields. This directly caused a live bug: `Register` reads `data["firstName"]` (camelCase, `auth_controller.go:28`) but `UpdateUserInfo` reads `data["firstname"]` (lowercase, `:147`) — and the frontend sends camelCase.
+
+**Verified against the running application (2026-09-11):** a `PUT /api/v1/user/info` carrying `{"firstName":"Grace","lastName":"Hopper"}` returns **200 OK and changes nothing**. The same request with lowercase keys works. So **a user can never change their name through the UI** — the save reports success and silently no-ops.
+
+Note that this is *two* defects masking each other, which is why it was never noticed: the casing mismatch yields empty strings, and GORM's `Updates(struct)` skips zero values (§4p), so instead of blanking the field it quietly does nothing. Fixing only the casing would have converted a silent no-op into silent data loss. Both must be fixed together — the typed DTO for the keys, and a map-based `Updates` for the zero-value skip.
+
+A typed struct would have made this a compile error rather than a runtime mystery.
 
 **(y) `models.Entity` is an abstraction with one implementation path.** `Count`/`Take` were pushed onto three models to serve one `Paginate` function. `Take` returns `interface{}`, discarding all type information. A generic function (Go 1.18+) or a simple repository does this better.
 

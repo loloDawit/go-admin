@@ -1,9 +1,9 @@
 package models
 
 import (
-	"errors"
 	"github.com/badoux/checkmail"
 	"github.com/loloDawit/go-admin/internal/auth"
+	"github.com/loloDawit/go-admin/internal/errs"
 	"gorm.io/gorm"
 )
 
@@ -54,18 +54,23 @@ func (user *User) Take(db *gorm.DB, limit int, offset int) interface{} {
 	return users
 }
 
-func (user *User) Validate(action string) error {
+// Validate checks the fields a User carries.
+//
+// It deliberately does NOT check Password: the plaintext never reaches this
+// struct (SetPassword stores only the hash), so a check here could only ever
+// inspect a bcrypt digest. Password rules belong with the hasher.
+//
+// The original took an `action string` parameter that it never read
+// (ASSESSMENT 4z).
+func (user *User) Validate() error {
 	if user.FirstName == "" || user.LastName == "" {
-		return errors.New("first and last name is required")
-	}
-	if user.Password == "" {
-		return errors.New("required password")
+		return errs.NameRequired
 	}
 	if user.Email == "" {
-		return errors.New("required email")
+		return errs.EmailRequired
 	}
 	if err := checkmail.ValidateFormat(user.Email); err != nil {
-		return errors.New("invalid email")
+		return errs.EmailInvalid.Wrap(err)
 	}
 	return nil
 }

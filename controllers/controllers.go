@@ -18,8 +18,14 @@ import (
 // silently using bcrypt's minimum.
 var hasher = auth.NewHasher(auth.DefaultCost)
 
+// cookieSecure marks the session cookie HTTPS-only. It is false by default so
+// that local development over plain HTTP still works; Configure turns it on
+// from APP_ENV.
+var cookieSecure = false
+
 // Configure wires package-level dependencies from configuration. SetupRoutes
 // calls it, so any process that serves routes is configured by construction.
 func Configure(cfg *config.Config) {
 	hasher = cfg.Hasher()
+	cookieSecure = cfg.IsProduction()
 }

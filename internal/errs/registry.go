@@ -23,6 +23,33 @@ var (
 		"a required field is missing")
 )
 
+// --- Field-level validation ---------------------------------------------
+//
+// These are named rather than folded into ValidationFailed so that a client
+// can react to a specific field problem, and so that no layer needs to write
+// the message inline. Domain code (models) returns these directly; handlers
+// pass them straight to httpx.Fail.
+
+var (
+	NameRequired = define(http.StatusBadRequest, "name_required",
+		"first and last name are required")
+
+	EmailRequired = define(http.StatusBadRequest, "email_required",
+		"email is required")
+
+	EmailInvalid = define(http.StatusBadRequest, "email_invalid",
+		"that email address is not valid")
+
+	RoleRequired = define(http.StatusBadRequest, "role_required",
+		"a role is required")
+
+	TitleRequired = define(http.StatusBadRequest, "title_required",
+		"title is required")
+
+	PriceInvalid = define(http.StatusBadRequest, "price_invalid",
+		"price must not be negative")
+)
+
 // --- Authentication ------------------------------------------------------
 
 var (
@@ -108,6 +135,8 @@ var (
 // across the whole set, and so the catalogue can be dumped for the frontend.
 var All = []*Error{
 	InvalidBody, InvalidID, ValidationFailed, MissingField,
+	NameRequired, EmailRequired, EmailInvalid, RoleRequired,
+	TitleRequired, PriceInvalid,
 	InvalidCredentials, Unauthenticated, SessionInvalid,
 	PasswordEmpty, PasswordMismatch, TokenIssueFailed,
 	Forbidden, NoRoleAssigned,
