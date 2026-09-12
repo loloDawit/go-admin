@@ -1,12 +1,15 @@
 package models
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 func TestLastPageRoundsUpOnPartialFinalPage(t *testing.T) {
 	cases := []struct {
 		total, perPage, want int
 	}{
-		{total: 12, perPage: 5, want: 3}, // the bug: integer division gives 2
+		{total: 12, perPage: 5, want: 3},
 		{total: 10, perPage: 5, want: 2},
 		{total: 1, perPage: 5, want: 1},
 		{total: 0, perPage: 5, want: 1}, // an empty list still has one page
@@ -30,6 +33,20 @@ func TestNormalizePerPageIsBounded(t *testing.T) {
 	for _, c := range cases {
 		if got := normalizePerPage(c.in); got != c.want {
 			t.Errorf("normalizePerPage(%d) = %d, want %d", c.in, got, c.want)
+		}
+	}
+}
+
+func TestNormalizePageIsBounded(t *testing.T) {
+	cases := []struct{ in, want int }{
+		{in: 0, want: 1},
+		{in: -5, want: 1},
+		{in: 5, want: 5},
+		{in: math.MaxInt64, want: maxPage}, // an oversized ?page= must not overflow the offset arithmetic
+	}
+	for _, c := range cases {
+		if got := normalizePage(c.in); got != c.want {
+			t.Errorf("normalizePage(%d) = %d, want %d", c.in, got, c.want)
 		}
 	}
 }

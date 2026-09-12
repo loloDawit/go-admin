@@ -37,9 +37,9 @@ func UpdateOrder(ctx *fiber.Ctx) error {
 		return httpx.Fail(ctx, err)
 	}
 
-	var req httpx.OrderRequest
+	var req httpx.UpdateOrderRequest
 	if err := ctx.BodyParser(&req); err != nil {
-		return httpx.Fail(ctx, errs.InvalidBody)
+		return httpx.Fail(ctx, errs.InvalidBody.Wrap(err))
 	}
 
 	var order models.Order
@@ -47,10 +47,15 @@ func UpdateOrder(ctx *fiber.Ctx) error {
 		return notFoundOrDBError(ctx, err, "order")
 	}
 
-	if err := database.DB.Model(&order).Updates(map[string]any{
-		"email": req.Email,
-	}).Error; err != nil {
-		return httpx.Fail(ctx, errs.Database.Wrap(err))
+	// req.Email == "" means the field was omitted, not that a client asked
+	// to clear it: the map form would otherwise wipe it on every request
+	// that only means to touch some other, as-yet-nonexistent field.
+	if req.Email != "" {
+		if err := database.DB.Model(&order).Updates(map[string]any{
+			"email": req.Email,
+		}).Error; err != nil {
+			return httpx.Fail(ctx, errs.Database.Wrap(err))
+		}
 	}
 
 	return ctx.JSON(order)
@@ -64,6 +69,9 @@ func DeleteOrder(ctx *fiber.Ctx) error {
 
 	result := database.DB.Delete(&models.Order{}, id)
 	if result.Error != nil {
+		if isForeignKeyError(result.Error) {
+			return httpx.Fail(ctx, errs.ResourceInUse.Wrap(result.Error))
+		}
 		return httpx.Fail(ctx, errs.Database.Wrap(result.Error))
 	}
 	if result.RowsAffected == 0 {
@@ -76,7 +84,7 @@ func DeleteOrder(ctx *fiber.Ctx) error {
 func CreateOrder(ctx *fiber.Ctx) error {
 	var req httpx.OrderRequest
 	if err := ctx.BodyParser(&req); err != nil {
-		return httpx.Fail(ctx, errs.InvalidBody)
+		return httpx.Fail(ctx, errs.InvalidBody.Wrap(err))
 	}
 
 	orderItems := make([]models.OrderItem, len(req.OrderItems))

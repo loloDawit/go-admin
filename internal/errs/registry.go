@@ -87,6 +87,9 @@ var (
 
 	EmailTaken = define(http.StatusConflict, "email_taken",
 		"that email address is already in use")
+
+	ResourceInUse = define(http.StatusConflict, "resource_in_use",
+		"this resource cannot be deleted because other records depend on it")
 )
 
 // --- Uploads -------------------------------------------------------------
@@ -128,7 +131,7 @@ var All = []*Error{
 	InvalidCredentials, Unauthenticated, SessionInvalid,
 	PasswordEmpty, PasswordMismatch, TokenIssueFailed,
 	Forbidden, NoRoleAssigned,
-	NotFound, AlreadyExists, EmailTaken,
+	NotFound, AlreadyExists, EmailTaken, ResourceInUse,
 	UploadMalformed, UploadTooLarge, UploadUnsupportedType, UploadFailed,
 	Database, ExportFailed, Internal,
 }

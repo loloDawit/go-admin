@@ -237,3 +237,32 @@ func TestCreateUserRejectsDuplicateEmail(t *testing.T) {
 		t.Fatalf("want 409, got %d", resp.StatusCode)
 	}
 }
+
+func TestUpdateUserRejectsDuplicateEmail(t *testing.T) {
+	db := testutil.NewDB(t)
+	app := testutil.NewApp(t)
+
+	testutil.SeedUser(t, db, "existing@example.com", "s3cret-password", "admin")
+	testutil.GrantPermission(t, db, "admin", "edit_users")
+	target := testutil.SeedUser(t, db, "target@example.com", "s3cret-password", "admin")
+	adminCookie := testutil.Login(t, app, "existing@example.com", "s3cret-password")
+
+	req := testutil.NewRequest(http.MethodPut, "/api/v1/user/"+strconv.Itoa(target.Id),
+		testutil.JSON(`{"email":"existing@example.com"}`), adminCookie)
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("want 409, got %d", resp.StatusCode)
+	}
+
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body["code"] != "email_taken" {
+		t.Errorf("code: want email_taken, got %v", body["code"])
+	}
+}

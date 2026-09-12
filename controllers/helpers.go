@@ -23,6 +23,22 @@ func isDuplicateKeyError(err error) bool {
 	return errors.As(err, &mysqlErr) && mysqlErr.Number == mysqlDuplicateEntry
 }
 
+// MySQL's two "row is referenced" error numbers: 1451 on the parent side
+// (deleting a row another table still references), 1452 on the child side.
+// Deletes in this API only trigger 1451.
+const (
+	mysqlRowIsReferenced        = 1451
+	mysqlNoReferencedRowFailure = 1452
+)
+
+func isForeignKeyError(err error) bool {
+	var mysqlErr *mysql.MySQLError
+	if !errors.As(err, &mysqlErr) {
+		return false
+	}
+	return mysqlErr.Number == mysqlRowIsReferenced || mysqlErr.Number == mysqlNoReferencedRowFailure
+}
+
 func pathId(ctx *fiber.Ctx) (int, error) {
 	id, err := strconv.Atoi(ctx.Params("id"))
 	if err != nil || id <= 0 {

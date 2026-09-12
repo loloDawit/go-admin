@@ -58,6 +58,9 @@ func UpdateUser(ctx *fiber.Ctx) error {
 	}
 
 	if err := database.DB.Model(&models.User{Id: id}).Updates(updates).Error; err != nil {
+		if isDuplicateKeyError(err) {
+			return httpx.Fail(ctx, errs.EmailTaken.Wrap(err))
+		}
 		return httpx.Fail(ctx, errs.Database.Wrap(err))
 	}
 

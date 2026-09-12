@@ -8,6 +8,7 @@ import (
 const (
 	defaultPerPage = 25
 	maxPerPage     = 100
+	maxPage        = 1_000_000 // bounds (page-1)*perPage against overflow from an oversized ?page=
 )
 
 func lastPage(total int64, perPage int) int {
@@ -33,10 +34,14 @@ func normalizePerPage(perPage int) int {
 }
 
 func normalizePage(page int) int {
-	if page < 1 {
+	switch {
+	case page < 1:
 		return 1
+	case page > maxPage:
+		return maxPage
+	default:
+		return page
 	}
-	return page
 }
 
 func Paginate(db *gorm.DB, entity Entity, page, perPage int) fiber.Map {

@@ -19,7 +19,7 @@ func GetAllPermissions(ctx *fiber.Ctx) error {
 func CreatePermission(ctx *fiber.Ctx) error {
 	var req httpx.PermissionRequest
 	if err := ctx.BodyParser(&req); err != nil {
-		return httpx.Fail(ctx, errs.InvalidBody)
+		return httpx.Fail(ctx, errs.InvalidBody.Wrap(err))
 	}
 	if req.Name == "" {
 		return httpx.Fail(ctx, errs.MissingField.WithMessage("name is required"))

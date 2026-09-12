@@ -10,8 +10,6 @@ import (
 	"github.com/loloDawit/go-admin/models"
 )
 
-// Handlers built a struct with the path id preset, then BodyParser'd into the
-// SAME struct — so an "id" in the body silently overwrote the path parameter.
 func TestUpdateProductIgnoresIdInBody(t *testing.T) {
 	db := testutil.NewDB(t)
 	app := testutil.NewApp(t)
@@ -25,9 +23,8 @@ func TestUpdateProductIgnoresIdInBody(t *testing.T) {
 	db.Create(&target)
 	db.Create(&victim)
 
-	// Update `target` by path, but claim `victim`'s id in the body.
-	body := `{"id":` + itoa(int(victim.Id)) + `,"title":"Hijacked","price":99}`
-	req := testutil.NewRequest(http.MethodPut, "/api/v1/product/"+itoa(int(target.Id)),
+	body := `{"id":` + strconv.Itoa(int(victim.Id)) + `,"title":"Hijacked","price":99}`
+	req := testutil.NewRequest(http.MethodPut, "/api/v1/product/"+strconv.Itoa(int(target.Id)),
 		strings.NewReader(body), cookie)
 
 	if _, err := app.Test(req, -1); err != nil {
@@ -80,5 +77,3 @@ func TestNonNumericIdReturns400(t *testing.T) {
 			resp.StatusCode)
 	}
 }
-
-func itoa(i int) string { return strconv.Itoa(i) }

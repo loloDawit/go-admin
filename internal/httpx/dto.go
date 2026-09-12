@@ -47,6 +47,13 @@ type OrderRequest struct {
 	OrderItems []OrderItemRequest `json:"orderItems"`
 }
 
+// UpdateOrderRequest carries only the fields UpdateOrder actually writes.
+// It must not advertise orderItems: the handler updates email alone, and a
+// wider DTO would let a client believe items were changed when they weren't.
+type UpdateOrderRequest struct {
+	Email string `json:"email"`
+}
+
 type OrderItemRequest struct {
 	ProductTitle string  `json:"productTitle"`
 	Price        float32 `json:"price"`

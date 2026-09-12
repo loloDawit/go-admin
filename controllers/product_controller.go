@@ -32,7 +32,7 @@ func GetProduct(ctx *fiber.Ctx) error {
 func CreateProduct(ctx *fiber.Ctx) error {
 	var req httpx.ProductRequest
 	if err := ctx.BodyParser(&req); err != nil {
-		return httpx.Fail(ctx, errs.InvalidBody)
+		return httpx.Fail(ctx, errs.InvalidBody.Wrap(err))
 	}
 	if req.Title == "" {
 		return httpx.Fail(ctx, errs.TitleRequired)
@@ -62,7 +62,7 @@ func UpdateProduct(ctx *fiber.Ctx) error {
 
 	var req httpx.ProductRequest
 	if err := ctx.BodyParser(&req); err != nil {
-		return httpx.Fail(ctx, errs.InvalidBody)
+		return httpx.Fail(ctx, errs.InvalidBody.Wrap(err))
 	}
 
 	var product models.Product
