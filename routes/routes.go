@@ -60,6 +60,12 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 	authed.Get("/permissions", roles, controllers.GetAllPermissions)
 	authed.Post("/permissions", roles, controllers.CreatePermission)
 
-	// Uploaded files.
-	app.Static("/api/v1/uploads", cfg.UploadDir)
+	// Uploaded files. nosniff blocks a browser from re-interpreting a stored
+	// polyglot (valid image header, HTML/script tail) as HTML regardless of
+	// the Content-Type this route serves it with.
+	app.Use(config.UploadsPath, func(c *fiber.Ctx) error {
+		c.Set("X-Content-Type-Options", "nosniff")
+		return c.Next()
+	})
+	app.Static(config.UploadsPath, cfg.UploadDir)
 }

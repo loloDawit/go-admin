@@ -120,6 +120,22 @@ func TestIsProduction(t *testing.T) {
 	}
 }
 
+// The upload handler's oversized-request test relies on this headroom: if
+// BodyLimit ever collapsed to MaxUploadBytes, Fiber's own limit would reject
+// the request before the handler's size check ran, and that test would pass
+// for the wrong reason.
+func TestBodyLimitExceedsMaxUploadBytes(t *testing.T) {
+	validEnv(t)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.BodyLimit() <= int(cfg.MaxUploadBytes) {
+		t.Fatalf("BodyLimit (%d) must exceed MaxUploadBytes (%d)", cfg.BodyLimit(), cfg.MaxUploadBytes)
+	}
+}
+
 func validEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("DB_DSN", "user:pass@tcp(127.0.0.1:3306)/go_admin?parseTime=true")

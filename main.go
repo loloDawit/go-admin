@@ -27,6 +27,12 @@ func main() {
 
 	utils.SecretKey = cfg.SessionSecret
 
+	// Created once at boot, not per request: a misconfigured or deleted
+	// UPLOAD_DIR should fail loudly at startup, not on the first upload.
+	if err := os.MkdirAll(cfg.UploadDir, 0o755); err != nil {
+		log.Fatalf("upload dir: %v", err)
+	}
+
 	if _, err := database.Connect(cfg.DBDSN); err != nil {
 		log.Fatalf("database: %v", err)
 	}

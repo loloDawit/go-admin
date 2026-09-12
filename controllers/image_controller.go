@@ -3,6 +3,7 @@ package controllers
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -72,21 +73,16 @@ func Upload(cfg *config.Config) fiber.Handler {
 			return httpx.Fail(ctx, errs.UploadFailed)
 		}
 
-		if err := os.MkdirAll(cfg.UploadDir, 0o755); err != nil {
-			return httpx.Fail(ctx, errs.UploadFailed.Wrap(err))
-		}
-
-		if err := ctx.SaveFile(header, dest); err != nil {
-			return httpx.Fail(ctx, errs.UploadFailed.Wrap(err))
+		if err := saveUpload(header, dest); err != nil {
+			return httpx.Fail(ctx, err)
 		}
 
 		return ctx.JSON(fiber.Map{
-			"url": strings.TrimRight(cfg.PublicBaseURL, "/") + "/api/v1/uploads/" + name,
+			"url": strings.TrimRight(cfg.PublicBaseURL, "/") + config.UploadsPath + "/" + name,
 		})
 	}
 }
 
-// sniffImageType returns the extension for header's content.
 func sniffImageType(header *multipart.FileHeader) (string, error) {
 	f, err := header.Open()
 	if err != nil {
@@ -94,9 +90,12 @@ func sniffImageType(header *multipart.FileHeader) (string, error) {
 	}
 	defer f.Close()
 
+	// ReadFull: a single Read may legally return fewer than 512 bytes
+	// without EOF, and a short read must not be mistaken for the file's
+	// real content.
 	buf := make([]byte, 512)
-	n, err := f.Read(buf)
-	if err != nil && err != io.EOF {
+	n, err := io.ReadFull(f, buf)
+	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
 		return "", errs.UploadFailed.Wrap(err)
 	}
 
@@ -106,6 +105,31 @@ func sniffImageType(header *multipart.FileHeader) (string, error) {
 		return "", errs.UploadUnsupportedType
 	}
 	return ext, nil
+}
+
+// saveUpload writes header's content to dest. O_EXCL, not ctx.SaveFile's
+// rename-or-truncate, so a stored-name collision fails instead of silently
+// overwriting the existing file.
+func saveUpload(header *multipart.FileHeader, dest string) error {
+	src, err := header.Open()
+	if err != nil {
+		return errs.UploadFailed.Wrap(err)
+	}
+	defer src.Close()
+
+	out, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return errs.UploadFailed
+		}
+		return errs.UploadFailed.Wrap(err)
+	}
+	defer out.Close()
+
+	if _, err := io.Copy(out, src); err != nil {
+		return errs.UploadFailed.Wrap(err)
+	}
+	return nil
 }
 
 func randomName(ext string) (string, error) {

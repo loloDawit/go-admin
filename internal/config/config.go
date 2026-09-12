@@ -15,6 +15,10 @@ import (
 
 const minSecretLen = 32 // SHA-256 output width, which HS256 keys should match
 
+// UploadsPath is the mount point for uploaded files. Shared by the static
+// route and the URL the upload handler returns, so the two can't drift apart.
+const UploadsPath = "/api/v1/uploads"
+
 type Config struct {
 	DBDSN          string
 	SessionSecret  string
