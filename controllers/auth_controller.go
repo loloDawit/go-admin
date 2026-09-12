@@ -82,11 +82,8 @@ func UpdateUserInfo(ctx *fiber.Ctx) error {
 		return httpx.Fail(ctx, errs.Unauthenticated)
 	}
 
-	if req.FirstName == "" || req.LastName == "" {
-		return httpx.Fail(ctx, errs.MissingField.WithMessage("first and last name are required"))
-	}
-	if req.Email == "" {
-		return httpx.Fail(ctx, errs.MissingField.WithMessage("email is required"))
+	if err := models.ValidateContact(req.FirstName, req.LastName, req.Email); err != nil {
+		return httpx.Fail(ctx, err)
 	}
 
 	// Must be a map: GORM's struct form skips zero values, so a struct update
@@ -97,6 +94,9 @@ func UpdateUserInfo(ctx *fiber.Ctx) error {
 		"email":      req.Email,
 	})
 	if result.Error != nil {
+		if isDuplicateKeyError(result.Error) {
+			return httpx.Fail(ctx, errs.EmailTaken.Wrap(result.Error))
+		}
 		return httpx.Fail(ctx, errs.Database.Wrap(result.Error))
 	}
 

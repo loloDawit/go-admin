@@ -50,43 +50,95 @@ func pathId(ctx *fiber.Ctx) (int, error) {
 // Callers must use First, not Find: Find returns a zero-valued struct and no
 // error for a missing row.
 func notFoundOrDBError(ctx *fiber.Ctx, err error, resource string) error {
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return httpx.Fail(ctx, errs.NotFound.WithMessage("%s not found", resource))
-	}
-	return httpx.Fail(ctx, errs.Database.Wrap(err))
+	return httpx.Fail(ctx, notFoundOrDBErrorPlain(err, resource))
 }
 
-// ensureCanAssignRole rejects a target role whose permission set is not a
-// subset of the caller's own; otherwise edit_users lets any holder mint an
-// owner.
-func ensureCanAssignRole(ctx *fiber.Ctx, target models.Role) error {
+// callerPermissions returns the calling user's granted permission names, by
+// name, keyed for O(1) lookup.
+func callerPermissions(ctx *fiber.Ctx) (map[string]bool, error) {
 	callerId, err := currentUserId(ctx)
 	if err != nil {
-		return errs.Unauthenticated
+		return nil, errs.Unauthenticated
 	}
 
 	var caller models.User
 	if err := database.DB.First(&caller, callerId).Error; err != nil {
-		return errs.SessionInvalid.Wrap(err)
+		return nil, errs.SessionInvalid.Wrap(err)
 	}
 
 	var callerRole models.Role
 	if err := database.DB.Preload("Permissions").First(&callerRole, caller.RoleId).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return errs.NoRoleAssigned
+			return nil, errs.NoRoleAssigned
 		}
-		return errs.Database.Wrap(err)
+		return nil, errs.Database.Wrap(err)
 	}
 
 	granted := make(map[string]bool, len(callerRole.Permissions))
 	for _, p := range callerRole.Permissions {
 		granted[p.Name] = true
 	}
+	return granted, nil
+}
 
-	for _, p := range target.Permissions {
+// permissionsSubsetOf reports whether every permission in target is granted.
+func permissionsSubsetOf(granted map[string]bool, target []models.Permission) bool {
+	for _, p := range target {
 		if !granted[p.Name] {
-			return errs.Forbidden
+			return false
 		}
 	}
+	return true
+}
+
+// ensureCanAssignRole rejects a target role whose permission set is not a
+// subset of the caller's own; otherwise edit_users lets any holder mint an
+// owner.
+func ensureCanAssignRole(ctx *fiber.Ctx, target models.Role) error {
+	granted, err := callerPermissions(ctx)
+	if err != nil {
+		return err
+	}
+	if !permissionsSubsetOf(granted, target.Permissions) {
+		return errs.Forbidden
+	}
 	return nil
+}
+
+// ensureCanModifyUser rejects modifying or deleting a target user whose role
+// holds permissions the caller lacks — otherwise the roleId subset check in
+// ensureCanAssignRole only guards which role gets assigned, never who it
+// gets taken away from, letting a caller demote or delete a more-privileged
+// user outright. A caller acting on their own row is always allowed.
+func ensureCanModifyUser(ctx *fiber.Ctx, targetUserId int) error {
+	callerId, err := currentUserId(ctx)
+	if err != nil {
+		return errs.Unauthenticated
+	}
+	if callerId == targetUserId {
+		return nil
+	}
+
+	var target models.User
+	if err := database.DB.Preload("Role.Permissions").First(&target, targetUserId).Error; err != nil {
+		return notFoundOrDBErrorPlain(err, "user")
+	}
+
+	granted, err := callerPermissions(ctx)
+	if err != nil {
+		return err
+	}
+	if !permissionsSubsetOf(granted, target.Role.Permissions) {
+		return errs.Forbidden
+	}
+	return nil
+}
+
+// notFoundOrDBErrorPlain is notFoundOrDBError's error-only counterpart, for
+// callers that return an error rather than writing the response themselves.
+func notFoundOrDBErrorPlain(err error, resource string) error {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return errs.NotFound.WithMessage("%s not found", resource)
+	}
+	return errs.Database.Wrap(err)
 }

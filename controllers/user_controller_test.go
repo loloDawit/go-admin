@@ -194,7 +194,7 @@ func TestUpdateUserRejectsNestedRoleAssociationPermissionInjection(t *testing.T)
 		t.Fatalf("seed edit_roles permission: %v", err)
 	}
 
-	body := `{"role":{"id":` + strconv.Itoa(int(adminRole.Id)) +
+	body := `{"firstName":"Test","lastName":"User","email":"admin8@example.com","role":{"id":` + strconv.Itoa(int(adminRole.Id)) +
 		`,"permissions":[{"id":` + strconv.Itoa(int(editRoles.Id)) + `}]}}`
 
 	req := testutil.NewRequest(http.MethodPut, "/api/v1/user/"+strconv.Itoa(admin.Id),
@@ -248,7 +248,7 @@ func TestUpdateUserRejectsDuplicateEmail(t *testing.T) {
 	adminCookie := testutil.Login(t, app, "existing@example.com", "s3cret-password")
 
 	req := testutil.NewRequest(http.MethodPut, "/api/v1/user/"+strconv.Itoa(target.Id),
-		testutil.JSON(`{"email":"existing@example.com"}`), adminCookie)
+		testutil.JSON(`{"firstName":"Target","lastName":"User","email":"existing@example.com"}`), adminCookie)
 
 	resp, err := app.Test(req, -1)
 	if err != nil {
@@ -264,5 +264,190 @@ func TestUpdateUserRejectsDuplicateEmail(t *testing.T) {
 	}
 	if body["code"] != "email_taken" {
 		t.Errorf("code: want email_taken, got %v", body["code"])
+	}
+}
+
+// A roleId-only body must not silently blank the other required fields —
+// UpdateUser always writes firstName/lastName/email, so an incomplete body
+// must be rejected outright rather than clearing the account's email.
+func TestUpdateUserRejectsRoleOnlyPayload(t *testing.T) {
+	db := testutil.NewDB(t)
+	app := testutil.NewApp(t)
+
+	testutil.SeedUser(t, db, "admin9@example.com", "s3cret-password", "admin")
+	testutil.GrantPermission(t, db, "admin", "edit_users")
+	adminCookie := testutil.Login(t, app, "admin9@example.com", "s3cret-password")
+
+	target := testutil.SeedUser(t, db, "target9@example.com", "s3cret-password", "staff")
+	staffRole := testutil.SeedRole(t, db, "staff")
+
+	req := testutil.NewRequest(http.MethodPut, "/api/v1/user/"+strconv.Itoa(target.Id),
+		testutil.JSON(`{"roleId":`+strconv.Itoa(int(staffRole.Id))+`}`), adminCookie)
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d", resp.StatusCode)
+	}
+
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body["code"] != "missing_field" {
+		t.Errorf("code: want missing_field, got %v", body["code"])
+	}
+
+	var reloaded models.User
+	if err := db.First(&reloaded, target.Id).Error; err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if reloaded.Email != "target9@example.com" {
+		t.Errorf("a rejected request must not have written: email is now %q", reloaded.Email)
+	}
+}
+
+// UpdateUser must apply the same format check CreateUser does.
+func TestUpdateUserRejectsInvalidEmailFormat(t *testing.T) {
+	db := testutil.NewDB(t)
+	app := testutil.NewApp(t)
+
+	testutil.SeedUser(t, db, "admin10@example.com", "s3cret-password", "admin")
+	testutil.GrantPermission(t, db, "admin", "edit_users")
+	adminCookie := testutil.Login(t, app, "admin10@example.com", "s3cret-password")
+
+	target := testutil.SeedUser(t, db, "target10@example.com", "s3cret-password", "staff")
+
+	req := testutil.NewRequest(http.MethodPut, "/api/v1/user/"+strconv.Itoa(target.Id),
+		testutil.JSON(`{"firstName":"Target","lastName":"User","email":"not-an-email"}`), adminCookie)
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d", resp.StatusCode)
+	}
+
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body["code"] != "email_invalid" {
+		t.Errorf("code: want email_invalid, got %v", body["code"])
+	}
+}
+
+// The subset check in ensureCanAssignRole only guards which role gets
+// assigned; without a check on the target user, an admin (who lacks
+// edit_roles) could demote the owner — the only holder of edit_roles — to a
+// lesser role, since staff's permissions are a subset of admin's own.
+func TestUpdateUserRejectsDemotingAMorePrivilegedUser(t *testing.T) {
+	db := testutil.NewDB(t)
+	app := testutil.NewApp(t)
+
+	testutil.SeedUser(t, db, "admin11@example.com", "s3cret-password", "admin")
+	testutil.GrantPermission(t, db, "admin", "edit_users")
+	adminCookie := testutil.Login(t, app, "admin11@example.com", "s3cret-password")
+
+	owner := testutil.SeedUser(t, db, "owner11@example.com", "s3cret-password", "owner")
+	testutil.GrantPermission(t, db, "owner", "edit_roles")
+
+	staffRole := testutil.SeedRole(t, db, "staff")
+
+	req := testutil.NewRequest(http.MethodPut, "/api/v1/user/"+strconv.Itoa(owner.Id),
+		testutil.JSON(`{"roleId":`+strconv.Itoa(int(staffRole.Id))+`}`), adminCookie)
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("want 403 when demoting a user whose role holds permissions the caller lacks, got %d", resp.StatusCode)
+	}
+
+	var reloaded models.User
+	if err := db.First(&reloaded, owner.Id).Error; err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if reloaded.RoleId != owner.RoleId {
+		t.Error("the owner's role must not have changed")
+	}
+}
+
+// DeleteUser had no target-user check at all: an admin (no edit_roles)
+// could delete the owner outright.
+func TestDeleteUserRejectsDeletingAMorePrivilegedUser(t *testing.T) {
+	db := testutil.NewDB(t)
+	app := testutil.NewApp(t)
+
+	testutil.SeedUser(t, db, "admin12@example.com", "s3cret-password", "admin")
+	testutil.GrantPermission(t, db, "admin", "edit_users")
+	adminCookie := testutil.Login(t, app, "admin12@example.com", "s3cret-password")
+
+	owner := testutil.SeedUser(t, db, "owner12@example.com", "s3cret-password", "owner")
+	testutil.GrantPermission(t, db, "owner", "edit_roles")
+
+	req := testutil.NewRequest(http.MethodDelete, "/api/v1/user/"+strconv.Itoa(owner.Id), nil, adminCookie)
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("want 403 when deleting a user whose role holds permissions the caller lacks, got %d", resp.StatusCode)
+	}
+
+	var reloaded models.User
+	if err := db.First(&reloaded, owner.Id).Error; err != nil {
+		t.Fatalf("the owner must not have been deleted: %v", err)
+	}
+}
+
+// The target-user check must not block a caller from acting on a user whose
+// role holds no more than the caller's own.
+func TestUpdateUserAllowsModifyingALesserPrivilegedUser(t *testing.T) {
+	db := testutil.NewDB(t)
+	app := testutil.NewApp(t)
+
+	testutil.SeedUser(t, db, "admin13@example.com", "s3cret-password", "admin")
+	testutil.GrantPermission(t, db, "admin", "edit_users")
+	adminCookie := testutil.Login(t, app, "admin13@example.com", "s3cret-password")
+
+	staffUser := testutil.SeedUser(t, db, "staff13@example.com", "s3cret-password", "staff")
+
+	req := testutil.NewRequest(http.MethodPut, "/api/v1/user/"+strconv.Itoa(staffUser.Id),
+		testutil.JSON(`{"firstName":"Renamed","lastName":"Staffer","email":"staff13@example.com"}`), adminCookie)
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("an admin must still be able to modify a staff user, got %d", resp.StatusCode)
+	}
+}
+
+// A caller acting on their own row must not be blocked by the target-user
+// check, even though it loads the target the same way as any other id.
+func TestUpdateUserAllowsSelfModification(t *testing.T) {
+	db := testutil.NewDB(t)
+	app := testutil.NewApp(t)
+
+	admin := testutil.SeedUser(t, db, "admin14@example.com", "s3cret-password", "admin")
+	testutil.GrantPermission(t, db, "admin", "edit_users")
+	adminCookie := testutil.Login(t, app, "admin14@example.com", "s3cret-password")
+
+	req := testutil.NewRequest(http.MethodPut, "/api/v1/user/"+strconv.Itoa(admin.Id),
+		testutil.JSON(`{"firstName":"Renamed","lastName":"Admin","email":"admin14@example.com"}`), adminCookie)
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("a caller must be able to act on their own row, got %d", resp.StatusCode)
 	}
 }

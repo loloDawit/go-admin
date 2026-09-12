@@ -110,6 +110,65 @@ func TestUpdateUserInfoCanClearNothingSilently(t *testing.T) {
 	}
 }
 
+// UpdateUserInfo shares CreateUser's uniqueness constraint on email; a
+// self-service duplicate must be a 409, not the 500 an unmapped 1062 gave
+// before.
+func TestUpdateUserInfoRejectsDuplicateEmail(t *testing.T) {
+	db := testutil.NewDB(t)
+	app := testutil.NewApp(t)
+
+	testutil.SeedUser(t, db, "taken@example.com", "s3cret-password", "owner")
+	testutil.SeedUser(t, db, "ada@example.com", "s3cret-password", "owner")
+	cookie := testutil.Login(t, app, "ada@example.com", "s3cret-password")
+
+	req := testutil.NewRequest(http.MethodPut, "/api/v1/user/info",
+		testutil.JSON(`{"firstName":"Ada","lastName":"Lovelace","email":"taken@example.com"}`), cookie)
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("want 409, got %d", resp.StatusCode)
+	}
+
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body["code"] != errs.EmailTaken.Code {
+		t.Errorf("code: want %q, got %v", errs.EmailTaken.Code, body["code"])
+	}
+}
+
+// UpdateUserInfo must apply the same email format check as CreateUser.
+func TestUpdateUserInfoRejectsInvalidEmailFormat(t *testing.T) {
+	db := testutil.NewDB(t)
+	app := testutil.NewApp(t)
+
+	testutil.SeedUser(t, db, "ada@example.com", "s3cret-password", "owner")
+	cookie := testutil.Login(t, app, "ada@example.com", "s3cret-password")
+
+	req := testutil.NewRequest(http.MethodPut, "/api/v1/user/info",
+		testutil.JSON(`{"firstName":"Ada","lastName":"Lovelace","email":"not-an-email"}`), cookie)
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d", resp.StatusCode)
+	}
+
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body["code"] != errs.EmailInvalid.Code {
+		t.Errorf("code: want %q, got %v", errs.EmailInvalid.Code, body["code"])
+	}
+}
+
 // The frontend's Permission[] contract needs the role's permissions
 // populated, not null — that drives what the UI shows or hides (M3).
 func TestUserEndpointReturnsRolePermissions(t *testing.T) {

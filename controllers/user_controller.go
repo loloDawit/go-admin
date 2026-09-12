@@ -40,11 +40,11 @@ func UpdateUser(ctx *fiber.Ctx) error {
 		return httpx.Fail(ctx, errs.InvalidBody.Wrap(err))
 	}
 
-	updates := map[string]any{
-		"first_name": req.FirstName,
-		"last_name":  req.LastName,
-		"email":      req.Email,
+	if err := ensureCanModifyUser(ctx, id); err != nil {
+		return httpx.Fail(ctx, err)
 	}
+
+	updates := map[string]any{}
 
 	if req.RoleId != 0 {
 		var targetRole models.Role
@@ -56,6 +56,13 @@ func UpdateUser(ctx *fiber.Ctx) error {
 		}
 		updates["role_id"] = req.RoleId
 	}
+
+	if err := models.ValidateContact(req.FirstName, req.LastName, req.Email); err != nil {
+		return httpx.Fail(ctx, err)
+	}
+	updates["first_name"] = req.FirstName
+	updates["last_name"] = req.LastName
+	updates["email"] = req.Email
 
 	if err := database.DB.Model(&models.User{Id: id}).Updates(updates).Error; err != nil {
 		if isDuplicateKeyError(err) {
@@ -74,6 +81,10 @@ func UpdateUser(ctx *fiber.Ctx) error {
 func DeleteUser(ctx *fiber.Ctx) error {
 	id, err := pathId(ctx)
 	if err != nil {
+		return httpx.Fail(ctx, err)
+	}
+
+	if err := ensureCanModifyUser(ctx, id); err != nil {
 		return httpx.Fail(ctx, err)
 	}
 

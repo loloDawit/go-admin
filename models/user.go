@@ -48,17 +48,28 @@ func (user *User) Take(db *gorm.DB, limit int, offset int) interface{} {
 
 // Password is excluded: this struct only ever holds the hash.
 func (user *User) Validate() error {
-	if user.FirstName == "" || user.LastName == "" {
-		return errs.NameRequired
-	}
-	if user.Email == "" {
-		return errs.EmailRequired
-	}
-	if err := checkmail.ValidateFormat(user.Email); err != nil {
-		return errs.EmailInvalid.Wrap(err)
+	if err := ValidateContact(user.FirstName, user.LastName, user.Email); err != nil {
+		return err
 	}
 	if user.RoleId == 0 {
 		return errs.RoleRequired
+	}
+	return nil
+}
+
+// ValidateContact is the one policy for the required, unique, format-checked
+// login key: every path that writes firstName/lastName/email must go
+// through it, so the column can't disagree with itself about what a valid
+// value looks like.
+func ValidateContact(firstName, lastName, email string) error {
+	if firstName == "" || lastName == "" {
+		return errs.MissingField.WithMessage("first and last name are required")
+	}
+	if email == "" {
+		return errs.MissingField.WithMessage("email is required")
+	}
+	if err := checkmail.ValidateFormat(email); err != nil {
+		return errs.EmailInvalid.Wrap(err)
 	}
 	return nil
 }
