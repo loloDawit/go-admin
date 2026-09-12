@@ -377,8 +377,8 @@ func TestUpdateUserRejectsDemotingAMorePrivilegedUser(t *testing.T) {
 	}
 }
 
-// DeleteUser had no target-user check at all: an admin (no edit_roles)
-// could delete the owner outright.
+// DeleteUser must reject deleting a user whose role holds permissions the
+// caller lacks, the same guard UpdateUser applies.
 func TestDeleteUserRejectsDeletingAMorePrivilegedUser(t *testing.T) {
 	db := testutil.NewDB(t)
 	app := testutil.NewApp(t)

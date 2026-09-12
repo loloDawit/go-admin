@@ -137,7 +137,11 @@ func copyToFile(src io.Reader, dest string) error {
 		os.Remove(dest)
 		return errs.UploadFailed.Wrap(err)
 	}
-	return out.Close()
+	if err := out.Close(); err != nil {
+		os.Remove(dest)
+		return errs.UploadFailed.Wrap(err)
+	}
+	return nil
 }
 
 func randomName(ext string) (string, error) {

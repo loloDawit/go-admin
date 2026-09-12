@@ -36,7 +36,9 @@ var roleGrants = map[string][]string{
 	},
 }
 
-// Idempotent: safe to run on every deploy.
+// Idempotent: never resets an existing owner's password. But every run
+// replaces owner/admin/staff's permission grants with the hardcoded
+// defaults above, reverting any customization made through UpdateRole.
 func Run(db *gorm.DB, h auth.Hasher, ownerEmail, ownerPassword string) error {
 	if ownerEmail == "" {
 		return errors.New("owner email is required (set OWNER_EMAIL)")

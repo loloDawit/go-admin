@@ -110,9 +110,9 @@ func TestUpdateUserInfoCanClearNothingSilently(t *testing.T) {
 	}
 }
 
-// UpdateUserInfo shares CreateUser's uniqueness constraint on email; a
-// self-service duplicate must be a 409, not the 500 an unmapped 1062 gave
-// before.
+// UpdateUserInfo shares CreateUser's uniqueness constraint on email: a
+// self-service duplicate must map to errs.EmailTaken (409), not a bare
+// database error.
 func TestUpdateUserInfoRejectsDuplicateEmail(t *testing.T) {
 	db := testutil.NewDB(t)
 	app := testutil.NewApp(t)
