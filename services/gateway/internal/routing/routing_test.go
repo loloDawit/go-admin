@@ -9,11 +9,13 @@ import (
 	"time"
 
 	"github.com/loloDawit/go-admin/platform/httpx"
+	"github.com/loloDawit/go-admin/platform/observability"
 	"github.com/loloDawit/go-admin/platform/requestid"
 	"github.com/loloDawit/go-admin/services/gateway/internal/routing"
 )
 
 func TestRoutesToTheNamedUpstream(t *testing.T) {
+	logger, _ := observability.NewCaptured()
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/_platform" {
 			t.Errorf("upstream path: want /_platform, got %q", r.URL.Path)
@@ -22,7 +24,7 @@ func TestRoutesToTheNamedUpstream(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	h, err := routing.New(map[string]string{"identity": upstream.URL}, time.Second)
+	h, err := routing.New(logger, map[string]string{"identity": upstream.URL}, time.Second)
 	if err != nil {
 		t.Fatalf("routing.New: %v", err)
 	}
@@ -41,7 +43,8 @@ func TestRoutesToTheNamedUpstream(t *testing.T) {
 }
 
 func TestUnknownServiceReturnsTheStandardEnvelope(t *testing.T) {
-	h, _ := routing.New(map[string]string{"identity": "http://127.0.0.1:1"}, time.Second)
+	logger, _ := observability.NewCaptured()
+	h, _ := routing.New(logger, map[string]string{"identity": "http://127.0.0.1:1"}, time.Second)
 
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/_platform/nosuchservice", nil))
@@ -58,7 +61,8 @@ func TestUnknownServiceReturnsTheStandardEnvelope(t *testing.T) {
 
 // An upstream that is down must not leak its address to the client.
 func TestUnreachableUpstreamReturns502WithoutLeakingTheAddress(t *testing.T) {
-	h, _ := routing.New(map[string]string{"identity": "http://127.0.0.1:1"}, time.Second)
+	logger, _ := observability.NewCaptured()
+	h, _ := routing.New(logger, map[string]string{"identity": "http://127.0.0.1:1"}, time.Second)
 
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/_platform/identity", nil))
@@ -82,6 +86,42 @@ func TestUnreachableUpstreamReturns502WithoutLeakingTheAddress(t *testing.T) {
 	}
 }
 
+// I2: ReverseProxy only logs a transport error from its own default
+// ErrorHandler; installing a custom one (as routing.New does, to keep the
+// cause out of the response body) means the dial error is recorded nowhere
+// unless routing.New logs it itself. This pins that it does, with enough
+// context (upstream name, request_id) to actually debug the outage from logs
+// alone.
+func TestUnreachableUpstreamLogsTheCauseWithUpstreamNameAndRequestID(t *testing.T) {
+	logger, captured := observability.NewCaptured()
+	h, _ := routing.New(logger, map[string]string{"identity": "http://127.0.0.1:1"}, time.Second)
+	wrapped := requestid.Middleware(h)
+
+	req := httptest.NewRequest(http.MethodGet, "/_platform/identity", nil)
+	req.Header.Set(requestid.Header, "known-id")
+
+	rec := httptest.NewRecorder()
+	wrapped.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("status: want 502, got %d", rec.Code)
+	}
+
+	records := captured.Records()
+	if len(records) != 1 {
+		t.Fatalf("want exactly one logged error record, got %d", len(records))
+	}
+	if v, ok := captured.Attr(0, "upstream"); !ok || v.String() != "identity" {
+		t.Errorf("upstream: want %q, got %v (ok=%v)", "identity", v, ok)
+	}
+	if v, ok := captured.Attr(0, "request_id"); !ok || v.String() != "known-id" {
+		t.Errorf("request_id: want %q, got %v (ok=%v)", "known-id", v, ok)
+	}
+	if v, ok := captured.Attr(0, "error"); !ok || v.String() == "" {
+		t.Error("error attribute missing or empty")
+	}
+}
+
 // A slow upstream must not hang the client past the configured timeout, and the
 // client must get the standard error envelope rather than the connection being
 // left open or any transport detail leaking into the body.
@@ -102,7 +142,8 @@ func TestSlowUpstreamTripsTheDeadlineAndReturnsGatewayTimeout(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	h, err := routing.New(map[string]string{"identity": upstream.URL}, timeout)
+	logger, _ := observability.NewCaptured()
+	h, err := routing.New(logger, map[string]string{"identity": upstream.URL}, timeout)
 	if err != nil {
 		t.Fatalf("routing.New: %v", err)
 	}
@@ -138,7 +179,8 @@ func TestSlowUpstreamTripsTheDeadlineAndReturnsGatewayTimeout(t *testing.T) {
 }
 
 func TestRejectsAnUnparseableUpstream(t *testing.T) {
-	if _, err := routing.New(map[string]string{"identity": "://bad"}, time.Second); err == nil {
+	logger, _ := observability.NewCaptured()
+	if _, err := routing.New(logger, map[string]string{"identity": "://bad"}, time.Second); err == nil {
 		t.Fatal("a malformed upstream URL must be rejected at construction")
 	}
 }
@@ -155,7 +197,8 @@ func TestProxiedResponseHasExactlyOneRequestIDHeader(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	h, err := routing.New(map[string]string{"identity": upstream.URL}, time.Second)
+	logger, _ := observability.NewCaptured()
+	h, err := routing.New(logger, map[string]string{"identity": upstream.URL}, time.Second)
 	if err != nil {
 		t.Fatalf("routing.New: %v", err)
 	}

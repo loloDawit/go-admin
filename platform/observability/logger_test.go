@@ -1,6 +1,8 @@
 package observability_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +11,28 @@ import (
 	"github.com/loloDawit/go-admin/platform/observability"
 	"github.com/loloDawit/go-admin/platform/requestid"
 )
+
+// TestNewLoggerAttachesServiceAttribute goes through NewLogger itself, unlike
+// TestServiceAttrSurvivesWith below (which attaches "service" by hand via
+// logger.With and so only tests Captured.WithAttrs). Deleting the
+// .With(slog.String("service", service)) call from NewLogger leaves every
+// service's log lines with no service name, and every other test in this
+// package still passes — only a test that constructs the logger through
+// NewLogger itself can catch that.
+func TestNewLoggerAttachesServiceAttribute(t *testing.T) {
+	var buf bytes.Buffer
+	logger := observability.NewLogger("catalog", &buf)
+
+	logger.Info("hello")
+
+	var line map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &line); err != nil {
+		t.Fatalf("decode log line: %v (%s)", err, buf.String())
+	}
+	if got := line["service"]; got != "catalog" {
+		t.Errorf("service: want %q, got %v", "catalog", got)
+	}
+}
 
 func TestServiceAttrSurvivesWith(t *testing.T) {
 	logger, captured := observability.NewCaptured()

@@ -21,12 +21,12 @@ func TestRouterProxiesThroughTheFullMiddlewareStack(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	upstreams, err := routing.New(map[string]string{"identity": upstream.URL}, time.Second)
+	logger, captured := observability.NewCaptured()
+	upstreams, err := routing.New(logger, map[string]string{"identity": upstream.URL}, time.Second)
 	if err != nil {
 		t.Fatalf("routing.New: %v", err)
 	}
 
-	logger, captured := observability.NewCaptured()
 	r := newRouter(logger, upstreams)
 
 	rec := httptest.NewRecorder()
@@ -55,12 +55,12 @@ func TestRouterProxiesThroughTheFullMiddlewareStack(t *testing.T) {
 }
 
 func TestRouterRecoversFromAPanicAndStillLogs(t *testing.T) {
-	upstreams, err := routing.New(map[string]string{"identity": "http://127.0.0.1:1"}, time.Second)
+	logger, captured := observability.NewCaptured()
+	upstreams, err := routing.New(logger, map[string]string{"identity": "http://127.0.0.1:1"}, time.Second)
 	if err != nil {
 		t.Fatalf("routing.New: %v", err)
 	}
 
-	logger, captured := observability.NewCaptured()
 	r := newRouter(logger, upstreams)
 	r.Get("/panics", func(http.ResponseWriter, *http.Request) { panic("boom") })
 
@@ -78,5 +78,41 @@ func TestRouterRecoversFromAPanicAndStillLogs(t *testing.T) {
 	status, ok := captured.Attr(0, "status")
 	if !ok || status.Int64() != http.StatusInternalServerError {
 		t.Errorf("logged status: want 500, got %v (ok=%v)", status, ok)
+	}
+}
+
+// I5: the container HEALTHCHECK depends on /healthz, and compose gates the
+// three services' readiness on the gateway being healthy — a refactor that
+// mounted the router under a prefix would 404 both, hang `make up --wait`,
+// and nothing would name the cause without a test pinning these two routes.
+func TestHealthzReturns200(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	upstreams, err := routing.New(logger, map[string]string{"identity": "http://127.0.0.1:1"}, time.Second)
+	if err != nil {
+		t.Fatalf("routing.New: %v", err)
+	}
+	r := newRouter(logger, upstreams)
+
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d", rec.Code)
+	}
+}
+
+func TestReadyzReturns200(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	upstreams, err := routing.New(logger, map[string]string{"identity": "http://127.0.0.1:1"}, time.Second)
+	if err != nil {
+		t.Fatalf("routing.New: %v", err)
+	}
+	r := newRouter(logger, upstreams)
+
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d", rec.Code)
 	}
 }

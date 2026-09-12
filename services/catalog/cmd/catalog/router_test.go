@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/loloDawit/go-admin/platform/observability"
+	"github.com/loloDawit/go-admin/platform/readiness"
 	"github.com/loloDawit/go-admin/services/catalog/internal/httperr"
 	"github.com/loloDawit/go-admin/services/catalog/internal/platformcheck"
 )
@@ -27,9 +28,12 @@ func (r *alwaysFailRepo) SchemaState(context.Context) (platformcheck.SchemaState
 
 func TestPanickingHandlerStillProducesALogLineWithStatus500(t *testing.T) {
 	logger, captured := observability.NewCaptured()
-	handler := platformcheck.NewHandler(platformcheck.NewService(&alwaysFailRepo{}), "catalog", httperr.Write)
+	errWriter := httperr.New(logger)
+	svc := platformcheck.NewService(&alwaysFailRepo{})
+	handler := platformcheck.NewHandler(svc, "catalog", errWriter.Write)
+	ready := readiness.NewHandler(svc.Probe, errWriter.Write)
 
-	r := newRouter(logger, handler)
+	r := newRouter(logger, handler, ready)
 	r.Get("/boom", func(http.ResponseWriter, *http.Request) {
 		panic("kaboom")
 	})
@@ -61,10 +65,13 @@ func TestPanickingHandlerStillProducesALogLineWithStatus500(t *testing.T) {
 // is down for the whole life of the request.
 func TestStartupContractHealthzSkipsTheDatabaseAndReadyzReportsFailureSafely(t *testing.T) {
 	logger, _ := observability.NewCaptured()
+	errWriter := httperr.New(logger)
 	repo := &alwaysFailRepo{}
-	handler := platformcheck.NewHandler(platformcheck.NewService(repo), "catalog", httperr.Write)
+	svc := platformcheck.NewService(repo)
+	handler := platformcheck.NewHandler(svc, "catalog", errWriter.Write)
+	ready := readiness.NewHandler(svc.Probe, errWriter.Write)
 
-	r := newRouter(logger, handler)
+	r := newRouter(logger, handler, ready)
 
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))

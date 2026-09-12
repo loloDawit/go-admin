@@ -39,7 +39,7 @@ func main() {
 	logger := observability.NewLogger(serviceName, os.Stdout)
 	slog.SetDefault(logger)
 
-	upstreams, err := routing.New(cfg.Upstreams, cfg.UpstreamTimeout)
+	upstreams, err := routing.New(logger, cfg.Upstreams, cfg.UpstreamTimeout)
 	if err != nil {
 		logger.Error("routing", slog.String("error", err.Error()))
 		os.Exit(1)

@@ -23,3 +23,10 @@ func (s *Service) Check(ctx context.Context) (SchemaState, error) {
 	}
 	return state, nil
 }
+
+// Probe adapts Check to platform/readiness.Probe: a readiness check only
+// cares whether the service can serve, not the schema version it saw.
+func (s *Service) Probe(ctx context.Context) error {
+	_, err := s.Check(ctx)
+	return err
+}

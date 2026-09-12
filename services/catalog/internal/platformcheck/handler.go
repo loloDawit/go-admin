@@ -1,6 +1,7 @@
 package platformcheck
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/loloDawit/go-admin/platform/httpx"
@@ -12,10 +13,12 @@ type Handler struct {
 	serviceName string
 	// writeErr is injected rather than imported: internal/httperr must import
 	// this package for its sentinels, so importing it back would be a cycle.
-	writeErr func(http.ResponseWriter, error)
+	// It takes ctx so the error line it logs can carry the same request_id
+	// as the request line RequestLogger emits for the same request.
+	writeErr func(ctx context.Context, w http.ResponseWriter, err error)
 }
 
-func NewHandler(svc *Service, serviceName string, writeErr func(http.ResponseWriter, error)) *Handler {
+func NewHandler(svc *Service, serviceName string, writeErr func(context.Context, http.ResponseWriter, error)) *Handler {
 	return &Handler{svc: svc, serviceName: serviceName, writeErr: writeErr}
 }
 
@@ -28,7 +31,7 @@ type response struct {
 func (h *Handler) Platform(w http.ResponseWriter, r *http.Request) {
 	state, err := h.svc.Check(r.Context())
 	if err != nil {
-		h.writeErr(w, err)
+		h.writeErr(r.Context(), w, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, response{
@@ -36,14 +39,4 @@ func (h *Handler) Platform(w http.ResponseWriter, r *http.Request) {
 		SchemaVersion: state.Version,
 		RequestID:     requestid.FromContext(r.Context()),
 	})
-}
-
-// Ready reports whether this process can serve. It checks the same conditions
-// as Platform but returns no body.
-func (h *Handler) Ready(w http.ResponseWriter, r *http.Request) {
-	if _, err := h.svc.Check(r.Context()); err != nil {
-		h.writeErr(w, err)
-		return
-	}
-	w.WriteHeader(http.StatusOK)
 }

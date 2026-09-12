@@ -4,15 +4,33 @@
 package httperr
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
 
 	"github.com/loloDawit/go-admin/platform/httpx"
+	"github.com/loloDawit/go-admin/platform/requestid"
 	"github.com/loloDawit/go-admin/services/identity/internal/platformcheck"
 )
 
-func Write(w http.ResponseWriter, err error) {
+// Writer holds the logger an unmapped error's cause is written to. It is
+// injected rather than read off the slog default so the log line can be
+// attributed to this service the same way every other log line is.
+type Writer struct {
+	logger *slog.Logger
+}
+
+func New(logger *slog.Logger) *Writer {
+	return &Writer{logger: logger}
+}
+
+// Write takes ctx so the log line below can carry the same request_id as the
+// request line RequestLogger emits for this request. Without it, an
+// unmapped error during (for example) a Postgres outage logs an ERROR line
+// with no way to correlate it to the request that triggered it — every 3s
+// health probe during the outage would add another uncorrelatable line.
+func (h *Writer) Write(ctx context.Context, w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, platformcheck.ErrDirtySchema):
 		httpx.WriteError(w, http.StatusServiceUnavailable, "schema_dirty", "the service is not ready")
@@ -20,7 +38,10 @@ func Write(w http.ResponseWriter, err error) {
 		httpx.WriteError(w, http.StatusServiceUnavailable, "schema_not_migrated", "the service is not ready")
 	default:
 		// The cause reaches the log; the client gets none of it.
-		slog.Error("unmapped error", slog.String("error", err.Error()))
+		h.logger.ErrorContext(ctx, "unmapped error",
+			slog.String("request_id", requestid.FromContext(ctx)),
+			slog.String("error", err.Error()),
+		)
 		httpx.WriteError(w, http.StatusServiceUnavailable, "database_unavailable", "the service is not ready")
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -16,17 +17,33 @@ import (
 
 // New builds the fixed route-to-upstream mapping. Upstreams are statically
 // configured; there is deliberately no service registry.
-func New(upstreams map[string]string, timeout time.Duration) (http.Handler, error) {
+//
+// ReverseProxy logs a transport error only from its own default ErrorHandler;
+// installing a custom one (below) means the dial error, DNS failure, or TLS
+// error is recorded nowhere unless this function logs it itself. Every
+// service already logs the cause before returning a generic body
+// (internal/httperr); the gateway does the same here.
+func New(logger *slog.Logger, upstreams map[string]string, timeout time.Duration) (http.Handler, error) {
 	proxies := make(map[string]*httputil.ReverseProxy, len(upstreams))
 
 	for name, raw := range upstreams {
+		name := name
 		target, err := url.Parse(raw)
 		if err != nil || target.Scheme == "" || target.Host == "" {
 			return nil, fmt.Errorf("upstream %q is not a valid URL", name)
 		}
 
 		proxy := httputil.NewSingleHostReverseProxy(target)
-		proxy.ErrorHandler = func(w http.ResponseWriter, _ *http.Request, err error) {
+		proxy.ErrorHandler = func(w http.ResponseWriter, req *http.Request, err error) {
+			// req is ReverseProxy's clone of the inbound request (req.Clone),
+			// so it still carries the request ID this gateway's own
+			// requestid.Middleware stamped into the context.
+			logger.ErrorContext(req.Context(), "upstream unavailable",
+				slog.String("upstream", name),
+				slog.String("request_id", requestid.FromContext(req.Context())),
+				slog.String("error", err.Error()),
+			)
+
 			// The transport error names the upstream host; the client gets none of it.
 			// context.DeadlineExceeded means the request's own per-call timeout fired
 			// (the upstream was too slow), distinct from a refused/dropped connection.

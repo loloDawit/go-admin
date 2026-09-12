@@ -14,6 +14,7 @@ import (
 	"github.com/loloDawit/go-admin/platform/healthcheck"
 	"github.com/loloDawit/go-admin/platform/observability"
 	pgxplatform "github.com/loloDawit/go-admin/platform/pgx"
+	"github.com/loloDawit/go-admin/platform/readiness"
 	"github.com/loloDawit/go-admin/services/catalog/internal/config"
 	"github.com/loloDawit/go-admin/services/catalog/internal/httperr"
 	"github.com/loloDawit/go-admin/services/catalog/internal/platformcheck"
@@ -49,13 +50,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	handler := platformcheck.NewHandler(
-		platformcheck.NewService(platformcheck.NewPostgresRepository(pool)),
-		cfg.ServiceName,
-		httperr.Write,
-	)
+	errWriter := httperr.New(logger)
+	svc := platformcheck.NewService(platformcheck.NewPostgresRepository(pool))
 
-	r := newRouter(logger, handler)
+	handler := platformcheck.NewHandler(svc, cfg.ServiceName, errWriter.Write)
+	ready := readiness.NewHandler(svc.Probe, errWriter.Write)
+
+	r := newRouter(logger, handler, ready)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
