@@ -26,9 +26,9 @@ func (f *failingReader) Read(p []byte) (int, error) {
 	return n, nil
 }
 
-// A failed copy must not leave the file OpenFile created on disk: the O_EXCL
-// rewrite prevents overwriting an existing file, but a partial file left
-// behind here would then permanently block any retry with the same name.
+// A failed copy must not leave the file OpenFile created on disk: nothing
+// else ever revisits a generated name, so an uncleaned partial file is
+// orphaned bytes with no code path that reads, retries, or removes it.
 func TestCopyToFileRemovesPartialFileOnCopyFailure(t *testing.T) {
 	dest := filepath.Join(t.TempDir(), "partial.bin")
 
