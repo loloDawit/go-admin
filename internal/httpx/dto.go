@@ -43,6 +43,8 @@ type PermissionRequest struct {
 }
 
 type OrderRequest struct {
+	FirstName  string             `json:"firstName"`
+	LastName   string             `json:"lastName"`
 	Email      string             `json:"email"`
 	OrderItems []OrderItemRequest `json:"orderItems"`
 }
@@ -56,7 +58,7 @@ type UpdateOrderRequest struct {
 
 type OrderItemRequest struct {
 	ProductTitle string  `json:"productTitle"`
-	Price        float32 `json:"price"`
+	Price        float64 `json:"price"`
 	Quantity     uint    `json:"quantity"`
 }
 

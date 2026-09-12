@@ -2,8 +2,10 @@ package controllers
 
 import (
 	"encoding/csv"
+	"io"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/loloDawit/go-admin/database"
@@ -28,6 +30,7 @@ func GetOrder(ctx *fiber.Ctx) error {
 	if err := database.DB.Preload("OrderItems").First(&order, id).Error; err != nil {
 		return notFoundOrDBError(ctx, err, "order")
 	}
+	order.Compute()
 	return ctx.JSON(order)
 }
 
@@ -97,6 +100,8 @@ func CreateOrder(ctx *fiber.Ctx) error {
 	}
 
 	order := models.Order{
+		FirstName:  req.FirstName,
+		LastName:   req.LastName,
 		Email:      req.Email,
 		OrderItems: orderItems,
 	}
@@ -104,68 +109,88 @@ func CreateOrder(ctx *fiber.Ctx) error {
 	if err := database.DB.Create(&order).Error; err != nil {
 		return httpx.Fail(ctx, errs.Database.Wrap(err))
 	}
+	order.Compute()
 	return ctx.Status(fiber.StatusCreated).JSON(order)
 }
 
 func Export(ctx *fiber.Ctx) error {
-	filePath := "./csv/orders.csv"
-	if err := CreateFile(filePath); err != nil {
-		return err
-	}
-	return ctx.Download(filePath)
-}
-
-func CreateFile(filePath string) error {
-	file, err := os.Create(filePath)
-
+	// Per-request: a shared path corrupts concurrent exports.
+	file, err := os.CreateTemp("", "orders-*.csv")
 	if err != nil {
-		return err
+		return httpx.Fail(ctx, errs.ExportFailed)
 	}
+	defer os.Remove(file.Name())
 	defer file.Close()
 
-	writer := csv.NewWriter(file)
-	defer writer.Flush()
+	if err := writeOrdersCSV(file); err != nil {
+		return httpx.Fail(ctx, errs.ExportFailed)
+	}
+
+	ctx.Set("Content-Disposition", `attachment; filename="orders.csv"`)
+	return ctx.SendFile(file.Name())
+}
+
+func writeOrdersCSV(w io.Writer) error {
+	writer := csv.NewWriter(w)
 
 	var orders []models.Order
+	if err := database.DB.Preload("OrderItems").Find(&orders).Error; err != nil {
+		return err
+	}
 
-	database.DB.Preload("OrderItems").Find(&orders)
-	writer.Write([]string{
-		"ID", "Name", "Email", "Product Title", "Price", "Quantity",
-	})
+	if err := writer.Write([]string{"ID", "Name", "Email", "Product Title", "Price", "Quantity"}); err != nil {
+		return err
+	}
 
 	for _, order := range orders {
-		data := []string{
-			strconv.Itoa(int(order.Id)), order.FirstName + " " + order.LastName, order.Email, "", "", "",
-		}
-		if err := writer.Write(data); err != nil {
+		if err := writer.Write([]string{
+			strconv.FormatUint(uint64(order.Id), 10),
+			strings.TrimSpace(order.FirstName + " " + order.LastName),
+			order.Email, "", "", "",
+		}); err != nil {
 			return err
 		}
-
-		for _, orderItem := range order.OrderItems {
-			data = []string{
-				"", "", "", orderItem.ProductTitle, strconv.Itoa(int(orderItem.Price)), strconv.Itoa(int(orderItem.Quantity)),
-			}
-			if err := writer.Write(data); err != nil {
+		for _, item := range order.OrderItems {
+			if err := writer.Write([]string{
+				"", "", "", item.ProductTitle,
+				strconv.FormatFloat(item.Price, 'f', 2, 64),
+				strconv.FormatUint(uint64(item.Quantity), 10),
+			}); err != nil {
 				return err
 			}
 		}
 	}
-	return nil
+
+	// Explicit Flush before Error: a deferred Flush runs after the return
+	// value is already evaluated, silently dropping a disk-full failure.
+	writer.Flush()
+	return writer.Error()
 }
 
 type Sales struct {
-	Date string `json:"date"`
-	Sum  string `json:"sum"`
+	Date string  `json:"date"`
+	Sum  float64 `json:"sum"`
 }
 
 func Chart(ctx *fiber.Ctx) error {
 	var sales []Sales
 
-	database.DB.Raw(`
-		SELECT DATE_FORMAT (o.created_at, '%Y-%m-%d') AS date, SUM(oi.price * oi.quantity) as sum
-		FROM orders o JOIN order_items oi on o.id = oi.order_id
-		GROUP BY date;
-      `).Scan(&sales)
+	// Requires created_at to be a real DATETIME. DATE_FORMAT (not DATE) in
+	// the projection: with parseTime=true the driver scans a DATE column
+	// into time.Time, not the string Sales.Date expects. GROUP BY repeats
+	// the same expression: only_full_group_by rejects DATE_FORMAT in the
+	// SELECT list when the GROUP BY is the plain DATE() form.
+	err := database.DB.Raw(`
+		SELECT DATE_FORMAT(o.created_at, '%Y-%m-%d') AS date,
+		       SUM(oi.price * oi.quantity) AS sum
+		FROM orders o
+		JOIN order_items oi ON o.id = oi.order_id
+		GROUP BY DATE_FORMAT(o.created_at, '%Y-%m-%d')
+		ORDER BY date
+	`).Scan(&sales).Error
+	if err != nil {
+		return httpx.Fail(ctx, errs.Database.Wrap(err))
+	}
 
 	return ctx.JSON(sales)
 }
