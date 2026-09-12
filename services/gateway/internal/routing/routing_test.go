@@ -82,6 +82,61 @@ func TestUnreachableUpstreamReturns502WithoutLeakingTheAddress(t *testing.T) {
 	}
 }
 
+// A slow upstream must not hang the client past the configured timeout, and the
+// client must get the standard error envelope rather than the connection being
+// left open or any transport detail leaking into the body.
+func TestSlowUpstreamTripsTheDeadlineAndReturnsGatewayTimeout(t *testing.T) {
+	const timeout = 50 * time.Millisecond
+
+	done := make(chan struct{})
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer close(done)
+		select {
+		case <-r.Context().Done():
+			// Proves the proxy actually canceled the outbound request instead of
+			// the handler completing normally and then the client just being made
+			// to wait for it.
+		case <-time.After(2 * time.Second):
+			t.Error("upstream handler was not canceled when the gateway's deadline fired")
+		}
+	}))
+	defer upstream.Close()
+
+	h, err := routing.New(map[string]string{"identity": upstream.URL}, timeout)
+	if err != nil {
+		t.Fatalf("routing.New: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	start := time.Now()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/_platform/identity", nil))
+	elapsed := time.Since(start)
+
+	<-done // wait for the upstream handler to actually observe cancellation
+
+	if elapsed > 500*time.Millisecond {
+		t.Fatalf("request took %v; the gateway must not wait past its own timeout", elapsed)
+	}
+	if rec.Code != http.StatusGatewayTimeout {
+		t.Fatalf("status: want 504, got %d", rec.Code)
+	}
+
+	body := rec.Body.String()
+	for _, leak := range []string{upstream.URL, "127.0.0.1", "deadline", "dial tcp"} {
+		if strings.Contains(body, leak) {
+			t.Errorf("response leaks %q: %s", leak, body)
+		}
+	}
+
+	var envelope httpx.ErrorBody
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("body is not the standard envelope: %v (%s)", err, body)
+	}
+	if envelope.Code != "gateway_timeout" {
+		t.Errorf("code: want gateway_timeout, got %q", envelope.Code)
+	}
+}
+
 func TestRejectsAnUnparseableUpstream(t *testing.T) {
 	if _, err := routing.New(map[string]string{"identity": "://bad"}, time.Second); err == nil {
 		t.Fatal("a malformed upstream URL must be rejected at construction")

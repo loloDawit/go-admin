@@ -2,6 +2,7 @@ package routing
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httputil"
@@ -25,8 +26,14 @@ func New(upstreams map[string]string, timeout time.Duration) (http.Handler, erro
 		}
 
 		proxy := httputil.NewSingleHostReverseProxy(target)
-		proxy.ErrorHandler = func(w http.ResponseWriter, _ *http.Request, _ error) {
+		proxy.ErrorHandler = func(w http.ResponseWriter, _ *http.Request, err error) {
 			// The transport error names the upstream host; the client gets none of it.
+			// context.DeadlineExceeded means the request's own per-call timeout fired
+			// (the upstream was too slow), distinct from a refused/dropped connection.
+			if errors.Is(err, context.DeadlineExceeded) {
+				httperr.WriteGatewayTimeout(w)
+				return
+			}
 			httperr.WriteUpstreamUnavailable(w)
 		}
 
