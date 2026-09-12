@@ -17,7 +17,9 @@ import (
 const (
 	sessionCookieName = "jwt"
 
-	// The JWT's expiry and the cookie's must agree; both derive from this.
+	// Sets only the cookie's expiry. utils.GenerateJWT hardcodes its own
+	// 24-hour token expiry separately; nothing keeps the two in sync — see
+	// "Known limitations in M0" in the README.
 	sessionTTL = 24 * time.Hour
 )
 

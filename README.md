@@ -32,7 +32,10 @@ make web     # in a second terminal: React dev server on :3000
 
 Sign in with the `OWNER_EMAIL` / `OWNER_PASSWORD` from your `.env`.
 **Change that password immediately, then remove `OWNER_PASSWORD` from `.env`.**
-`make seed` never resets an existing owner's password, so re-running it is safe.
+`make seed` never resets an existing owner's password — but it does replace
+every built-in role's permission grants (`owner`/`admin`/`staff`) with the
+hardcoded defaults on every run, so any grant customized through the role
+endpoints is reverted on the next `make dev` or deploy.
 
 ## Accounts and registration
 
@@ -130,6 +133,19 @@ See `docs/ASSESSMENT.md` for the full milestone plan.
 - `internal/testutil.NewApp` builds the real route table but does not
   install the CORS middleware `main.go` installs — a CORS regression would
   not be caught by the test suite.
-- The image upload handler streams the file with `io.Copy`; if the copy
-  fails partway through, the partially written file is left on disk rather
-  than being cleaned up.
+- Uploaded files are readable by any signed-in user regardless of
+  permissions: the route sweep that checks every route carries the right
+  `RequirePermission` deliberately skips the `config.UploadsPath` static
+  mount. Uploads are authenticated at all only because that mount is
+  registered in `routes.SetupRoutes` after the `authed` group, under the
+  same `/api/v1` prefix the `authed` group's empty-path routes match first —
+  moving the static mount above it, or off `/api/v1`, would silently make
+  uploads public.
+- `staff` can enumerate the full role and permission model through
+  `GET /api/v1/users`, which preloads `Role.Permissions` on every user in
+  the page — the same payload `GET /api/v1/roles` withholds from `staff`.
+- The JWT expiry (`utils/jwt.go`) and the session cookie expiry
+  (`controllers/auth_controller.go`'s `sessionTTL`) are two separate
+  hardcoded 24-hour literals; nothing enforces that they agree, so changing
+  one without the other silently produces a cookie that outlives its token
+  or a token that outlives its cookie.
