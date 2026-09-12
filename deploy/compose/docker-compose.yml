@@ -22,5 +22,87 @@ services:
       retries: 20
       start_period: 30s
 
+  identity-migrate:
+    image: migrate/migrate:v4.17.1
+    depends_on:
+      postgres: { condition: service_healthy }
+    volumes:
+      - ../../services/identity/migrations:/migrations:ro
+    command:
+      - "-path=/migrations"
+      - "-database=postgres://identity_user:dev_only_identity@postgres:5432/identity_db?sslmode=disable"
+      - "up"
+
+  identity:
+    build:
+      context: ../..
+      dockerfile: services/identity/Dockerfile
+    depends_on:
+      identity-migrate: { condition: service_completed_successfully }
+    environment:
+      PORT: "8081"
+      DATABASE_URL: "postgres://identity_user:dev_only_identity@postgres:5432/identity_db?sslmode=disable"
+    ports:
+      - "8081:8081"
+
+  catalog-migrate:
+    image: migrate/migrate:v4.17.1
+    depends_on:
+      postgres: { condition: service_healthy }
+    volumes:
+      - ../../services/catalog/migrations:/migrations:ro
+    command:
+      - "-path=/migrations"
+      - "-database=postgres://catalog_user:dev_only_catalog@postgres:5432/catalog_db?sslmode=disable"
+      - "up"
+
+  catalog:
+    build:
+      context: ../..
+      dockerfile: services/catalog/Dockerfile
+    depends_on:
+      catalog-migrate: { condition: service_completed_successfully }
+    environment:
+      PORT: "8082"
+      DATABASE_URL: "postgres://catalog_user:dev_only_catalog@postgres:5432/catalog_db?sslmode=disable"
+    ports:
+      - "8082:8082"
+
+  orders-migrate:
+    image: migrate/migrate:v4.17.1
+    depends_on:
+      postgres: { condition: service_healthy }
+    volumes:
+      - ../../services/orders/migrations:/migrations:ro
+    command:
+      - "-path=/migrations"
+      - "-database=postgres://orders_user:dev_only_orders@postgres:5432/orders_db?sslmode=disable"
+      - "up"
+
+  orders:
+    build:
+      context: ../..
+      dockerfile: services/orders/Dockerfile
+    depends_on:
+      orders-migrate: { condition: service_completed_successfully }
+    environment:
+      PORT: "8083"
+      DATABASE_URL: "postgres://orders_user:dev_only_orders@postgres:5432/orders_db?sslmode=disable"
+    ports:
+      - "8083:8083"
+
+  gateway:
+    build:
+      context: ../..
+      dockerfile: services/gateway/Dockerfile
+    depends_on: [identity, catalog, orders]
+    environment:
+      PORT: "8080"
+      IDENTITY_URL: "http://identity:8081"
+      CATALOG_URL: "http://catalog:8082"
+      ORDERS_URL: "http://orders:8083"
+    ports:
+      - "8080:8080"
+
 volumes:
   pgdata:
