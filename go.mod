@@ -4,6 +4,7 @@ go 1.27
 
 require (
 	github.com/badoux/checkmail v1.2.1
+	github.com/go-chi/chi/v5 v5.3.2
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/gofiber/fiber/v2 v2.31.0
 	github.com/golang-jwt/jwt v3.2.2+incompatible
