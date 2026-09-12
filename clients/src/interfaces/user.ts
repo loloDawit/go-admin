@@ -1,14 +1,24 @@
-export interface UserInfo {
-  email: string;
-  firstName: string;
+export interface Permission {
   id: number;
-  lastName: string;
-  role: Role;
-  roleId: 1;
+  name: string;
 }
 
 export interface Role {
-  name: string;
-  permissions: string;
   id: number;
+  name: string;
+  permissions: Permission[];
+}
+
+export interface UserInfo {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  roleId: number;
+  role: Role;
+}
+
+export interface ApiError {
+  code: string;
+  message: string;
 }

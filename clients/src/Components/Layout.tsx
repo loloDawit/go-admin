@@ -1,6 +1,7 @@
-import axios from 'axios';
 import { FunctionComponent, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
+import { api } from '../api/client';
+import { UserInfo } from '../interfaces/user';
 import Menu from './Menu';
 import Nav from './Nav';
 
@@ -10,18 +11,8 @@ const Layout: FunctionComponent<LayoutProps> = ({ children }) => {
   const [redirect, setRedirect] = useState(false);
   useEffect(() => {
     (async () => {
-      var config = {
-        method: 'get',
-        url: 'http://localhost:8080/api/v1/user',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        withCredentials: true
-      };
-
       try {
-        //@ts-ignore
-        await axios(config);
+        await api<UserInfo>('/user');
       } catch (error) {
         setRedirect(true);
       }
