@@ -1,5 +1,16 @@
 # go-admin — Repository Assessment & Revival Plan
 
+> **Superseded in part.** Sections 1–9 (the product reconstruction, the defect
+> catalogue, and the case for rebuilding) remain accurate and are the
+> justification the PRD argues from. **Section 10's milestone plan is
+> superseded** by `docs/PRD/SmallScaleMicroservicesArchitecture.md` §16, whose
+> M0–M8 numbering is canonical. Where this document says "deferred to M1" it
+> means the milestone plan below, not the PRD's M1 — and most of those
+> deferrals are now moot, because they describe legacy code scheduled for
+> deletion rather than repair.
+>
+> M0 is complete: tagged `legacy-v1`, commit `cef8e55`.
+
 **Date:** 2026-09-11
 **Repo:** `/Users/dawitnoah/Desktop/project/go-admin`
 **Scope reviewed:** all 1,300 lines of first-party code (7 Go controllers, 7 models, 2 middlewares, 1 route file, 9 React/TS source files), git history (88 commits, all 2022-04-01 → 2022-04-03), CI config, build tooling.

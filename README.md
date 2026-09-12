@@ -7,7 +7,7 @@ are planned but not yet built — see "Known limitations in M0" below.
 **Status:** under active revival. See [`docs/ASSESSMENT.md`](docs/ASSESSMENT.md)
 for the full technical assessment and the milestone plan. This is milestone
 M0 — the application boots safely from a clean clone and the critical
-security defects are closed, but most screens do not exist yet (M3). See
+security defects are closed, but most screens do not exist yet (rebuilt in PRD M5, not repaired). See
 "Known limitations in M0" below.
 
 ## Requirements
@@ -120,16 +120,16 @@ docs/                 Assessment, ADRs, and milestone plans
 
 See `docs/ASSESSMENT.md` for the full milestone plan.
 
-- `database.DB` is still a package-level global, not injected (M1).
+- `database.DB` is still a package-level global, not injected (rebuilt in PRD M1–M4, not repaired).
 - The schema is still created with GORM `AutoMigrate`, not versioned
-  migrations (M1).
+  migrations (rebuilt in PRD M1–M4, not repaired).
 - Sessions are plain JWTs with no server-side store, so a session cannot be
-  revoked before it expires (M4).
-- There is no password reset flow and no email delivery (M4).
-- Orders have no status or lifecycle (M2).
+  revoked before it expires (rebuilt in PRD M2, not repaired).
+- There is no password reset flow and no email delivery (rebuilt in PRD M2, not repaired).
+- Orders have no status or lifecycle (rebuilt in PRD M4, not repaired).
 - Products, Orders, Roles, and Customers have no UI. The Users and Dashboard
   pages that exist in `clients/src/pages` are placeholder stubs with static
-  markup, not working screens (M3).
+  markup, not working screens (rebuilt in PRD M5, not repaired).
 - `internal/testutil.NewApp` builds the real route table but does not
   install the CORS middleware `main.go` installs — a CORS regression would
   not be caught by the test suite.
