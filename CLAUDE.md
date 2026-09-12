@@ -10,7 +10,13 @@ with a React admin frontend.
 |---|---|
 | `docs/PRD/SmallScaleMicroservicesArchitecture.md` | Architecture, milestones (M0–M8), product requirements. Milestone numbering here is canonical. |
 | `docs/PRD/FrontendProductandDesignDirection.md` | Frontend craft, design process, M5 breakdown. |
+| `docs/PRD/GoApplicationArchitectureandCodingConventions.md` | How Go code is structured **inside** a service: handlers, services, repositories, DTOs, packages, errors. |
+| `docs/PRD/ArchitectureDecisionClarifications.md` | Precedence between the above, and the resolved decisions. **Read this when two documents disagree.** |
 | `docs/ASSESSMENT.md` | Why the rebuild; the original defect catalogue. Its milestone plan is superseded by the PRD. |
+
+**Precedence.** System, product, and milestone decisions → the microservices PRD.
+Go structure inside a service → the Go conventions. Frontend craft → the frontend
+direction. A lower-level document never redefines a higher-level boundary.
 
 The `legacy-v1` tag is a **reference implementation, not a migration source**.
 Each milestone deletes the legacy code it replaces. Do not invest in it.
@@ -21,14 +27,25 @@ Each milestone deletes the legacy code it replaces. Do not invest in it.
 
 These are enforced by tests and by review. They are not style preferences.
 
-**Errors come from a registry.** Every service failure is a declared value with
-a stable machine-readable `code`, a client-safe `message`, and an HTTP status.
-`errors.New` and `fmt.Errorf` do not appear in HTTP, domain, or routing layers —
-an AST test enforces this. Infrastructure code (config, startup, CLI) is exempt:
-its errors are operator diagnostics read once at boot, never served.
+**Errors split at the HTTP boundary.** Domain and service layers return sentinel
+errors and know nothing about HTTP:
 
-A 5xx message never contains SQL, driver text, or a filesystem path. Attach the
-cause with `.Wrap(err)` so it reaches the log, never the response body.
+```go
+var ErrProductNotFound = errors.New("product not found")
+```
+
+The HTTP boundary owns the client-facing mapping — sentinel to
+`{code, message, status}` — in one place per service. `errors.New` is therefore
+fine in domain and service code; what is forbidden is an **http/** package
+inventing a client-facing error outside that central mapping. The AST guard
+enforces the narrow rule, not the broad one.
+
+A 5xx message never contains SQL, driver text, or a filesystem path. Wrap the
+cause so it reaches the log, never the response body.
+
+(The M0 convention banned `errors.New` everywhere. That was wrong: baking an HTTP
+status into a domain error makes the domain know about transport. See
+`docs/PRD/ArchitectureDecisionClarifications.md` §6.)
 
 **Comments state constraints, not changes.** A comment earns its place only when
 it names something a reader would break by tidying the code — "must be a map:
@@ -45,6 +62,11 @@ say so rather than counting it as coverage.
 with validation. Missing or invalid configuration is fatal at startup, never a
 surprise at request time. Validate against the real parser where one exists
 rather than reimplementing its rules.
+
+**Organize by business capability, not technical layer.** A capability owns its
+package: `staff.go`, `handler.go`, `service.go`, `repository.go`, `postgres.go`,
+`dto.go` together. No global `handlers/`, `services/`, `repositories/`, `models/`,
+or `transformers/` directories. Extraction later becomes a directory move.
 
 **Authorization is middleware, never a handler call.** A permission check a
 handler must remember to make is a check that will be forgotten. Route-level
