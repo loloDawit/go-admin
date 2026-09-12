@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"log/slog"
 	"net/http"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/loloDawit/go-admin/platform/healthcheck"
 	"github.com/loloDawit/go-admin/platform/observability"
 	pgxplatform "github.com/loloDawit/go-admin/platform/pgx"
 	"github.com/loloDawit/go-admin/services/catalog/internal/config"
@@ -18,10 +20,20 @@ import (
 )
 
 func main() {
+	// The distroless image has no shell, curl, or wget, so Docker's
+	// HEALTHCHECK runs this binary against itself instead. It must exit before
+	// any of the normal startup below runs a second copy of the process.
+	healthCheck := flag.Bool("health-check", false, "check this process's own /healthz and exit 0 or 1")
+	flag.Parse()
+
 	cfg, err := config.Load()
 	if err != nil {
 		slog.Error("config", slog.String("error", err.Error()))
 		os.Exit(1)
+	}
+
+	if *healthCheck {
+		os.Exit(healthcheck.Run(cfg.Port))
 	}
 
 	logger := observability.NewLogger(cfg.ServiceName, os.Stdout)

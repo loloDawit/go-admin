@@ -95,7 +95,10 @@ services:
     build:
       context: ../..
       dockerfile: services/gateway/Dockerfile
-    depends_on: [identity, catalog, orders]
+    depends_on:
+      identity: { condition: service_healthy }
+      catalog: { condition: service_healthy }
+      orders: { condition: service_healthy }
     environment:
       PORT: "8080"
       IDENTITY_URL: "http://identity:8081"
