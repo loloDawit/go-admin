@@ -82,9 +82,10 @@ func TestRouterRecoversFromAPanicAndStillLogs(t *testing.T) {
 }
 
 // I5: the container HEALTHCHECK depends on /healthz, and compose gates the
-// three services' readiness on the gateway being healthy — a refactor that
-// mounted the router under a prefix would 404 both, hang `make up --wait`,
-// and nothing would name the cause without a test pinning these two routes.
+// gateway's own readiness on identity, catalog, and orders each being
+// service_healthy — a refactor that mounted the router under a prefix would
+// 404 both, hang `make up --wait`, and nothing would name the cause without a
+// test pinning these two routes.
 func TestHealthzReturns200(t *testing.T) {
 	logger, _ := observability.NewCaptured()
 	upstreams, err := routing.New(logger, map[string]string{"identity": "http://127.0.0.1:1"}, time.Second)

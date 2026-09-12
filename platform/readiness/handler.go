@@ -17,10 +17,13 @@ func NewHandler(probe Probe, writeErr func(context.Context, http.ResponseWriter,
 	return &Handler{probe: probe, writeErr: writeErr}
 }
 
-// Ready reports whether this process can serve. It returns no body: only the
-// status code matters to its callers (Docker HEALTHCHECK, compose's
-// depends_on condition: service_healthy, and eventually a k8s readiness
-// probe).
+// Ready reports whether this process can serve. On success it writes no
+// body, only the status code; on failure it writes the standard error
+// envelope via writeErr, the same as any other client-facing error. Nothing
+// in this stack currently probes this route on an interval — the Docker
+// HEALTHCHECK and compose's depends_on condition: service_healthy both probe
+// /healthz instead — but it is meant for an operator checking readiness by
+// hand today, and for a Kubernetes readiness probe once one exists.
 func (h *Handler) Ready(w http.ResponseWriter, r *http.Request) {
 	if err := h.probe(r.Context()); err != nil {
 		h.writeErr(r.Context(), w, err)

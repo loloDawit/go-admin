@@ -27,9 +27,9 @@ func New(logger *slog.Logger) *Writer {
 
 // Write takes ctx so the log line below can carry the same request_id as the
 // request line RequestLogger emits for this request. Without it, an
-// unmapped error during (for example) a Postgres outage logs an ERROR line
-// with no way to correlate it to the request that triggered it — every 3s
-// health probe during the outage would add another uncorrelatable line.
+// unmapped error logs an ERROR line with no way to correlate it to the
+// request that triggered it, defeating the request-ID groundwork exactly
+// when correlating errors to requests matters most.
 func (h *Writer) Write(ctx context.Context, w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, platformcheck.ErrDirtySchema):
