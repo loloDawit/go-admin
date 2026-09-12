@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"strconv"
-	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/loloDawit/go-admin/database"
@@ -46,7 +45,7 @@ func UpdateOrder(ctx *fiber.Ctx) error {
 	}
 
 	var order models.Order
-	if err := database.DB.First(&order, id).Error; err != nil {
+	if err := database.DB.Preload("OrderItems").First(&order, id).Error; err != nil {
 		return notFoundOrDBError(ctx, err, "order")
 	}
 
@@ -61,6 +60,7 @@ func UpdateOrder(ctx *fiber.Ctx) error {
 		}
 	}
 
+	order.Compute()
 	return ctx.JSON(order)
 }
 
@@ -127,7 +127,12 @@ func Export(ctx *fiber.Ctx) error {
 	}
 
 	ctx.Set("Content-Disposition", `attachment; filename="orders.csv"`)
-	return ctx.SendFile(file.Name())
+	// SendFile's own error embeds the temp path; a 5xx must not leak a
+	// filesystem path to the client.
+	if err := ctx.SendFile(file.Name()); err != nil {
+		return httpx.Fail(ctx, errs.ExportFailed)
+	}
+	return nil
 }
 
 func writeOrdersCSV(w io.Writer) error {
@@ -143,9 +148,10 @@ func writeOrdersCSV(w io.Writer) error {
 	}
 
 	for _, order := range orders {
+		order.Compute()
 		if err := writer.Write([]string{
 			strconv.FormatUint(uint64(order.Id), 10),
-			strings.TrimSpace(order.FirstName + " " + order.LastName),
+			order.Name,
 			order.Email, "", "", "",
 		}); err != nil {
 			return err

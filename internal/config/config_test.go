@@ -26,6 +26,16 @@ func TestLoadRejectsShortSecret(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsDSNWithoutParseTime(t *testing.T) {
+	t.Setenv("DB_DSN", "user:pass@tcp(127.0.0.1:3306)/go_admin")
+	t.Setenv("SESSION_SECRET", "0123456789abcdef0123456789abcdef")
+	t.Setenv("ALLOWED_ORIGIN", "http://localhost:3000")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("expected an error when DB_DSN lacks parseTime=true, got nil")
+	}
+}
+
 func TestLoadRejectsMissingOrigin(t *testing.T) {
 	t.Setenv("DB_DSN", "user:pass@tcp(127.0.0.1:3306)/go_admin?parseTime=true")
 	t.Setenv("SESSION_SECRET", "0123456789abcdef0123456789abcdef")

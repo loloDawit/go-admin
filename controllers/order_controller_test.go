@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -22,7 +24,9 @@ func TestOrderTimestampsArePopulated(t *testing.T) {
 	}
 
 	var reloaded models.Order
-	db.First(&reloaded, order.Id)
+	if err := db.First(&reloaded, order.Id).Error; err != nil {
+		t.Fatalf("reload: %v", err)
+	}
 
 	if reloaded.CreatedAt.IsZero() {
 		t.Fatal("CreatedAt must be populated")
@@ -92,6 +96,9 @@ func TestExportWritesExactPricesNotTruncatedIntegers(t *testing.T) {
 	db.Create(&order)
 	db.Create(&models.OrderItem{OrderId: order.Id, ProductTitle: "Widget", Price: 10.50, Quantity: 2})
 
+	tempPattern := filepath.Join(os.TempDir(), "orders-*.csv")
+	before, _ := filepath.Glob(tempPattern)
+
 	req := testutil.NewRequest(http.MethodGet, "/api/v1/export", nil, cookie)
 	resp, err := app.Test(req, -1)
 	if err != nil {
@@ -112,8 +119,13 @@ func TestExportWritesExactPricesNotTruncatedIntegers(t *testing.T) {
 	if !strings.Contains(csv, "ID,Name,Email,Product Title,Price,Quantity") {
 		t.Errorf("missing header row: %q", csv)
 	}
-	if !strings.Contains(csv, "10.50") {
+	if !strings.Contains(csv, ",,,Widget,10.50,2") {
 		t.Errorf("price must be formatted as 10.50, not truncated; got %q", csv)
+	}
+
+	after, _ := filepath.Glob(tempPattern)
+	if len(after) > len(before) {
+		t.Errorf("export left a temp file behind: before=%v after=%v", before, after)
 	}
 }
 
@@ -224,6 +236,45 @@ func TestUpdateOrderIgnoresOrderItemsAndKeepsEmail(t *testing.T) {
 	}
 	if len(reloaded.OrderItems) != 1 || reloaded.OrderItems[0].ProductTitle != "Widget" {
 		t.Errorf("order items must be unaffected by UpdateOrder; got %+v", reloaded.OrderItems)
+	}
+}
+
+func TestUpdateOrderResponseIncludesComputedNameAndTotal(t *testing.T) {
+	db := testutil.NewDB(t)
+	app := testutil.NewApp(t)
+
+	testutil.SeedUser(t, db, "editor3@example.com", "s3cret-password", "editor")
+	testutil.GrantPermission(t, db, "editor", "edit_orders")
+	cookie := testutil.Login(t, app, "editor3@example.com", "s3cret-password")
+
+	order := models.Order{
+		FirstName: "Ada", LastName: "Lovelace", Email: "buyer3@example.com",
+		OrderItems: []models.OrderItem{{ProductTitle: "Widget", Price: 3, Quantity: 2}},
+	}
+	if err := db.Create(&order).Error; err != nil {
+		t.Fatalf("seed order: %v", err)
+	}
+
+	body := `{"email":"new@example.com"}`
+	req := testutil.NewRequest(http.MethodPut, "/api/v1/order/"+strconv.Itoa(int(order.Id)),
+		testutil.JSON(body), cookie)
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+
+	var got struct {
+		Name  string  `json:"name"`
+		Total float64 `json:"total"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.Name != "Ada Lovelace" {
+		t.Errorf("name: want %q, got %q", "Ada Lovelace", got.Name)
+	}
+	if got.Total != 6 {
+		t.Errorf("total: want 6, got %v", got.Total)
 	}
 }
 
