@@ -117,6 +117,13 @@ func saveUpload(header *multipart.FileHeader, dest string) error {
 	}
 	defer src.Close()
 
+	return copyToFile(src, dest)
+}
+
+// copyToFile writes src to a newly created dest. A copy failure removes the
+// partial file OpenFile created, so a broken upload never leaves stored
+// bytes behind; removal is best-effort and never replaces the original error.
+func copyToFile(src io.Reader, dest string) error {
 	out, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
 		if errors.Is(err, os.ErrExist) {
@@ -124,12 +131,13 @@ func saveUpload(header *multipart.FileHeader, dest string) error {
 		}
 		return errs.UploadFailed.Wrap(err)
 	}
-	defer out.Close()
 
 	if _, err := io.Copy(out, src); err != nil {
+		out.Close()
+		os.Remove(dest)
 		return errs.UploadFailed.Wrap(err)
 	}
-	return nil
+	return out.Close()
 }
 
 func randomName(ext string) (string, error) {
