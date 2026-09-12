@@ -38,7 +38,11 @@ func NewApp(t *testing.T) *fiber.App {
 	cfg := TestConfig()
 	utils.SecretKey = cfg.SessionSecret
 
-	app := fiber.New()
+	// Same BodyLimit as main.go, or Fiber's default rejects oversized
+	// payloads before the handler's own check runs.
+	app := fiber.New(fiber.Config{
+		BodyLimit: cfg.BodyLimit(),
+	})
 	routes.SetupRoutes(app, cfg)
 	return app
 }

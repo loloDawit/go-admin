@@ -32,7 +32,7 @@ func main() {
 	}
 
 	app := fiber.New(fiber.Config{
-		BodyLimit: int(cfg.MaxUploadBytes) + (1 << 20), // upload cap plus headroom
+		BodyLimit: cfg.BodyLimit(),
 	})
 
 	// Must be an explicit origin: wildcard-with-credentials is a CSRF hole.

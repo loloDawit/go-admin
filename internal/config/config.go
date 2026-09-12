@@ -32,6 +32,11 @@ func (c *Config) IsProduction() bool { return c.AppEnv == "production" }
 
 func (c *Config) Hasher() auth.Hasher { return auth.NewHasher(c.BcryptCost) }
 
+// BodyLimit is the Fiber server limit, not the upload cap itself: headroom
+// above MaxUploadBytes for multipart framing overhead, so the handler's own
+// check (not a raw connection reset) is what rejects an oversized upload.
+func (c *Config) BodyLimit() int { return int(c.MaxUploadBytes) + (1 << 20) }
+
 // Any error from Load is fatal: the application must not start.
 func Load() (*Config, error) {
 	cfg := &Config{

@@ -40,7 +40,7 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 	authed.Get("/product/:id", products, controllers.GetProduct)
 	authed.Put("/product/:id", products, controllers.UpdateProduct)
 	authed.Delete("/product/:id", products, controllers.DeleteProduct)
-	authed.Post("/upload", products, controllers.Upload)
+	authed.Post("/upload", products, controllers.Upload(cfg))
 
 	orders := middlewares.RequirePermission("orders")
 	authed.Get("/orders", orders, controllers.GetAllOrders)
