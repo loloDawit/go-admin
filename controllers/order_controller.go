@@ -48,8 +48,8 @@ func UpdateOrder(ctx *fiber.Ctx) error {
 	}
 
 	// req.Email == "" means the field was omitted, not that a client asked
-	// to clear it: the map form would otherwise wipe it on every request
-	// that only means to touch some other, as-yet-nonexistent field.
+	// to clear it: the map form would otherwise write "" whenever a request
+	// leaves email out.
 	if req.Email != "" {
 		if err := database.DB.Model(&order).Updates(map[string]any{
 			"email": req.Email,

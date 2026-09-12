@@ -108,7 +108,6 @@ func TestDeleteRoleHeldByUserReturns409(t *testing.T) {
 	testutil.GrantPermission(t, db, "admin", "edit_roles")
 	cookie := testutil.Login(t, app, "admin5@example.com", "s3cret-password")
 
-	// SeedUser attaches its own fresh role, which is what we're deleting.
 	holder := testutil.SeedUser(t, db, "holder@example.com", "s3cret-password", "held-role")
 
 	req := testutil.NewRequest(http.MethodDelete, "/api/v1/role/"+strconv.Itoa(int(holder.RoleId)), nil, cookie)
@@ -118,6 +117,80 @@ func TestDeleteRoleHeldByUserReturns409(t *testing.T) {
 	}
 	if resp.StatusCode != http.StatusConflict {
 		t.Fatalf("want 409 for a role still held by a user, got %d", resp.StatusCode)
+	}
+}
+
+// Smoke test for UpdateRole's rewritten body (loadPermissions, transaction,
+// reload) — not a regression test for M6's atomicity, which is not
+// fault-injected here.
+func TestUpdateRoleRenamesAndSwapsPermissions(t *testing.T) {
+	db := testutil.NewDB(t)
+	app := testutil.NewApp(t)
+
+	testutil.SeedUser(t, db, "admin6@example.com", "s3cret-password", "admin")
+	testutil.GrantPermission(t, db, "admin", "edit_roles")
+	cookie := testutil.Login(t, app, "admin6@example.com", "s3cret-password")
+
+	target := testutil.SeedRole(t, db, "before-name")
+	testutil.GrantPermission(t, db, "before-name", "view_orders")
+
+	var newPerm models.Permission
+	if err := db.Where(models.Permission{Name: "view_products"}).
+		FirstOrCreate(&newPerm, models.Permission{Name: "view_products"}).Error; err != nil {
+		t.Fatalf("seed permission: %v", err)
+	}
+
+	body := `{"name":"after-name","permissions":[` + strconv.Itoa(int(newPerm.Id)) + `]}`
+	req := testutil.NewRequest(http.MethodPut, "/api/v1/role/"+strconv.Itoa(int(target.Id)), testutil.JSON(body), cookie)
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("want 200, got %d", resp.StatusCode)
+	}
+
+	var reloaded models.Role
+	if err := db.Preload("Permissions").First(&reloaded, target.Id).Error; err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if reloaded.Name != "after-name" {
+		t.Errorf("name: want %q, got %q", "after-name", reloaded.Name)
+	}
+	if len(reloaded.Permissions) != 1 || reloaded.Permissions[0].Id != newPerm.Id {
+		t.Errorf("want only permission %d attached, got %+v", newPerm.Id, reloaded.Permissions)
+	}
+}
+
+func TestUpdateRoleWithEmptyPermissionsClearsGrants(t *testing.T) {
+	db := testutil.NewDB(t)
+	app := testutil.NewApp(t)
+
+	testutil.SeedUser(t, db, "admin7@example.com", "s3cret-password", "admin")
+	testutil.GrantPermission(t, db, "admin", "edit_roles")
+	cookie := testutil.Login(t, app, "admin7@example.com", "s3cret-password")
+
+	target := testutil.SeedRole(t, db, "clear-me")
+	testutil.GrantPermission(t, db, "clear-me", "view_orders")
+
+	req := testutil.NewRequest(http.MethodPut, "/api/v1/role/"+strconv.Itoa(int(target.Id)),
+		testutil.JSON(`{"name":"clear-me","permissions":[]}`), cookie)
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("want 200, got %d", resp.StatusCode)
+	}
+
+	var reloaded models.Role
+	if err := db.Preload("Permissions").First(&reloaded, target.Id).Error; err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if len(reloaded.Permissions) != 0 {
+		t.Errorf("want all permissions cleared, got %+v", reloaded.Permissions)
 	}
 }
 
