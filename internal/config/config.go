@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	mysqldriver "github.com/go-sql-driver/mysql"
 	"github.com/loloDawit/go-admin/internal/auth"
@@ -96,6 +97,14 @@ func (c *Config) validate() error {
 	if c.AllowedOrigin == "" {
 		errs = append(errs, errors.New(
 			"ALLOWED_ORIGIN is required; wildcard CORS with credentials is not permitted"))
+	} else {
+		for _, origin := range strings.Split(c.AllowedOrigin, ",") {
+			if strings.TrimSpace(origin) == "*" {
+				errs = append(errs, errors.New(
+					"ALLOWED_ORIGIN must not be or contain \"*\"; wildcard CORS with credentials is not permitted"))
+				break
+			}
+		}
 	}
 	if c.MaxUploadBytes <= 0 {
 		errs = append(errs, errors.New("MAX_UPLOAD_BYTES must be positive"))

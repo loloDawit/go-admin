@@ -79,6 +79,31 @@ func TestLoadRejectsMissingOrigin(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsWildcardOrigin(t *testing.T) {
+	cases := []string{"*", " * ", "*, http://x", "http://a, *"}
+	for _, origin := range cases {
+		t.Run(origin, func(t *testing.T) {
+			t.Setenv("DB_DSN", "user:pass@tcp(127.0.0.1:3306)/go_admin?parseTime=true")
+			t.Setenv("SESSION_SECRET", "0123456789abcdef0123456789abcdef")
+			t.Setenv("ALLOWED_ORIGIN", origin)
+
+			if _, err := Load(); err == nil {
+				t.Fatalf("ALLOWED_ORIGIN=%q must be rejected: wildcard CORS with credentials is a CSRF hole", origin)
+			}
+		})
+	}
+}
+
+func TestLoadAcceptsLegitimateMultiOrigin(t *testing.T) {
+	t.Setenv("DB_DSN", "user:pass@tcp(127.0.0.1:3306)/go_admin?parseTime=true")
+	t.Setenv("SESSION_SECRET", "0123456789abcdef0123456789abcdef")
+	t.Setenv("ALLOWED_ORIGIN", "http://localhost:3000, https://admin.example.com")
+
+	if _, err := Load(); err != nil {
+		t.Fatalf("a legitimate multi-origin value must be accepted: %v", err)
+	}
+}
+
 func TestLoadAppliesDefaults(t *testing.T) {
 	t.Setenv("DB_DSN", "user:pass@tcp(127.0.0.1:3306)/go_admin?parseTime=true")
 	t.Setenv("SESSION_SECRET", "0123456789abcdef0123456789abcdef")
