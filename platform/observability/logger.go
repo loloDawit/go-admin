@@ -33,9 +33,9 @@ func RequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 	}
 }
 
-// statusRecorder captures the status for the log line. The constructor below
-// initializes status to 200, since a handler may write a body without ever
-// calling WriteHeader.
+// statusRecorder captures the status for the log line. The constructor's
+// initializer covers a handler that writes nothing at all: WriteHeader is
+// then never called, and the field must still read 200.
 type statusRecorder struct {
 	http.ResponseWriter
 	status      int

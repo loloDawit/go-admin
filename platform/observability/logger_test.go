@@ -87,6 +87,18 @@ func TestRequestLoggerDefaultsStatusTo200WhenWriteHeaderIsNeverCalled(t *testing
 	}
 }
 
+func TestRequestLoggerLogs200WhenTheHandlerWritesNothing(t *testing.T) {
+	logger, captured := observability.NewCaptured()
+	h := observability.RequestLogger(logger)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+
+	v, ok := captured.Attr(0, "status")
+	if !ok || v.Int64() != http.StatusOK {
+		t.Fatalf("a handler that writes nothing must log 200, got %v (ok=%v)", v, ok)
+	}
+}
+
 func TestRequestLoggerRecordsOnlyTheFirstWriteHeaderCall(t *testing.T) {
 	logger, captured := observability.NewCaptured()
 
