@@ -79,12 +79,12 @@ func TestNoNewCodeImportsLegacyPackages(t *testing.T) {
 }
 
 // The check below scans file names, not identifiers or file content. That is
-// deliberate: platform/observability legitimately defines identifiers like
-// statusRecorder and a records field, both of which contain the substring
-// "order" — a content or identifier scan would fail on correct code. A file
-// name containing a domain word is a much stronger signal that domain logic
-// leaked into platform/, so this guard trades recall for zero false
-// positives on the technical vocabulary platform/ actually needs.
+// deliberate: platform/observability legitimately defines the identifier
+// statusRecorder, which contains the substring "order" — a content or
+// identifier scan would fail on correct code. A file name containing a
+// domain word is a much stronger signal that domain logic leaked into
+// platform/, so this guard trades recall for zero false positives on the
+// technical vocabulary platform/ actually needs.
 func TestPlatformHoldsNoDomainConcepts(t *testing.T) {
 	root := repoRoot(t)
 	platformDir := filepath.Join(root, "platform")
@@ -240,10 +240,13 @@ func forEachImport(t *testing.T, dir string, check func(file, imported string)) 
 }
 
 // hasPathPrefix reports whether imported is prefix or a subpackage of it,
-// matching on full path segments so that, e.g., the legacy root's
-// .../internal/httpx does not also match .../platform/httpx or
-// .../services/gateway/internal/httpx: both share the "internal" trailing
-// segment as a substring but neither is the root package legacyRoots names.
+// matching on full path segments. A bare strings.HasPrefix(imported, prefix)
+// would also match a hypothetical sibling package whose name merely starts
+// with prefix, e.g. prefix ".../internal" matching ".../internalfoo"; the
+// trailing "/" this function adds is what rules that out. (The legacy root's
+// .../internal/httpx and .../platform/httpx never shared a prefix to begin
+// with, so a naive check would already have told those apart — the
+// full-segment match isn't what protects that pair.)
 func hasPathPrefix(imported, prefix string) bool {
 	return imported == prefix || strings.HasPrefix(imported, prefix+"/")
 }
