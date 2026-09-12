@@ -42,7 +42,9 @@ func TestWriteJSONSetsStatusAndBody(t *testing.T) {
 		t.Fatalf("status: want 200, got %d", rec.Code)
 	}
 	var body map[string]string
-	json.NewDecoder(rec.Body).Decode(&body)
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
 	if body["service"] != "identity" {
 		t.Errorf("body: got %v", body)
 	}

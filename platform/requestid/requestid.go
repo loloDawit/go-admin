@@ -3,7 +3,6 @@ package requestid
 import (
 	"context"
 	"crypto/rand"
-	"encoding/hex"
 	"net/http"
 )
 
@@ -28,9 +27,5 @@ func FromContext(ctx context.Context) string {
 }
 
 func generate() string {
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		return "unknown"
-	}
-	return hex.EncodeToString(b)
+	return rand.Text()
 }

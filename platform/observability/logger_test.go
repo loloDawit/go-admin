@@ -1,6 +1,7 @@
 package observability_test
 
 import (
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -8,6 +9,23 @@ import (
 	"github.com/loloDawit/go-admin/platform/observability"
 	"github.com/loloDawit/go-admin/platform/requestid"
 )
+
+func TestServiceAttrSurvivesWith(t *testing.T) {
+	logger, captured := observability.NewCaptured()
+	logger = logger.With(slog.String("service", "catalog"))
+
+	h := observability.RequestLogger(logger)(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}),
+	)
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+
+	v, ok := captured.Attr(0, "service")
+	if !ok || v.String() != "catalog" {
+		t.Errorf("service: want %q, got %v (ok=%v)", "catalog", v, ok)
+	}
+}
 
 func TestRequestLoggerRecordsTheExpectedAttributes(t *testing.T) {
 	logger, captured := observability.NewCaptured()
@@ -49,5 +67,40 @@ func TestRequestLoggerRecordsTheExpectedAttributes(t *testing.T) {
 	}
 	if _, ok := captured.Attr(0, "duration_ms"); !ok {
 		t.Error("duration_ms missing")
+	}
+}
+
+func TestRequestLoggerDefaultsStatusTo200WhenWriteHeaderIsNeverCalled(t *testing.T) {
+	logger, captured := observability.NewCaptured()
+
+	h := observability.RequestLogger(logger)(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte("ok"))
+		}),
+	)
+
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+
+	v, ok := captured.Attr(0, "status")
+	if !ok || v.Int64() != http.StatusOK {
+		t.Errorf("status: want 200, got %v (ok=%v)", v, ok)
+	}
+}
+
+func TestRequestLoggerRecordsOnlyTheFirstWriteHeaderCall(t *testing.T) {
+	logger, captured := observability.NewCaptured()
+
+	h := observability.RequestLogger(logger)(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(http.StatusInternalServerError)
+		}),
+	)
+
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+
+	v, ok := captured.Attr(0, "status")
+	if !ok || v.Int64() != http.StatusOK {
+		t.Errorf("status: want 200 (the first call net/http honors), got %v (ok=%v)", v, ok)
 	}
 }

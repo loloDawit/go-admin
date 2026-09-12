@@ -33,14 +33,32 @@ func RequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 	}
 }
 
-// statusRecorder captures the status for the log line. WriteHeader may not be
-// called at all, so the zero value must be 200.
+// statusRecorder captures the status for the log line. The constructor below
+// initializes status to 200, since a handler may write a body without ever
+// calling WriteHeader.
 type statusRecorder struct {
 	http.ResponseWriter
-	status int
+	status      int
+	wroteHeader bool
 }
 
 func (r *statusRecorder) WriteHeader(status int) {
+	if r.wroteHeader {
+		return // net/http ignores a second call; the logged status must match.
+	}
+	r.wroteHeader = true
 	r.status = status
 	r.ResponseWriter.WriteHeader(status)
 }
+
+func (r *statusRecorder) Write(b []byte) (int, error) {
+	if !r.wroteHeader {
+		r.WriteHeader(http.StatusOK)
+	}
+	return r.ResponseWriter.Write(b)
+}
+
+// Unwrap lets http.NewResponseController (used by httputil.ReverseProxy for
+// flushing and Hijack/websocket upgrades) reach the underlying writer through
+// this wrapper.
+func (r *statusRecorder) Unwrap() http.ResponseWriter { return r.ResponseWriter }

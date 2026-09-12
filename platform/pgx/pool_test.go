@@ -18,9 +18,12 @@ func TestNewPoolRejectsAnEmptyDSN(t *testing.T) {
 
 // A malformed DSN must fail at construction, not at first query.
 func TestNewPoolRejectsAMalformedDSN(t *testing.T) {
-	_, err := pgxplatform.NewPool(context.Background(), "://not-a-dsn")
+	_, err := pgxplatform.NewPool(context.Background(), "postgres://u:p@db.internal:notaport/x")
 	if err == nil {
 		t.Fatal("a malformed DSN must be rejected")
+	}
+	if strings.Contains(err.Error(), "db.internal") {
+		t.Error("the error must not echo the DSN's host")
 	}
 	if strings.Contains(err.Error(), "password") {
 		t.Error("the error must not echo credential material")
