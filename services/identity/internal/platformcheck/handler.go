@@ -7,12 +7,12 @@ import (
 	"github.com/loloDawit/go-admin/platform/requestid"
 )
 
-// writeErr is injected rather than imported: internal/httperr must import this
-// package for its sentinels, so importing it back would be a cycle.
 type Handler struct {
 	svc         *Service
 	serviceName string
-	writeErr    func(http.ResponseWriter, error)
+	// writeErr is injected rather than imported: internal/httperr must import
+	// this package for its sentinels, so importing it back would be a cycle.
+	writeErr func(http.ResponseWriter, error)
 }
 
 func NewHandler(svc *Service, serviceName string, writeErr func(http.ResponseWriter, error)) *Handler {

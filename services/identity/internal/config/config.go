@@ -7,6 +7,10 @@ import (
 
 const serviceName = "identity"
 
+// DefaultPort is copied by every service derived from this template; a
+// service-specific rename touches this constant and nothing else.
+const DefaultPort = "8081"
+
 type Config struct {
 	ServiceName string
 	Port        string
@@ -18,7 +22,7 @@ type Config struct {
 func Load() (*Config, error) {
 	cfg := &Config{
 		ServiceName: serviceName,
-		Port:        withDefault("PORT", "8081"),
+		Port:        withDefault("PORT", DefaultPort),
 		DatabaseURL: os.Getenv("DATABASE_URL"),
 	}
 	if cfg.DatabaseURL == "" {

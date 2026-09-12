@@ -36,7 +36,6 @@ func main() {
 		logger.Error("database pool", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
-	defer pool.Close()
 
 	handler := platformcheck.NewHandler(
 		platformcheck.NewService(platformcheck.NewPostgresRepository(pool)),
@@ -44,11 +43,7 @@ func main() {
 		httperr.Write,
 	)
 
-	r := newRouter(logger)
-
-	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
-	r.Get("/readyz", handler.Ready)
-	r.Get("/_platform", handler.Platform)
+	r := newRouter(logger, handler)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
@@ -56,19 +51,35 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
+	// A listener failure reports through serverErr rather than os.Exit in the
+	// goroutine, so the shutdown path below (and pool.Close) still runs.
+	serverErr := make(chan error, 1)
 	go func() {
 		logger.Info("listening", slog.String("port", cfg.Port))
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger.Error("server", slog.String("error", err.Error()))
-			os.Exit(1)
+			serverErr <- err
+			return
 		}
+		serverErr <- nil
 	}()
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
-	<-stop
+
+	exitCode := 0
+	select {
+	case <-stop:
+	case err := <-serverErr:
+		if err != nil {
+			logger.Error("server", slog.String("error", err.Error()))
+			exitCode = 1
+		}
+	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 	_ = srv.Shutdown(shutdownCtx)
+	cancel()
+	pool.Close()
+
+	os.Exit(exitCode)
 }

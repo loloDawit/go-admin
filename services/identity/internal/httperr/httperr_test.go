@@ -20,11 +20,27 @@ func TestWriteMapsDirtySchemaTo503(t *testing.T) {
 		t.Fatalf("status: want 503, got %d", rec.Code)
 	}
 	var body httpx.ErrorBody
-	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
 		t.Fatalf("decode body: %v", err)
 	}
 	if body.Code != "schema_dirty" {
 		t.Errorf("code: want schema_dirty, got %q", body.Code)
+	}
+}
+
+func TestWriteMapsNoMigrationsTo503(t *testing.T) {
+	rec := httptest.NewRecorder()
+	httperr.Write(rec, platformcheck.ErrNoMigrations)
+
+	if rec.Code != 503 {
+		t.Fatalf("status: want 503, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.Code != "schema_not_migrated" {
+		t.Errorf("code: want schema_not_migrated, got %q", body.Code)
 	}
 }
 
@@ -39,14 +55,18 @@ func TestWriteNeverLeaksTheCauseOfAnUnmappedError(t *testing.T) {
 	if rec.Code != 503 {
 		t.Fatalf("status: want 503, got %d", rec.Code)
 	}
+	raw := rec.Body.String()
+
 	var body httpx.ErrorBody
-	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+	if err := json.NewDecoder(strings.NewReader(raw)).Decode(&body); err != nil {
 		t.Fatalf("decode body: %v", err)
 	}
 	if body.Code != "database_unavailable" {
 		t.Errorf("code: want database_unavailable, got %q", body.Code)
 	}
-	if strings.Contains(body.Message, "10.0.0.5") || strings.Contains(body.Message, "connection refused") {
-		t.Errorf("message leaked the cause: %q", body.Message)
+	// Checked against the whole raw response, not just body.Message: a leak
+	// through any future envelope field must be caught too.
+	if strings.Contains(raw, "10.0.0.5") || strings.Contains(raw, "connection refused") {
+		t.Errorf("response leaked the cause: %q", raw)
 	}
 }

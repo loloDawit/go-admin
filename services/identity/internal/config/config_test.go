@@ -8,7 +8,7 @@ import (
 
 func TestLoadRejectsAMissingDatabaseURL(t *testing.T) {
 	t.Setenv("DATABASE_URL", "")
-	t.Setenv("PORT", "8081")
+	t.Setenv("PORT", config.DefaultPort)
 
 	if _, err := config.Load(); err == nil {
 		t.Fatal("a missing DATABASE_URL must be fatal at startup")
@@ -23,8 +23,8 @@ func TestLoadAppliesTheDefaultPort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("want success, got %v", err)
 	}
-	if cfg.Port != "8081" {
-		t.Errorf("port: want 8081, got %q", cfg.Port)
+	if cfg.Port != config.DefaultPort {
+		t.Errorf("port: want %q, got %q", config.DefaultPort, cfg.Port)
 	}
 	if cfg.ServiceName != "identity" {
 		t.Errorf("service name: want identity, got %q", cfg.ServiceName)
