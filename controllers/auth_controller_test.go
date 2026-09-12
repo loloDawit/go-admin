@@ -110,6 +110,50 @@ func TestUpdateUserInfoCanClearNothingSilently(t *testing.T) {
 	}
 }
 
+// The frontend's Permission[] contract needs the role's permissions
+// populated, not null — that drives what the UI shows or hides (M3).
+func TestUserEndpointReturnsRolePermissions(t *testing.T) {
+	db := testutil.NewDB(t)
+	app := testutil.NewApp(t)
+
+	testutil.SeedUser(t, db, "ada@example.com", "s3cret-password", "owner")
+	testutil.GrantPermission(t, db, "owner", "edit_users")
+	cookie := testutil.Login(t, app, "ada@example.com", "s3cret-password")
+
+	req := testutil.NewRequest(http.MethodGet, "/api/v1/user", nil, cookie)
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("want 200, got %d", resp.StatusCode)
+	}
+
+	var body struct {
+		Role struct {
+			Permissions []struct {
+				Name string `json:"name"`
+			} `json:"permissions"`
+		} `json:"role"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	if len(body.Role.Permissions) == 0 {
+		t.Fatal("role.permissions was empty/null — expected the seeded \"edit_users\" permission")
+	}
+	found := false
+	for _, p := range body.Role.Permissions {
+		if p.Name == "edit_users" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("want role.permissions to include \"edit_users\", got %+v", body.Role.Permissions)
+	}
+}
+
 func TestLoginRejectsWrongPassword(t *testing.T) {
 	db := testutil.NewDB(t)
 	app := testutil.NewApp(t)

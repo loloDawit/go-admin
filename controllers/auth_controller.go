@@ -65,7 +65,7 @@ func User(ctx *fiber.Ctx) error {
 	}
 
 	var user models.User
-	if err := database.DB.Preload("Role").First(&user, userId).Error; err != nil {
+	if err := database.DB.Preload("Role.Permissions").First(&user, userId).Error; err != nil {
 		return notFoundOrDBError(ctx, err, "user")
 	}
 	return ctx.JSON(user)

@@ -22,8 +22,9 @@ DONE
   of throwing an unhandled rejection that silently skipped `setRedirect(true)`. Submit button is
   disabled while `submitting`. Both inputs are now controlled (`value=`) and each has a real
   (visually-hidden) `<label>` instead of relying on `placeholder` as the only label. Removed the
-  `console.log`. The ADR-0001 "accounts are created by an administrator" copy was already present
-  in this file pre-task and is retained as-is.
+  `console.log`. The ADR-0001 copy was changed by this task's diff, from "Need an account? Contact
+  your administrator." to "Accounts are created by an administrator. Contact yours to request
+  access." — not retained as-is.
 - `clients/src/Components/Layout.tsx`: the `/user` probe now goes through `api<UserInfo>('/user')`;
   `//@ts-ignore` and `axios` removed.
 - `clients/src/Components/Nav.tsx`: both the `/user` fetch and the `/logout` call go through

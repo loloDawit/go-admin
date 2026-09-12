@@ -8,7 +8,6 @@ export class ApiRequestError extends Error {
   }
 }
 
-/** Turns a non-2xx response into a typed error. */
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${BASE_URL}/api/v1${path}`, {
     ...init,

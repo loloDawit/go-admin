@@ -13,6 +13,7 @@ const Nav: FunctionComponent<NavProps> = () => {
       await api('/logout', { method: 'POST' });
     } catch (error) {
       // The Link's own navigation to /login proceeds regardless of this result.
+      console.error('logout request failed; session cookie may still be set', error);
     }
   };
 
