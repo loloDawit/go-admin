@@ -8,6 +8,7 @@
 package arch_test
 
 import (
+	"go/ast"
 	"go/parser"
 	"go/token"
 	"os"
@@ -17,6 +18,11 @@ import (
 )
 
 const modulePath = "github.com/loloDawit/go-admin"
+
+// httpxImportPath is the package that owns the wire shape for client-facing
+// errors. Spec §9 requires status codes and client messages to originate in
+// exactly one place per service: the service's own internal/httperr package.
+const httpxImportPath = modulePath + "/platform/httpx"
 
 var services = []string{"gateway", "identity", "catalog", "orders"}
 
@@ -104,6 +110,97 @@ func TestPlatformHoldsNoDomainConcepts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("walk platform: %v", err)
 	}
+}
+
+// TestClientFacingErrorsOnlyConstructedInHTTPErr is the narrowed AST guard
+// spec §9 requires re-added: it fails when an http-layer package constructs a
+// client-facing error (calls httpx.WriteError) outside the service's own
+// internal/httperr package, which is the one place per service that may
+// decide a status code or a client-visible message.
+//
+// It resolves each file's local name for platform/httpx from its own import
+// block (rather than string-matching "httpx.WriteError") so a file that
+// imports the package under a different local name cannot dodge the check.
+func TestClientFacingErrorsOnlyConstructedInHTTPErr(t *testing.T) {
+	root := repoRoot(t)
+
+	for _, svc := range services {
+		svc := svc
+		t.Run(svc, func(t *testing.T) {
+			svcDir := filepath.Join(root, "services", svc)
+			httperrDir := filepath.Join(svcDir, "internal", "httperr") + string(filepath.Separator)
+
+			callsInHTTPErr := 0
+
+			err := filepath.Walk(svcDir, func(path string, info os.FileInfo, err error) error {
+				if err != nil || info.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+					return err
+				}
+
+				fset := token.NewFileSet()
+				file, perr := parser.ParseFile(fset, path, nil, 0)
+				if perr != nil {
+					t.Fatalf("parse %s: %v", path, perr)
+				}
+
+				alias := httpxLocalAlias(file)
+				if alias == "" {
+					return nil // this file does not import platform/httpx at all
+				}
+
+				inHTTPErr := strings.HasPrefix(path, httperrDir)
+
+				ast.Inspect(file, func(n ast.Node) bool {
+					call, ok := n.(*ast.CallExpr)
+					if !ok {
+						return true
+					}
+					sel, ok := call.Fun.(*ast.SelectorExpr)
+					if !ok || sel.Sel.Name != "WriteError" {
+						return true
+					}
+					ident, ok := sel.X.(*ast.Ident)
+					if !ok || ident.Name != alias {
+						return true
+					}
+
+					if inHTTPErr {
+						callsInHTTPErr++
+						return true
+					}
+					pos := fset.Position(call.Pos())
+					t.Errorf("%s:%d constructs a client-facing error via httpx.WriteError outside %sinternal/httperr.\n\tStatus codes and client messages must originate from exactly one place per service; call into internal/httperr instead.",
+						rel(root, path), pos.Line, svc+"/")
+					return true
+				})
+				return nil
+			})
+			if err != nil {
+				t.Fatalf("walk %s: %v", svcDir, err)
+			}
+			if callsInHTTPErr == 0 {
+				t.Fatalf("found zero httpx.WriteError calls inside %s; an AST-shape mismatch would otherwise make this guard pass vacuously", rel(root, strings.TrimSuffix(httperrDir, string(filepath.Separator))))
+			}
+		})
+	}
+}
+
+// httpxLocalAlias returns the name file uses to refer to platform/httpx
+// (its explicit alias, or the package's default name if imported unaliased),
+// or "" if the file does not import it at all.
+func httpxLocalAlias(file *ast.File) string {
+	for _, imp := range file.Imports {
+		path := strings.Trim(imp.Path.Value, `"`)
+		if path != httpxImportPath {
+			continue
+		}
+		if imp.Name != nil {
+			return imp.Name.Name
+		}
+		parts := strings.Split(path, "/")
+		return parts[len(parts)-1]
+	}
+	return ""
 }
 
 // forEachImport parses only the import block of every .go file under dir (no
