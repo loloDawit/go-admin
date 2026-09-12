@@ -36,6 +36,39 @@ func TestLoadRejectsDSNWithoutParseTime(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsDSNWithParseTimeFalse(t *testing.T) {
+	t.Setenv("DB_DSN", "user:pass@tcp(127.0.0.1:3306)/go_admin?parseTime=false")
+	t.Setenv("SESSION_SECRET", "0123456789abcdef0123456789abcdef")
+	t.Setenv("ALLOWED_ORIGIN", "http://localhost:3000")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("expected an error when DB_DSN sets parseTime=false, got nil")
+	}
+}
+
+// The driver parses this parameter with strconv.ParseBool, which accepts
+// True/TRUE/1/t as well as "true" — a plain substring check would reject a
+// DSN the driver itself accepts.
+func TestLoadAcceptsDSNWithCapitalizedParseTime(t *testing.T) {
+	t.Setenv("DB_DSN", "user:pass@tcp(127.0.0.1:3306)/go_admin?parseTime=True&charset=utf8mb4")
+	t.Setenv("SESSION_SECRET", "0123456789abcdef0123456789abcdef")
+	t.Setenv("ALLOWED_ORIGIN", "http://localhost:3000")
+
+	if _, err := Load(); err != nil {
+		t.Fatalf("expected parseTime=True to be accepted, got: %v", err)
+	}
+}
+
+func TestLoadRejectsUnparseableDSN(t *testing.T) {
+	t.Setenv("DB_DSN", "not a valid dsn")
+	t.Setenv("SESSION_SECRET", "0123456789abcdef0123456789abcdef")
+	t.Setenv("ALLOWED_ORIGIN", "http://localhost:3000")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("expected an error for an unparseable DB_DSN, got nil")
+	}
+}
+
 func TestLoadRejectsMissingOrigin(t *testing.T) {
 	t.Setenv("DB_DSN", "user:pass@tcp(127.0.0.1:3306)/go_admin?parseTime=true")
 	t.Setenv("SESSION_SECRET", "0123456789abcdef0123456789abcdef")

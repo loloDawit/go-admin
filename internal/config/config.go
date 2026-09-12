@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
 
+	mysqldriver "github.com/go-sql-driver/mysql"
 	"github.com/loloDawit/go-admin/internal/auth"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -72,12 +72,17 @@ func (c *Config) validate() error {
 
 	if c.DBDSN == "" {
 		errs = append(errs, errors.New("DB_DSN is required (see .env.example)"))
-	} else if !strings.Contains(c.DBDSN, "parseTime=true") {
+	} else if dsn, err := mysqldriver.ParseDSN(c.DBDSN); err != nil {
+		errs = append(errs, fmt.Errorf("DB_DSN is not a valid MySQL DSN: %w", err))
+	} else if !dsn.ParseTime {
 		// Models read/write time.Time columns (e.g. Order.CreatedAt); without
 		// this the driver hands GORM []uint8 instead, and every read fails
-		// at request time rather than at boot.
+		// at request time rather than at boot. Checked via the driver's own
+		// parser (strconv.ParseBool under the hood), not a substring match:
+		// parseTime=True/1/t are all valid to the driver and must not be
+		// rejected here.
 		errs = append(errs, errors.New(
-			"DB_DSN must include parseTime=true (see .env.example)"))
+			"DB_DSN must set parseTime=true (see .env.example)"))
 	}
 	if len(c.SessionSecret) < minSecretLen {
 		errs = append(errs, fmt.Errorf(
