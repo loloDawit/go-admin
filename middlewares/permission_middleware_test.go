@@ -1,10 +1,12 @@
 package middlewares_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
 
+	"github.com/loloDawit/go-admin/internal/httpx"
 	"github.com/loloDawit/go-admin/internal/testutil"
 )
 
@@ -78,5 +80,13 @@ func TestUnauthenticatedRequestIsRejected(t *testing.T) {
 	resp, _ := app.Test(req, -1)
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("want 401 without a cookie, got %d", resp.StatusCode)
+	}
+
+	var body httpx.Body
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response body: %v", err)
+	}
+	if body.Code != "unauthenticated" {
+		t.Fatalf("want code %q, got %q (regression to a non-registry error shape)", "unauthenticated", body.Code)
 	}
 }
