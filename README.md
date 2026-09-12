@@ -1,151 +1,144 @@
 # go-admin
 
-A staff back-office for a small e-commerce shop: product catalog, orders,
-and staff roles and permissions. Customer records and the sales dashboard
-are planned but not yet built — see "Known limitations in M0" below.
+A staff back-office for a small e-commerce shop, being rebuilt as a small
+set of Go microservices: a **gateway** in front of **Identity**, **Catalog**,
+and **Orders**, each owning its own PostgreSQL database with its own
+restricted database role.
 
-**Status:** under active revival. See [`docs/ASSESSMENT.md`](docs/ASSESSMENT.md)
-for the full technical assessment and the milestone plan. This is milestone
-M0 — the application boots safely from a clean clone and the critical
-security defects are closed, but most screens do not exist yet (rebuilt in PRD M5, not repaired). See
-"Known limitations in M0" below.
+**Status: M1 — platform skeleton.** The stack boots, each service has its
+own database and migrations, and the gateway proxies to all three. **There
+is no domain functionality yet** — no login, no products, no orders, no
+staff or customer records. See "Known limitations in M1" below before you
+go looking for a working admin panel.
+
+The canonical architecture and milestone plan is
+[`docs/PRD/SmallScaleMicroservicesArchitecture.md`](docs/PRD/SmallScaleMicroservicesArchitecture.md).
+For why this is a rebuild rather than a repair of the original app, see
+[`docs/ASSESSMENT.md`](docs/ASSESSMENT.md).
+
+## The legacy application
+
+The original monolith still lives at the repo root (`main.go`,
+`controllers/`, `models/`, `clients/`, its own `docker-compose.yml`, etc.).
+It is tagged `legacy-v1` and is **not** touched by the instructions below —
+it has its own MySQL-based stack. It is kept only as a behavioural
+reference while the new services are built, **not a migration source**,
+and is deleted milestone by milestone through M5. Do not confuse its files
+with the new services under `services/`.
 
 ## Requirements
 
-- Go 1.27
-- Docker (for MySQL, and for the test suite)
-- Node 22
+- Go 1.27 (see `go.mod`)
+- Docker
 
 ## Quick start
 
-```bash
-cp .env.example .env
-# Generate a real signing key — the app refuses to start without one.
-# macOS/BSD sed:
-sed -i '' "s|^SESSION_SECRET=.*|SESSION_SECRET=$(openssl rand -hex 32)|" .env
-# GNU/Linux sed:
-sed -i "s|^SESSION_SECRET=.*|SESSION_SECRET=$(openssl rand -hex 32)|" .env
+There is no `.env` step. Configuration for local development lives directly
+in `deploy/compose/docker-compose.yml`.
 
-make dev     # starts MySQL, seeds it, runs the API on :8080
-make web     # in a second terminal: React dev server on :3000
+```bash
+make up
+curl -s -H 'X-Request-Id: check' localhost:8080/_platform/identity
 ```
 
-Sign in with the `OWNER_EMAIL` / `OWNER_PASSWORD` from your `.env`.
-**Change that password immediately, then remove `OWNER_PASSWORD` from `.env`.**
-`make seed` never resets an existing owner's password — but it does replace
-every built-in role's permission grants (`owner`/`admin`/`staff`) with the
-hardcoded defaults on every run, so any grant customized through the role
-endpoints is reverted on the next `make dev` or deploy.
+`make up` boots postgres, the three one-shot migrate jobs, identity,
+catalog, orders, and the gateway, and waits for all of them to report
+healthy. The curl above returned:
 
-## Accounts and registration
+```
+{"service":"identity","schemaVersion":1,"requestId":"check"}
+```
 
-There is no public registration ([ADR 0001](docs/decisions/0001-remove-public-registration.md)).
-`POST /api/v1/register` returns **401, not 404**: the authenticated route
-group has an empty path prefix and matches every path under `/api/v1`
-before route lookup runs, so an unregistered path fails auth before it can
-404 — deliberately, so the status code can't be used to enumerate routes.
+The same call against `/_platform/catalog` and `/_platform/orders` returns
+the equivalent body for each service, with `requestId` echoing whatever
+`X-Request-Id` the client sent.
 
-The first account is created by `make seed`, which reads `OWNER_EMAIL` and
-`OWNER_PASSWORD` from the environment. Every other account is created by an
-authenticated admin through `POST /api/v1/users`.
+## Ports
 
-### Built-in roles and permissions
-
-Three roles are seeded: `owner` (every permission), `admin` (everything
-except `edit_roles`), and `staff` (view users, view/edit products, view/edit
-orders — no role or user management).
-
-The permission vocabulary is `view_<resource>` / `edit_<resource>` for
-`users`, `products`, `orders`, and `roles`. A route guarded by
-`RequirePermission("products")` accepts `edit_products` on any method, and
-also accepts `view_products` on safe methods (GET/HEAD/OPTIONS) — holding
-edit implies read.
+| Service | Port |
+|---|---|
+| gateway | 8080 |
+| identity | 8081 |
+| catalog | 8082 |
+| orders | 8083 |
+| postgres | 5433 (bound to `127.0.0.1` only, deliberately — see below) |
 
 ## `make` targets
 
 | Command | What it does |
 |---|---|
-| `make up` | Start MySQL (`docker compose up -d --wait`) |
-| `make down` | Stop MySQL; the `dbdata` volume is preserved |
-| `make seed` | Create permissions, roles, and the owner account (idempotent) |
-| `make dev` | `up` + `seed`, then run the API |
-| `make api` | Run the API server (`go run .`) |
-| `make web` | Run the React dev server |
-| `make test` | Full Go test suite; starts its own MySQL via testcontainers |
-| `make fmt` | Format all Go source |
-| `make gofmtcheck` | Fail if any Go file is unformatted |
-| `make lint` | `gofmtcheck` + `go vet` |
+| `make help` | List the available targets |
+| `make up` | Boot the stack (`docker compose up -d --build --wait`) |
+| `make down` | Stop the stack (volumes preserved) |
+| `make dev` | `up`, then tail gateway logs |
+| `make logs` | Tail all service logs |
+| `make test` | `test-unit` + `test-integration` |
+| `make test-unit` | Unit and architecture tests; no stack required |
+| `make test-integration` | Boots the stack (`up`), then runs the `-tags integration` suite against it |
+| `make fmt` | `gofmt -w` over `services`, `platform`, `test` |
+| `make lint` | gofmt check + `go vet` (including the integration build tag) |
 | `make tidy` | `go mod tidy` |
 
-## Configuration
-
-Every setting comes from the environment; see `.env.example`. The
-application **refuses to start** if any of the following is missing or
-invalid, so a misconfigured deploy fails loudly at boot instead of silently
-issuing broken session cookies:
-
-- `DB_DSN` — must contain `parseTime=true` (or any value the Go MySQL driver
-  parses as true, e.g. `True`); GORM cannot scan `DATETIME` columns into
-  `time.Time` without it.
-- `SESSION_SECRET` — at least 32 bytes. Generate with `openssl rand -hex 32`.
-- `ALLOWED_ORIGIN` — must be non-empty and must be the frontend's exact
-  origin, never `*`: the API sends credentialed cookies, and a wildcard
-  origin combined with credentials is a CSRF hole.
-
-`APP_ENV=production` turns on `Secure` cookies (HTTPS only); leave it as
-`development` for local HTTP.
-
-## Repository layout
+Integration tests carry `//go:build integration` and need `-tags
+integration` to run at all. Without the tag, `go test ./test/integration/...`
+matches zero files and fails outright — a mistake you can't miss:
 
 ```
-main.go              API entrypoint
-cmd/seed/             Seed command (make seed)
-database/             GORM connection setup (database.DB, a package global)
-routes/               Route table; permission groups are declared here
-controllers/          HTTP handlers
-models/               GORM models
-middlewares/          Authentication and authorization
-utils/                JWT issuing and parsing
-internal/config/      Typed, validated configuration
-internal/auth/        Password hashing
-internal/errs/        The error registry — every client-facing failure
-internal/httpx/       Request DTOs and the {code,message} response shape
-internal/seed/        Idempotent permission/role/owner seeding
-internal/testutil/    Integration-test harness (testcontainers + MySQL)
-clients/              React + TypeScript frontend
-docs/                 Assessment, ADRs, and milestone plans
+go: warning: "./test/integration/..." matched no packages
+no packages to test
 ```
 
-## Known limitations in M0
+But without the tag against a wider path, such as `go test ./test/...`,
+the command still succeeds — it just silently runs 0 integration tests
+(only `test/arch` has non-tagged files there) and reports `ok`, which is
+why `make test-integration` pins `-tags integration` to the exact
+`test/integration/...` path rather than something broader. Also note
+`go test ./...` from the repo root pulls in the legacy packages at the
+root, which need MySQL and their own setup — that's why the Makefile's
+`GO_PKGS` excludes the repo root and scopes to `./services/...` and
+`./platform/...` instead. `make test` runs the tag-gated integration
+suite plus the plain unit/arch tests, against a stack it boots itself.
 
-See `docs/ASSESSMENT.md` for the full milestone plan.
+## `/_platform/*` is temporary
 
-- `database.DB` is still a package-level global, not injected (rebuilt in PRD M1–M4, not repaired).
-- The schema is still created with GORM `AutoMigrate`, not versioned
-  migrations (rebuilt in PRD M1–M4, not repaired).
-- Sessions are plain JWTs with no server-side store, so a session cannot be
-  revoked before it expires (rebuilt in PRD M2, not repaired).
-- There is no password reset flow and no email delivery (rebuilt in PRD M2, not repaired).
-- Orders have no status or lifecycle (rebuilt in PRD M4, not repaired).
-- Products, Orders, Roles, and Customers have no UI. The Users and Dashboard
-  pages that exist in `clients/src/pages` are placeholder stubs with static
-  markup, not working screens (rebuilt in PRD M5, not repaired).
-- `internal/testutil.NewApp` builds the real route table but does not
-  install the CORS middleware `main.go` installs — a CORS regression would
-  not be caught by the test suite.
-- Uploaded files are readable by any signed-in user regardless of
-  permissions: the route sweep that checks every route carries the right
-  `RequirePermission` deliberately skips the `config.UploadsPath` static
-  mount. Uploads are authenticated at all only because that mount is
-  registered in `routes.SetupRoutes` after the `authed` group, under the
-  same `/api/v1` prefix the `authed` group's empty-path routes match first —
-  moving the static mount above it, or off `/api/v1`, would silently make
-  uploads public.
-- `staff` can enumerate the full role and permission model through
-  `GET /api/v1/users`, which preloads `Role.Permissions` on every user in
-  the page — the same payload `GET /api/v1/roles` withholds from `staff`.
-- The JWT expiry (`utils/jwt.go`) and the session cookie expiry
-  (`controllers/auth_controller.go`'s `sessionTTL`) are two separate
-  hardcoded 24-hour literals; nothing enforces that they agree, so changing
-  one without the other silently produces a cookie that outlives its token
-  or a token that outlives its cookie.
+`GET /_platform/{service}` (proxied through the gateway, and served
+directly by each service) reports `{service, schemaVersion, requestId}` and
+exists solely so this milestone has something to boot and verify against.
+It is **not a product API**. It is removed service by service as each one
+gains its real capabilities in M2–M4. Do not build a client against it.
+
+## Credentials are dev-only, on purpose
+
+The database roles and passwords in `deploy/compose/docker-compose.yml`
+(for example `dev_only_identity`) are committed in plain text so the stack
+runs from a clean clone with no setup step. Each role is created
+`NOSUPERUSER NOCREATEDB NOCREATEROLE` and scoped to its own database only
+(`deploy/compose/postgres/init/01-roles-and-databases.sql` revokes
+`CONNECT` on every database from `PUBLIC`, then grants it back only to
+that database's own role — `identity_user` cannot reach `catalog_db`).
+Postgres is bound to `127.0.0.1:5433` on the host, not a LAN-reachable
+address, so this is tolerable for a local, throwaway stack.
+
+It is still not something to copy into a deployed configuration. Each
+service's DSN currently sits in its container's `environment:` block in
+the compose file, which means it is visible to `docker inspect` on that
+container — acceptable on a laptop, not acceptable once the stack is
+deployed. **A deployed configuration must not inherit this pattern:**
+secrets need a real secret store, not compose `environment:`, and deployed
+passwords must not be the ones checked into this repository.
+
+## Known limitations in M1
+
+- No domain functionality: no login, no products, no orders, no staff or
+  customer records. That arrives across M2–M4.
+- No sessions, authentication, or principal signing — arrives in M2.
+- No OpenTelemetry, metrics, or rate limiting — arrives in M7.
+- No messaging (NATS, outbox) — arrives in M6.
+- No Kubernetes — arrives in M8.
+- The `platformcheck` package in each service and the `/_platform/*` routes
+  are M1 scaffolding, not a stable API, and are deleted as each service's
+  real capabilities land.
+- CI (`.github/workflows/ci-services.yml`) builds, unit-tests, and
+  integration-tests the four services on every PR, but has not yet run
+  on GitHub Actions itself — only its individual commands have been run
+  and verified locally.
