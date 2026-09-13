@@ -4,7 +4,7 @@ COMPOSE := docker compose -f deploy/compose/docker-compose.yml
 # deletes the legacy tree.
 GO_PKGS := ./services/... ./platform/...
 
-.PHONY: help up down dev logs test test-unit test-integration fmt lint tidy
+.PHONY: help hooks up down dev logs test test-unit test-integration fmt lint tidy
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -45,3 +45,7 @@ lint: ## Vet and format check
 
 tidy: ## Tidy modules
 	go mod tidy
+
+hooks: ## Install the repository git hooks
+	@git config core.hooksPath .githooks
+	@echo "core.hooksPath -> .githooks"
