@@ -4,10 +4,6 @@ Staff back-office for a small e-commerce shop: a gateway in front of three Go
 services — Identity, Catalog, Orders — each owning its own PostgreSQL database
 and its own restricted role.
 
-It replaces a 2022 monolith, which still sits at the repo root, runs on its own
-MySQL stack, is tagged `legacy-v1`, and is deleted as the services take over.
-Don't confuse it with `services/`.
-
 ## Run
 
 Go 1.27 and Docker. No `.env` step — local config lives in
