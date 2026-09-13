@@ -11,7 +11,7 @@ uploads/*
 # Playwright CLI output (may contain credentials)
 .playwright-cli/
 
-# Internal working documents — intentionally untracked
+# Planning notes and design sketches — kept local, not part of the build
 docs/
 CLAUDE.md
 .superpowers/

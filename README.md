@@ -11,9 +11,11 @@ is no domain functionality yet** — no login, no products, no orders, no
 staff or customer records. See "Known limitations in M1" below before you
 go looking for a working admin panel.
 
-The architecture, milestone plan, and the assessment behind the decision to
-rebuild rather than repair are kept as working documents outside this
-repository.
+The long-term direction — architecture sketches, the milestone plan, notes on
+why this is a rebuild rather than a repair — is still being worked out, so it
+lives in local notes rather than in the repo, where it would read as settled
+before it is. Open an issue if you want to talk about the direction; happy to
+share where the thinking is.
 
 ## The legacy application
 
