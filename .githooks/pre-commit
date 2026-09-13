@@ -1,0 +1,21 @@
+#!/bin/sh
+# Keeps local planning notes from being committed by accident.
+#
+# .gitignore does not stop `git add -f`, and these files have been force-added
+# once already. This checks the staged set, so that case is caught too.
+#
+# Install: make hooks
+# Bypass:  git commit --no-verify
+
+set -eu
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR \
+	| grep -E '^(\.superpowers/|\.claude/|docs/|CLAUDE\.md$)' || true)
+
+[ -z "$staged" ] && exit 0
+
+printf '\033[31m%s\033[0m\n' "Local planning notes are staged:" >&2
+printf '  %s\n' $staged >&2
+printf '\033[31m%s\033[0m\n' \
+	"These are kept out of the build. Unstage them, or --no-verify if deliberate." >&2
+exit 1

@@ -7,4 +7,11 @@
 
 uploads/*
 
-csv/*.csv
+.claude/
+# Playwright CLI output (may contain credentials)
+.playwright-cli/
+
+# Planning notes and design sketches — kept local, not part of the build
+docs/
+CLAUDE.md
+.superpowers/
