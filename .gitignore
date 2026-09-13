@@ -14,3 +14,4 @@ uploads/*
 # Internal working documents — intentionally untracked
 docs/
 CLAUDE.md
+.superpowers/
