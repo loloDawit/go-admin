@@ -13,6 +13,8 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -46,13 +48,17 @@ func TestNoServiceImportsAnotherService(t *testing.T) {
 	}
 }
 
-// The check below scans file names, not identifiers or file content. That is
-// deliberate: platform/observability legitimately defines the identifier
-// statusRecorder, which contains the substring "order" — a content or
-// identifier scan would fail on correct code. A file name containing a
-// domain word is a much stronger signal that domain logic leaked into
-// platform/, so this guard trades recall for zero false positives on the
-// technical vocabulary platform/ actually needs.
+// The filename check below scans file names, not identifiers or arbitrary
+// file content. That is deliberate: platform/observability legitimately
+// defines the identifier statusRecorder, which contains the substring
+// "order" — a content or identifier scan for these words would fail on
+// correct code. A file name containing a domain word is a much stronger
+// signal that domain logic leaked into platform/, so this guard trades
+// recall for zero false positives on the technical vocabulary platform/
+// actually needs. The second check below (permission-vocabulary string
+// literals) is narrower still: it matches a value shape, not a banned word,
+// so it coexists with platform/principal's legitimate `Permissions []string`
+// field and platform/requestid's legitimate use of the word "request".
 func TestPlatformHoldsNoDomainConcepts(t *testing.T) {
 	root := repoRoot(t)
 	platformDir := filepath.Join(root, "platform")
@@ -77,6 +83,59 @@ func TestPlatformHoldsNoDomainConcepts(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("walk platform: %v", err)
+	}
+
+	checkPlatformHoldsNoPermissionVocabularyLiterals(t, root, platformDir)
+}
+
+// permissionVocabularyPattern matches Identity's permission-string shape
+// (e.g. "view_staff", "edit_role"). A string literal under platform/ matching
+// it is Identity's permission vocabulary leaking into technical
+// infrastructure, even when the file name gives no hint (spec §5).
+var permissionVocabularyPattern = regexp.MustCompile(`^(view|edit)_[a-z_]+$`)
+
+// checkPlatformHoldsNoPermissionVocabularyLiterals parses every .go file
+// under platform/ (test files included: a fixture value is as much a leak as
+// production code) and fails on any string literal whose value matches
+// permissionVocabularyPattern.
+func checkPlatformHoldsNoPermissionVocabularyLiterals(t *testing.T, root, platformDir string) {
+	t.Helper()
+
+	scanned := 0
+	err := filepath.Walk(platformDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() || !strings.HasSuffix(path, ".go") {
+			return err
+		}
+		scanned++
+
+		fset := token.NewFileSet()
+		file, perr := parser.ParseFile(fset, path, nil, 0)
+		if perr != nil {
+			t.Fatalf("parse %s: %v", path, perr)
+		}
+
+		ast.Inspect(file, func(n ast.Node) bool {
+			lit, ok := n.(*ast.BasicLit)
+			if !ok || lit.Kind != token.STRING {
+				return true
+			}
+			value, uerr := strconv.Unquote(lit.Value)
+			if uerr != nil {
+				return true
+			}
+			if permissionVocabularyPattern.MatchString(value) {
+				pos := fset.Position(lit.Pos())
+				t.Errorf("%s:%d contains permission-vocabulary string literal %q.\n\tplatform/ is technical infrastructure only; this belongs under services/identity/internal instead.", rel(root, path), pos.Line, value)
+			}
+			return true
+		})
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk platform for permission-vocabulary literals: %v", err)
+	}
+	if scanned == 0 {
+		t.Fatalf("no .go files found under %s; this guard would otherwise pass vacuously", rel(root, platformDir))
 	}
 }
 

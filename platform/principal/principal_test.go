@@ -15,7 +15,7 @@ var key = []byte("test-signing-key")
 func testPrincipal(now time.Time) principal.Principal {
 	return principal.Principal{
 		StaffID:            "staff-1",
-		Permissions:        []string{"view_staff"},
+		Permissions:        []string{"example_permission"},
 		MustChangePassword: true,
 		IssuedAt:           now,
 		ExpiresAt:          now.Add(time.Minute),
@@ -38,7 +38,7 @@ func TestVerifyAcceptsWhatSignProduced(t *testing.T) {
 	if got.StaffID != p.StaffID {
 		t.Errorf("StaffID: want %q, got %q", p.StaffID, got.StaffID)
 	}
-	if len(got.Permissions) != 1 || got.Permissions[0] != "view_staff" {
+	if len(got.Permissions) != 1 || got.Permissions[0] != "example_permission" {
 		t.Errorf("Permissions: got %v", got.Permissions)
 	}
 	if !got.MustChangePassword {
@@ -74,7 +74,7 @@ func TestVerifyRejectsATamperedPayload(t *testing.T) {
 		t.Fatalf("sign: %v", err)
 	}
 
-	tampered := forgePermission(h, "edit_staff")
+	tampered := forgePermission(h, "forged_permission")
 	if _, err := principal.Verify(tampered, sig, key, now); !errors.Is(err, principal.ErrBadSignature) {
 		t.Fatalf("tampered payload accepted: %v", err)
 	}
