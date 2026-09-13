@@ -1,8 +1,5 @@
 COMPOSE := docker compose -f deploy/compose/docker-compose.yml
-# Excludes the repo root on purpose: the legacy packages still live there and
-# their tests need MySQL. Widening this to ./... breaks test/lint until M4
-# deletes the legacy tree.
-GO_PKGS := ./services/... ./platform/...
+GO_PKGS := ./...
 
 .PHONY: help hooks up down dev logs test test-unit test-integration fmt lint tidy
 

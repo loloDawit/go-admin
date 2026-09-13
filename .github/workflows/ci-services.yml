@@ -34,10 +34,6 @@ jobs:
       # ubuntu-latest ships a working Docker daemon; the stack and the
       # integration tests both need it. Do not move this job to a runner
       # without one.
-      #
-      # The compose project name (go-admin-platform) comes from the `name:`
-      # key in docker-compose.yml itself, not a -p flag here — it must stay
-      # that way to avoid colliding with the legacy compose project.
       - run: docker compose -f deploy/compose/docker-compose.yml down -v
       - run: docker compose -f deploy/compose/docker-compose.yml up -d --build --wait
       # -tags integration is required: without it this matches zero test

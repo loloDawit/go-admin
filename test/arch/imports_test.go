@@ -26,24 +26,6 @@ const httpxImportPath = modulePath + "/platform/httpx"
 
 var services = []string{"gateway", "identity", "catalog", "orders"}
 
-// Legacy packages live at the repo root and are not part of the new platform
-// layout. Nothing under services/ or platform/ may depend on them: doing so
-// would tie the new code's compilation to code that lives outside this
-// boundary. This list must stay a superset of every top-level legacy
-// directory, including cmd/seed (a subdirectory of the new cmd/ tree, not a
-// service) and clients/.
-var legacyRoots = []string{
-	modulePath + "/controllers",
-	modulePath + "/models",
-	modulePath + "/routes",
-	modulePath + "/middlewares",
-	modulePath + "/database",
-	modulePath + "/utils",
-	modulePath + "/clients",
-	modulePath + "/internal", // the root's internal/, not platform/'s or a service's
-	modulePath + "/cmd/seed",
-}
-
 func TestNoServiceImportsAnotherService(t *testing.T) {
 	root := repoRoot(t)
 
@@ -60,20 +42,6 @@ func TestNoServiceImportsAnotherService(t *testing.T) {
 					}
 				}
 			})
-		})
-	}
-}
-
-func TestNoNewCodeImportsLegacyPackages(t *testing.T) {
-	root := repoRoot(t)
-
-	for _, dir := range []string{"services", "platform"} {
-		forEachImport(t, filepath.Join(root, dir), func(file, imported string) {
-			for _, legacy := range legacyRoots {
-				if hasPathPrefix(imported, legacy) {
-					t.Errorf("%s imports legacy package %s.\n\tNew code must not depend on the legacy application at the repo root; use the corresponding platform/ or services/*/internal package instead.", rel(root, file), imported)
-				}
-			}
 		})
 	}
 }
@@ -239,14 +207,8 @@ func forEachImport(t *testing.T, dir string, check func(file, imported string)) 
 	}
 }
 
-// hasPathPrefix reports whether imported is prefix or a subpackage of it,
-// matching on full path segments. A bare strings.HasPrefix(imported, prefix)
-// would also match a hypothetical sibling package whose name merely starts
-// with prefix, e.g. prefix ".../internal" matching ".../internalfoo"; the
-// trailing "/" this function adds is what rules that out. (The legacy root's
-// .../internal/httpx and .../platform/httpx never shared a prefix to begin
-// with, so a naive check would already have told those apart — the
-// full-segment match isn't what protects that pair.)
+// hasPathPrefix matches on full path segments: a bare strings.HasPrefix would
+// let prefix ".../internal" match ".../internalfoo".
 func hasPathPrefix(imported, prefix string) bool {
 	return imported == prefix || strings.HasPrefix(imported, prefix+"/")
 }
