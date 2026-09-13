@@ -13,6 +13,7 @@ with a React admin frontend.
 | `docs/PRD/GoApplicationArchitectureandCodingConventions.md` | How Go code is structured **inside** a service: handlers, services, repositories, DTOs, packages, errors. |
 | `docs/PRD/ArchitectureDecisionClarifications.md` | Precedence between the above, and the resolved decisions. **Read this when two documents disagree.** |
 | `docs/ASSESSMENT.md` | Why the rebuild; the original defect catalogue. Its milestone plan is superseded by the PRD. |
+| `docs/CHECKPOINT.md` | **Run before every milestone PR.** Manual verification plus the public-repository audit. |
 
 **Precedence.** System, product, and milestone decisions → the microservices PRD.
 Go structure inside a service → the Go conventions. Frontend craft → the frontend
@@ -67,6 +68,11 @@ rather than reimplementing its rules.
 package: `staff.go`, `handler.go`, `service.go`, `repository.go`, `postgres.go`,
 `dto.go` together. No global `handlers/`, `services/`, `repositories/`, `models/`,
 or `transformers/` directories. Extraction later becomes a directory move.
+
+**A milestone is not done when the tests pass.** It is done when a human has
+booted it from an empty volume, driven the product path by hand, broken it on
+purpose, and confirmed nothing unfit for a public repository is tracked. See
+`docs/CHECKPOINT.md`.
 
 **Authorization is middleware, never a handler call.** A permission check a
 handler must remember to make is a check that will be forgotten. Route-level

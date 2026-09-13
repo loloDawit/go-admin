@@ -15,7 +15,7 @@
 ## Global Constraints
 
 - **Go 1.27**, toolchain `auto`. Bump `go.mod` from `go 1.17` to `go 1.27`.
-- **Module path is `github.com/loloDawit/go-admin`** (merged in PR #1). Never reintroduce `gitlab.nordstrom.com`.
+- **Module path is `github.com/loloDawit/go-admin`** (merged in PR #1). Never reintroduce the former internal host path.
 - **No secrets in source.** Every credential comes from the environment. `.env` stays gitignored; `.env.example` is committed with placeholder values only.
 - **The application must refuse to start on invalid config.** Missing `DB_DSN`, missing/short `SESSION_SECRET`, or missing `ALLOWED_ORIGIN` is a fatal startup error, never a runtime surprise.
 - **Tests must not require manual setup.** `make test` spins its own MySQL via testcontainers. No developer ever hand-creates a test database.

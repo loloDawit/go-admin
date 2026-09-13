@@ -204,7 +204,7 @@ Being fair to a four-year-old side project, these were the right instincts:
 
 7. **The route map is a usable specification.** `routes/routes.go` is a clear, complete statement of the intended API surface. It should be treated as the requirements document for the rebuild even though the routes themselves get redesigned (§6).
 
-8. **The unmerged `fix/remove-internal-registry-paths` branch** (commit `67d4cfe`) already renames the module from `gitlab.nordstrom.com/go-admin` to `github.com/loloDawit/go-admin` across 24 imports and repoints `package-lock.json` from an internal Artifactory mirror to public npm. This is genuinely useful work that should be merged first, not redone.
+8. **The unmerged `fix/remove-internal-registry-paths` branch** (commit `67d4cfe`) already renames the module from a former employer's internal host to `github.com/loloDawit/go-admin` across 24 imports, and repoints `package-lock.json` from an internal package mirror to public npm. This is genuinely useful work that should be merged first, not redone.
 
 ---
 
@@ -349,7 +349,7 @@ Consolidated (detail in §1.6):
 
 7. **Panics reachable from ordinary input** (§4n) — a JSON-numeric permission ID takes down the request.
 
-8. **`gitlab.nordstrom.com` in the module path** — an employer-internal host in a public repo. Fixed on an unmerged branch (`67d4cfe`); currently still on `main`.
+8. **A former employer's internal host in the module path** — an internal hostname in a public repo. Fixed on an unmerged branch (`67d4cfe`); currently still on `main`.
 
 **Risk that is *not* present, and it matters:** there is no production deployment and no data. No Dockerfile, no compose, no migrations, no SQL dumps, and a DSN of `test-user:password@/go_admin`. **Migration cost is zero.** Nothing has to be preserved, backfilled, or kept backward-compatible. This substantially lowers the cost of the aggressive option.
 
