@@ -42,6 +42,10 @@ services:
     environment:
       PORT: "8081"
       DATABASE_URL: "postgres://identity_user:dev_only_identity@postgres:5432/identity_db?sslmode=disable"
+      BCRYPT_COST: "12"
+      SESSION_TTL: "24h"
+      COOKIE_SECURE: "false"
+      PRINCIPAL_SIGNING_KEY: "dev_only_principal_key_at_least_32_bytes"
     ports:
       - "8081:8081"
 
