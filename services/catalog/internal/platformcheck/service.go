@@ -1,6 +1,9 @@
 package platformcheck
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 type Service struct {
 	repo Repository
@@ -12,8 +15,13 @@ func NewService(repo Repository) *Service {
 
 func (s *Service) Check(ctx context.Context) (SchemaState, error) {
 	state, err := s.repo.SchemaState(ctx)
+	// Repository has exactly one implementation path that returns a non-nil
+	// error: a connection or query failure surfacing from the driver. Wrap it
+	// as ErrDatabaseUnavailable here, the one seam every Repository
+	// implementation (real or test double) passes through, rather than in
+	// the Postgres implementation, which a fake repository bypasses entirely.
 	if err != nil {
-		return SchemaState{}, err
+		return SchemaState{}, fmt.Errorf("%w: %w", ErrDatabaseUnavailable, err)
 	}
 	if state.Dirty {
 		return SchemaState{}, ErrDirtySchema

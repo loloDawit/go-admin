@@ -36,6 +36,15 @@ func (h *Writer) Write(ctx context.Context, w http.ResponseWriter, err error) {
 		httpx.WriteError(w, http.StatusServiceUnavailable, "schema_dirty", "the service is not ready")
 	case errors.Is(err, platformcheck.ErrNoMigrations):
 		httpx.WriteError(w, http.StatusServiceUnavailable, "schema_not_migrated", "the service is not ready")
+	case errors.Is(err, platformcheck.ErrDatabaseUnavailable):
+		// readiness.Handler.Ready has no logging of its own; this is the only
+		// place the driver cause (kept reachable via %w in Service.Check)
+		// reaches the log before the client gets the generic message.
+		h.logger.ErrorContext(ctx, "database unavailable",
+			slog.String("request_id", requestid.FromContext(ctx)),
+			slog.String("error", err.Error()),
+		)
+		httpx.WriteError(w, http.StatusServiceUnavailable, "database_unavailable", "the service is not ready")
 	default:
 		// The cause reaches the log; the client gets none of it.
 		h.logger.ErrorContext(ctx, "unmapped error",

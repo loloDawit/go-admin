@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -64,7 +65,7 @@ func TestPanickingHandlerStillProducesALogLineWithStatus500(t *testing.T) {
 // reports failure without leaking driver detail, even against a database that
 // is down for the whole life of the request.
 func TestStartupContractHealthzSkipsTheDatabaseAndReadyzReportsFailureSafely(t *testing.T) {
-	logger, _ := observability.NewCaptured()
+	logger, captured := observability.NewCaptured()
 	errWriter := httperr.New(logger)
 	repo := &alwaysFailRepo{}
 	svc := platformcheck.NewService(repo)
@@ -91,5 +92,21 @@ func TestStartupContractHealthzSkipsTheDatabaseAndReadyzReportsFailureSafely(t *
 		if body := rec.Body.String(); strings.Contains(body, "10.0.0.5") || strings.Contains(body, "connection refused") {
 			t.Errorf("%s body leaked driver detail: %q", route, body)
 		}
+	}
+
+	// The body must never carry the driver cause, but the log must: a wrap
+	// that only hides the detail (instead of routing it to the log) would
+	// still pass the body assertions above.
+	var loggedCause bool
+	for _, record := range captured.Records() {
+		record.Attrs(func(a slog.Attr) bool {
+			if a.Key == "error" && strings.Contains(a.Value.String(), "connection refused") {
+				loggedCause = true
+			}
+			return true
+		})
+	}
+	if !loggedCause {
+		t.Error("want the driver cause reachable in a log record's error attribute, found none")
 	}
 }

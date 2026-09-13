@@ -11,6 +11,7 @@ type SchemaState struct {
 }
 
 var (
-	ErrNoMigrations = errors.New("no migrations applied")
-	ErrDirtySchema  = errors.New("schema is in a dirty state")
+	ErrNoMigrations        = errors.New("no migrations applied")
+	ErrDirtySchema         = errors.New("schema is in a dirty state")
+	ErrDatabaseUnavailable = errors.New("database is unavailable")
 )
