@@ -1,7 +1,8 @@
 // Package seed creates the permission vocabulary, the built-in roles, and the
 // first owner account.
 //
-// See docs/decisions/0001-remove-public-registration.md.
+// It is the only way an account comes into existence: there is no public
+// registration endpoint, because self-registration granted admin rights.
 package seed
 
 import (

@@ -12,7 +12,7 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 
 	api := app.Group("/api/v1")
 
-	// No /register by design; see docs/decisions/0001-remove-public-registration.md.
+	// No /register by design: self-registration granted admin rights.
 	api.Post("/login", controllers.Login)
 
 	authed := api.Group("", middlewares.IsAuthenticated)

@@ -10,3 +10,7 @@ uploads/*
 .claude/
 # Playwright CLI output (may contain credentials)
 .playwright-cli/
+
+# Internal working documents — intentionally untracked
+docs/
+CLAUDE.md

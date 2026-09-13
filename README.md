@@ -11,10 +11,9 @@ is no domain functionality yet** — no login, no products, no orders, no
 staff or customer records. See "Known limitations in M1" below before you
 go looking for a working admin panel.
 
-The canonical architecture and milestone plan is
-[`docs/PRD/SmallScaleMicroservicesArchitecture.md`](docs/PRD/SmallScaleMicroservicesArchitecture.md).
-For why this is a rebuild rather than a repair of the original app, see
-[`docs/ASSESSMENT.md`](docs/ASSESSMENT.md).
+The architecture, milestone plan, and the assessment behind the decision to
+rebuild rather than repair are kept as working documents outside this
+repository.
 
 ## The legacy application
 
