@@ -19,6 +19,8 @@ func setValidCatalogEnv(t *testing.T) {
 	t.Setenv("IMAGE_MAX_BYTES", "5242880")
 	t.Setenv("IMAGE_URL_TTL", "15m")
 	t.Setenv("PRODUCT_PAGE_SIZE_MAX", "100")
+	t.Setenv("PRODUCT_RESOLVE_BATCH_MAX", "100")
+	t.Setenv("MAX_REQUEST_BODY_BYTES", "1048576")
 	t.Setenv("DEFAULT_CURRENCY", "USD")
 	t.Setenv("PRINCIPAL_SIGNING_KEY", validSigningKey)
 }
@@ -67,6 +69,26 @@ func TestLoadRejectsAZeroProductPageSizeMax(t *testing.T) {
 
 	if _, err := config.Load(); err == nil {
 		t.Fatal("a zero PRODUCT_PAGE_SIZE_MAX must be rejected")
+	}
+}
+
+func TestLoadRejectsAZeroResolveBatchMax(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://u:p@localhost:5433/catalog_db")
+	setValidCatalogEnv(t)
+	t.Setenv("PRODUCT_RESOLVE_BATCH_MAX", "0")
+
+	if _, err := config.Load(); err == nil {
+		t.Fatal("a zero PRODUCT_RESOLVE_BATCH_MAX must be rejected")
+	}
+}
+
+func TestLoadRejectsAZeroMaxRequestBodyBytes(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://u:p@localhost:5433/catalog_db")
+	setValidCatalogEnv(t)
+	t.Setenv("MAX_REQUEST_BODY_BYTES", "0")
+
+	if _, err := config.Load(); err == nil {
+		t.Fatal("a zero MAX_REQUEST_BODY_BYTES must be rejected")
 	}
 }
 
@@ -138,6 +160,12 @@ func TestLoadAcceptsAValidConfig(t *testing.T) {
 	}
 	if cfg.ProductPageSizeMax != 100 {
 		t.Errorf("product page size max: want 100, got %d", cfg.ProductPageSizeMax)
+	}
+	if cfg.ResolveBatchMax != 100 {
+		t.Errorf("resolve batch max: want 100, got %d", cfg.ResolveBatchMax)
+	}
+	if cfg.MaxRequestBodyBytes != 1048576 {
+		t.Errorf("max request body bytes: want 1048576, got %d", cfg.MaxRequestBodyBytes)
 	}
 	if cfg.DefaultCurrency != "USD" {
 		t.Errorf("default currency: want USD, got %q", cfg.DefaultCurrency)

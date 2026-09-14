@@ -10,11 +10,12 @@ import (
 	"github.com/loloDawit/go-admin/platform/readiness"
 	"github.com/loloDawit/go-admin/platform/requestid"
 	"github.com/loloDawit/go-admin/services/catalog/internal/platformcheck"
+	"github.com/loloDawit/go-admin/services/catalog/internal/product"
 )
 
 // RequestLogger must be registered before Recoverer: it logs only after next.ServeHTTP returns, which a panic would unwind past.
 // Routes live here, not in main, so router_test.go can pin the spec §6 startup contract without a database.
-func newRouter(logger *slog.Logger, handler *platformcheck.Handler, ready *readiness.Handler) *chi.Mux {
+func newRouter(logger *slog.Logger, handler *platformcheck.Handler, ready *readiness.Handler, productHandler *product.Handler) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(requestid.Middleware)
 	r.Use(observability.RequestLogger(logger))
@@ -23,6 +24,10 @@ func newRouter(logger *slog.Logger, handler *platformcheck.Handler, ready *readi
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 	r.Get("/readyz", ready.Ready)
 	r.Get("/_platform", handler.Platform)
+
+	// Gateway-network-only, no principal: identity's /internal/sessions/validate
+	// is the same shape. The gateway never proxies /internal/*.
+	r.Post("/internal/products/resolve", productHandler.Resolve)
 
 	return r
 }

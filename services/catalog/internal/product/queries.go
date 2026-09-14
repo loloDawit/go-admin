@@ -50,3 +50,11 @@ LIMIT $4 OFFSET $5`
 const searchProductsCountQuery = `SELECT COUNT(*) FROM products
 WHERE search @@ websearch_to_tsquery('english', $1)
   AND ` + statusFilterClause
+
+// resolveProductsQuery deliberately carries no status filter: an order must
+// still resolve a product archived after the order was placed. Ordering by
+// array_position matches the caller's id order in the one query, with no
+// reordering in Go; a duplicate id in $1 collapses to the single matching row.
+const resolveProductsQuery = `SELECT ` + productColumns + ` FROM products
+WHERE id = ANY($1::bigint[])
+ORDER BY array_position($1::bigint[], id)`

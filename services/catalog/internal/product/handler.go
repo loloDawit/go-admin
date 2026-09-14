@@ -143,6 +143,33 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, newPageResponse(result))
 }
 
+// Resolve serves POST /internal/products/resolve: gateway-network-only, no
+// principal, called by Orders to snapshot title and price at purchase time.
+func (h *Handler) Resolve(w http.ResponseWriter, r *http.Request) {
+	var req ResolveRequest
+	if err := httpx.DecodeJSON(r, &req, h.maxBodyBytes); err != nil {
+		h.writeErr(r.Context(), w, err)
+		return
+	}
+
+	ids := make([]int64, len(req.IDs))
+	for i, raw := range req.IDs {
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			h.writeErr(r.Context(), w, httpx.ErrMalformedBody)
+			return
+		}
+		ids[i] = id
+	}
+
+	items, err := h.svc.Resolve(r.Context(), ids)
+	if err != nil {
+		h.writeErr(r.Context(), w, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, newResolveResponse(items))
+}
+
 func productIDParam(r *http.Request) (int64, error) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {

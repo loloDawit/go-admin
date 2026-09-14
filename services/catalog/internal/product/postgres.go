@@ -157,6 +157,14 @@ func (r *PostgresRepository) Search(ctx context.Context, q SearchQuery) ([]Produ
 	return items, total, nil
 }
 
+func (r *PostgresRepository) ResolveByIDs(ctx context.Context, ids []int64) ([]Product, error) {
+	rows, err := r.q.Query(ctx, resolveProductsQuery, ids)
+	if err != nil {
+		return nil, err
+	}
+	return scanProducts(rows)
+}
+
 // resolveSort maps a caller's sort string to a fixed column via sortColumns;
 // anything absent from the map is refused, never interpolated.
 func resolveSort(sort string) (string, bool, error) {

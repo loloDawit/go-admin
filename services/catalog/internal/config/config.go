@@ -15,19 +15,21 @@ const serviceName = "catalog"
 const DefaultPort = "8082"
 
 type Config struct {
-	ServiceName        string
-	Port               string
-	DatabaseURL        string
-	S3Endpoint         string
-	S3Bucket           string
-	S3AccessKey        string
-	S3SecretKey        string
-	S3UseSSL           bool
-	ImageMaxBytes      int64
-	ImageURLTTL        time.Duration
-	ProductPageSizeMax int
-	DefaultCurrency    string
-	PrincipalKey       []byte
+	ServiceName         string
+	Port                string
+	DatabaseURL         string
+	S3Endpoint          string
+	S3Bucket            string
+	S3AccessKey         string
+	S3SecretKey         string
+	S3UseSSL            bool
+	ImageMaxBytes       int64
+	ImageURLTTL         time.Duration
+	ProductPageSizeMax  int
+	ResolveBatchMax     int
+	MaxRequestBodyBytes int64
+	DefaultCurrency     string
+	PrincipalKey        []byte
 }
 
 // Any error here is fatal: a misconfigured service must fail at startup, not at
@@ -108,6 +110,26 @@ func Load() (*Config, error) {
 	}
 	cfg.ProductPageSizeMax = pageSizeMax
 
+	resolveBatchMaxRaw, err := requireEnv("PRODUCT_RESOLVE_BATCH_MAX")
+	if err != nil {
+		return nil, err
+	}
+	resolveBatchMax, err := strconv.Atoi(resolveBatchMaxRaw)
+	if err != nil {
+		return nil, fmt.Errorf("PRODUCT_RESOLVE_BATCH_MAX: %w", err)
+	}
+	cfg.ResolveBatchMax = resolveBatchMax
+
+	maxRequestBodyBytesRaw, err := requireEnv("MAX_REQUEST_BODY_BYTES")
+	if err != nil {
+		return nil, err
+	}
+	maxRequestBodyBytes, err := strconv.ParseInt(maxRequestBodyBytesRaw, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("MAX_REQUEST_BODY_BYTES: %w", err)
+	}
+	cfg.MaxRequestBodyBytes = maxRequestBodyBytes
+
 	defaultCurrency, err := requireEnv("DEFAULT_CURRENCY")
 	if err != nil {
 		return nil, err
@@ -132,6 +154,12 @@ func (c *Config) validate() error {
 	}
 	if c.ProductPageSizeMax <= 0 {
 		return errs.ErrInvalidPageSizeMax
+	}
+	if c.ResolveBatchMax <= 0 {
+		return errs.ErrInvalidResolveBatchMax
+	}
+	if c.MaxRequestBodyBytes <= 0 {
+		return errs.ErrInvalidMaxRequestBodyBytes
 	}
 	if len(c.DefaultCurrency) != 3 {
 		return errs.ErrInvalidCurrency

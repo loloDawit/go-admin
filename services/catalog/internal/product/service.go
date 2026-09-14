@@ -15,10 +15,11 @@ type Service struct {
 	repo            Repository
 	pageSizeMax     int
 	defaultCurrency string
+	resolveBatchMax int
 }
 
-func NewService(repo Repository, pageSizeMax int, defaultCurrency string) *Service {
-	return &Service{repo: repo, pageSizeMax: pageSizeMax, defaultCurrency: defaultCurrency}
+func NewService(repo Repository, pageSizeMax int, defaultCurrency string, resolveBatchMax int) *Service {
+	return &Service{repo: repo, pageSizeMax: pageSizeMax, defaultCurrency: defaultCurrency, resolveBatchMax: resolveBatchMax}
 }
 
 func (s *Service) Create(ctx context.Context, in CreateProduct) (Product, error) {
@@ -100,6 +101,23 @@ func (s *Service) Search(ctx context.Context, q SearchQuery) (Page, error) {
 		return Page{}, errs.Wrap(errs.OpSearchProducts, err)
 	}
 	return Page{Items: items, Page: q.Page, PageSize: q.PageSize, Total: total}, nil
+}
+
+// Resolve serves Orders' snapshot lookup: it never fails on an unknown or
+// archived id, only on a batch that exceeds the configured cap.
+func (s *Service) Resolve(ctx context.Context, ids []int64) ([]Product, error) {
+	if len(ids) == 0 {
+		return []Product{}, nil
+	}
+	if len(ids) > s.resolveBatchMax {
+		return nil, ErrResolveBatchTooLarge
+	}
+
+	items, err := s.repo.ResolveByIDs(ctx, ids)
+	if err != nil {
+		return nil, errs.Wrap(errs.OpResolveProducts, err)
+	}
+	return items, nil
 }
 
 // normalizePage clamps pageSize to max rather than refusing it: the caller

@@ -22,4 +22,9 @@ type Repository interface {
 	// row count from an independent query.
 	List(ctx context.Context, q ListQuery) ([]Product, int, error)
 	Search(ctx context.Context, q SearchQuery) ([]Product, int, error)
+
+	// ResolveByIDs answers a batch lookup in one query: archived products are
+	// included, an unknown id is simply absent from the result rather than an
+	// error, and the result is ordered to match the order of ids.
+	ResolveByIDs(ctx context.Context, ids []int64) ([]Product, error)
 }

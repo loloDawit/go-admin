@@ -12,7 +12,17 @@ import (
 	"github.com/loloDawit/go-admin/platform/readiness"
 	"github.com/loloDawit/go-admin/services/catalog/internal/httperr"
 	"github.com/loloDawit/go-admin/services/catalog/internal/platformcheck"
+	"github.com/loloDawit/go-admin/services/catalog/internal/product"
 )
+
+// nilProductRepository lets tests build a real *product.Handler without a
+// database; every route this file exercises never calls it.
+type nilProductRepository struct{ product.Repository }
+
+func newTestProductHandler() *product.Handler {
+	svc := product.NewService(nilProductRepository{}, 100, "GBP", 100)
+	return product.NewHandler(svc, 1<<20, func(context.Context, http.ResponseWriter, error) {})
+}
 
 // alwaysFailRepo counts calls so a test can assert a route never touched it.
 type alwaysFailRepo struct {
@@ -31,7 +41,7 @@ func TestPanickingHandlerStillProducesALogLineWithStatus500(t *testing.T) {
 	handler := platformcheck.NewHandler(svc, "catalog", errWriter.Write)
 	ready := readiness.NewHandler(svc.Probe, errWriter.Write)
 
-	r := newRouter(logger, handler, ready)
+	r := newRouter(logger, handler, ready, newTestProductHandler())
 	r.Get("/boom", func(http.ResponseWriter, *http.Request) {
 		panic("kaboom")
 	})
@@ -67,7 +77,7 @@ func TestStartupContractHealthzSkipsTheDatabaseAndReadyzReportsFailureSafely(t *
 	handler := platformcheck.NewHandler(svc, "catalog", errWriter.Write)
 	ready := readiness.NewHandler(svc.Probe, errWriter.Write)
 
-	r := newRouter(logger, handler, ready)
+	r := newRouter(logger, handler, ready, newTestProductHandler())
 
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
@@ -87,5 +97,25 @@ func TestStartupContractHealthzSkipsTheDatabaseAndReadyzReportsFailureSafely(t *
 		if body := rec.Body.String(); strings.Contains(body, "10.0.0.5") || strings.Contains(body, "connection refused") {
 			t.Errorf("%s body leaked driver detail: %q", route, body)
 		}
+	}
+}
+
+// The resolve route is reachable directly against the service (the gateway
+// is what refuses it; see routing_test.go's TestResolveIsNotReachableThroughTheGateway).
+func TestResolveRouteIsRegisteredOutsideAnyAuthenticatedGroup(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	errWriter := httperr.New(logger)
+	svc := platformcheck.NewService(&alwaysFailRepo{})
+	handler := platformcheck.NewHandler(svc, "catalog", errWriter.Write)
+	ready := readiness.NewHandler(svc.Probe, errWriter.Write)
+
+	r := newRouter(logger, handler, ready, newTestProductHandler())
+
+	req := httptest.NewRequest(http.MethodPost, "/internal/products/resolve", strings.NewReader(`{"ids":["not-a-number"]}`))
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code == http.StatusNotFound {
+		t.Fatal("the resolve route must be registered, not 404")
 	}
 }

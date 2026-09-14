@@ -215,6 +215,31 @@ func TestInternalRoutesAreNotProxied(t *testing.T) {
 	}
 }
 
+// M4's Orders calls catalog's resolve endpoint directly, service-to-service;
+// the gateway must never expose it. This cannot fail against current code —
+// /internal/* is already refused by the same NotFound path proven above for
+// identity's validate route — so it pins the contract rather than
+// regression-testing a defect.
+func TestResolveIsNotReachableThroughTheGateway(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("the resolve route must never reach an upstream through the gateway")
+	}))
+	defer upstream.Close()
+
+	h, err := routing.New(logger, map[string]string{"catalog": upstream.URL}, time.Second)
+	if err != nil {
+		t.Fatalf("routing.New: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/internal/products/resolve", strings.NewReader(`{"ids":["1"]}`)))
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status: want 404, got %d", rec.Code)
+	}
+}
+
 func TestRejectsAnUnparseableUpstream(t *testing.T) {
 	logger, _ := observability.NewCaptured()
 	if _, err := routing.New(logger, map[string]string{"identity": "://bad"}, time.Second); err == nil {

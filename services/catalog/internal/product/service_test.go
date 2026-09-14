@@ -11,6 +11,7 @@ import (
 )
 
 const testPageSizeMax = 50
+const testResolveBatchMax = 5
 
 // fakeRepository is an in-memory double; each test builds its own so none
 // depends on another test's state or a real database.
@@ -106,9 +107,21 @@ func (f *fakeRepository) Search(context.Context, product.SearchQuery) ([]product
 	return nil, 0, nil
 }
 
+// ResolveByIDs mirrors the real query's contract: archived included, unknown
+// omitted, ordered to match ids.
+func (f *fakeRepository) ResolveByIDs(_ context.Context, ids []int64) ([]product.Product, error) {
+	items := make([]product.Product, 0, len(ids))
+	for _, id := range ids {
+		if p, ok := f.byID[id]; ok {
+			items = append(items, p)
+		}
+	}
+	return items, nil
+}
+
 func newTestService() (*product.Service, *fakeRepository) {
 	repo := newFakeRepository()
-	return product.NewService(repo, testPageSizeMax, "GBP"), repo
+	return product.NewService(repo, testPageSizeMax, "GBP", testResolveBatchMax), repo
 }
 
 // 9007199254740993 cannot be held exactly by a float64 (it collides with
@@ -215,11 +228,80 @@ func TestPageSizeIsClampedNotRefused(t *testing.T) {
 func clampForTest(t *testing.T, page, pageSize int) (int, int) {
 	t.Helper()
 	repo := newFakeRepository()
-	svc := product.NewService(repo, testPageSizeMax, "GBP")
+	svc := product.NewService(repo, testPageSizeMax, "GBP", testResolveBatchMax)
 
 	result, err := svc.List(t.Context(), product.ListQuery{Page: page, PageSize: pageSize})
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
 	return result.Page, result.PageSize
+}
+
+// An order placed before a product was archived must still resolve: excluding
+// archived products here would break the one thing this endpoint exists for.
+func TestResolveReturnsArchivedProducts(t *testing.T) {
+	svc, _ := newTestService()
+	created, err := svc.Create(t.Context(), product.CreateProduct{SKU: "resolve-arch-1", Title: "Archived title", PriceMinor: 100, Currency: "GBP"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if _, err := svc.Archive(t.Context(), created.ID); err != nil {
+		t.Fatalf("archive: %v", err)
+	}
+
+	items, err := svc.Resolve(t.Context(), []int64{created.ID})
+	if err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("want 1 resolved item, got %d", len(items))
+	}
+	if items[0].Status != product.StatusArchived {
+		t.Fatalf("status: want archived, got %q", items[0].Status)
+	}
+}
+
+// A partial batch is normal: a product can be deleted between an order being
+// placed and the order being read. Failing the whole call would make every
+// consumer handle an error that is not one.
+func TestResolveOmitsUnknownIdsRatherThanFailing(t *testing.T) {
+	svc, _ := newTestService()
+	created, err := svc.Create(t.Context(), product.CreateProduct{SKU: "resolve-known-1", Title: "Known", PriceMinor: 100, Currency: "GBP"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	const unknownID = 999999
+	items, err := svc.Resolve(t.Context(), []int64{created.ID, unknownID})
+	if err != nil {
+		t.Fatalf("resolve must not fail on an unknown id, got: %v", err)
+	}
+	if len(items) != 1 || items[0].ID != created.ID {
+		t.Fatalf("want only the known id resolved, got %+v", items)
+	}
+}
+
+// An unbounded id list is an unbounded query; the cap is enforced before any
+// query runs.
+func TestResolveRejectsAnOversizedBatch(t *testing.T) {
+	svc, _ := newTestService()
+	ids := make([]int64, testResolveBatchMax+1)
+	for i := range ids {
+		ids[i] = int64(i + 1)
+	}
+
+	if _, err := svc.Resolve(t.Context(), ids); !errors.Is(err, product.ErrResolveBatchTooLarge) {
+		t.Fatalf("want ErrResolveBatchTooLarge, got %v", err)
+	}
+}
+
+func TestResolveWithNoIDsReturnsAnEmptyResultWithoutError(t *testing.T) {
+	svc, _ := newTestService()
+	items, err := svc.Resolve(t.Context(), nil)
+	if err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if len(items) != 0 {
+		t.Fatalf("want an empty result, got %+v", items)
+	}
 }

@@ -45,6 +45,46 @@ type PageResponse struct {
 	Total    int               `json:"total"`
 }
 
+// ResolveRequest is POST /internal/products/resolve's body; ids are strings
+// on the wire, parsed the same as a path id.
+type ResolveRequest struct {
+	IDs []string `json:"ids"`
+}
+
+// ResolvedProduct is the snapshot shape Orders needs at purchase time, not
+// the full ProductResponse.
+type ResolvedProduct struct {
+	ID         string `json:"id"`
+	Title      string `json:"title"`
+	PriceMinor int64  `json:"priceMinor"`
+	Currency   string `json:"currency"`
+	Status     string `json:"status"`
+}
+
+// ResolveResponse: products are ordered to match the order of the requested
+// ids; an id with no matching product is simply absent, never an error.
+type ResolveResponse struct {
+	Products []ResolvedProduct `json:"products"`
+}
+
+func newResolvedProduct(p Product) ResolvedProduct {
+	return ResolvedProduct{
+		ID:         strconv.FormatInt(p.ID, 10),
+		Title:      p.Title,
+		PriceMinor: p.PriceMinor,
+		Currency:   p.Currency,
+		Status:     string(p.Status),
+	}
+}
+
+func newResolveResponse(items []Product) ResolveResponse {
+	products := make([]ResolvedProduct, len(items))
+	for i, p := range items {
+		products[i] = newResolvedProduct(p)
+	}
+	return ResolveResponse{Products: products}
+}
+
 func newProductResponse(p Product) ProductResponse {
 	return ProductResponse{
 		ID:          strconv.FormatInt(p.ID, 10),

@@ -123,6 +123,8 @@ services:
       IMAGE_MAX_BYTES: "5242880"
       IMAGE_URL_TTL: "15m"
       PRODUCT_PAGE_SIZE_MAX: "100"
+      PRODUCT_RESOLVE_BATCH_MAX: "100"
+      MAX_REQUEST_BODY_BYTES: "1048576"
       DEFAULT_CURRENCY: "USD"
       PRINCIPAL_SIGNING_KEY: "dev_only_principal_key_at_least_32_bytes"
     ports:

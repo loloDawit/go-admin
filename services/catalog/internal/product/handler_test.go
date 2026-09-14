@@ -128,3 +128,38 @@ func TestListHandlerSurfacesAnInvalidSortAsAnError(t *testing.T) {
 		t.Fatal("want an error for an injected sort value")
 	}
 }
+
+func TestResolveHandlerReturnsKnownProductsAndOmitsUnknownOnes(t *testing.T) {
+	h, repo, _ := newTestHandler()
+	created, err := repo.Create(t.Context(), product.CreateProduct{SKU: "resolve-h-1", Title: "Resolvable", PriceMinor: 500, Currency: "GBP"})
+	if err != nil {
+		t.Fatalf("seed create: %v", err)
+	}
+
+	body := `{"ids":["` + strconv.FormatInt(created.ID, 10) + `","999999"]}`
+	req := httptest.NewRequest(http.MethodPost, "/internal/products/resolve", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	h.Resolve(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d, body=%s", rec.Code, rec.Body.String())
+	}
+	var resp product.ResolveResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(resp.Products) != 1 || resp.Products[0].Title != "Resolvable" {
+		t.Fatalf("want only the known product resolved, got %+v", resp.Products)
+	}
+}
+
+func TestResolveHandlerRefusesANonNumericID(t *testing.T) {
+	h, _, captured := newTestHandler()
+	req := httptest.NewRequest(http.MethodPost, "/internal/products/resolve", strings.NewReader(`{"ids":["not-a-number"]}`))
+	rec := httptest.NewRecorder()
+	h.Resolve(rec, req)
+
+	if *captured == nil {
+		t.Fatal("want an error for a non-numeric id")
+	}
+}

@@ -18,6 +18,7 @@ import (
 	"github.com/loloDawit/go-admin/services/catalog/internal/config"
 	"github.com/loloDawit/go-admin/services/catalog/internal/httperr"
 	"github.com/loloDawit/go-admin/services/catalog/internal/platformcheck"
+	"github.com/loloDawit/go-admin/services/catalog/internal/product"
 )
 
 func main() {
@@ -54,7 +55,10 @@ func main() {
 	handler := platformcheck.NewHandler(svc, cfg.ServiceName, errWriter.Write)
 	ready := readiness.NewHandler(svc.Probe, errWriter.Write)
 
-	r := newRouter(logger, handler, ready)
+	productSvc := product.NewService(product.NewPostgresRepository(pool), cfg.ProductPageSizeMax, cfg.DefaultCurrency, cfg.ResolveBatchMax)
+	productHandler := product.NewHandler(productSvc, cfg.MaxRequestBodyBytes, errWriter.Write)
+
+	r := newRouter(logger, handler, ready, productHandler)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

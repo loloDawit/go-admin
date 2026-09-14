@@ -9,12 +9,13 @@ import (
 )
 
 var (
-	ErrProductNotFound  = errs.ErrProductNotFound
-	ErrSkuTaken         = errs.ErrSkuTaken
-	ErrProductArchived  = errs.ErrProductArchived
-	ErrInvalidPrice     = errs.ErrInvalidPrice
-	ErrInvalidSort      = errs.ErrInvalidSort
-	ErrEmptySearchQuery = errs.ErrEmptySearchQuery
+	ErrProductNotFound      = errs.ErrProductNotFound
+	ErrSkuTaken             = errs.ErrSkuTaken
+	ErrProductArchived      = errs.ErrProductArchived
+	ErrInvalidPrice         = errs.ErrInvalidPrice
+	ErrInvalidSort          = errs.ErrInvalidSort
+	ErrEmptySearchQuery     = errs.ErrEmptySearchQuery
+	ErrResolveBatchTooLarge = errs.ErrResolveBatchTooLarge
 )
 
 type Status string
