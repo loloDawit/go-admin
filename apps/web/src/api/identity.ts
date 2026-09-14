@@ -1,112 +1,85 @@
-import { respond } from './client'
+import { api } from './http'
+import type { components } from './generated/identity'
 
-export type StaffStatus = 'active' | 'invited' | 'suspended'
+export type Permission = components['schemas']['Permission']
+export type Auth = components['schemas']['Auth']
+export type Staff = components['schemas']['Staff']
+export type Role = components['schemas']['Role']
+export type CreateStaffRequest = components['schemas']['CreateStaffRequest']
+export type UpdateStaffRequest = components['schemas']['UpdateStaffRequest']
+export type CreateRoleRequest = components['schemas']['CreateRoleRequest']
+export type UpdateRoleRequest = components['schemas']['UpdateRoleRequest']
 
-export type StaffMember = {
-  id: string
-  name: string
-  email: string
-  role: string
-  status: StaffStatus
-  lastSeenAt: string
+export const permissionLabels: Record<Permission, string> = {
+  view_staff: 'View staff',
+  edit_staff: 'Invite, edit and deactivate staff',
+  view_roles: 'View roles and permissions',
+  edit_roles: 'Create, edit and delete roles',
+  view_products: 'View the catalog',
+  edit_products: 'Create and edit products',
+  view_orders: 'View orders and history',
+  edit_orders: 'Advance and cancel orders',
 }
 
-export type Role = {
-  id: string
-  name: string
-  description: string
-  memberCount: number
-  permissions: string[]
+export function login(email: string, password: string): Promise<Auth> {
+  return api.post<Auth>('/api/v1/login', { email, password }, { suppressUnauthorized: true })
 }
 
-export type Permission = {
-  key: string
-  description: string
-  roles: string[]
+export function logout(): Promise<void> {
+  return api.post<void>('/api/v1/logout')
 }
 
-const STAFF: StaffMember[] = [
-  {
-    id: 's-1',
-    name: 'Mara Lindqvist',
-    email: 'mara@northgate.example',
-    role: 'Owner',
-    status: 'active',
-    lastSeenAt: '2026-09-13T08:02:00Z',
-  },
-  {
-    id: 's-2',
-    name: 'Dana Okafor',
-    email: 'dana@northgate.example',
-    role: 'Fulfilment',
-    status: 'active',
-    lastSeenAt: '2026-09-13T07:35:00Z',
-  },
-  {
-    id: 's-3',
-    name: 'Ben Achterberg',
-    email: 'ben@northgate.example',
-    role: 'Catalog',
-    status: 'invited',
-    lastSeenAt: '—',
-  },
-  {
-    id: 's-4',
-    name: 'Sofia Reyes',
-    email: 'sofia@northgate.example',
-    role: 'Fulfilment',
-    status: 'suspended',
-    lastSeenAt: '2026-07-30T15:12:00Z',
-  },
-]
-
-const ROLES: Role[] = [
-  {
-    id: 'r-owner',
-    name: 'Owner',
-    description: 'Full access, including staff and roles.',
-    memberCount: 1,
-    permissions: ['staff.write', 'roles.write', 'products.write', 'orders.write'],
-  },
-  {
-    id: 'r-catalog',
-    name: 'Catalog',
-    description: 'Creates and edits products; reads orders.',
-    memberCount: 1,
-    permissions: ['products.write', 'orders.read'],
-  },
-  {
-    id: 'r-fulfilment',
-    name: 'Fulfilment',
-    description: 'Advances order status and reads the catalog.',
-    memberCount: 2,
-    permissions: ['orders.write', 'products.read'],
-  },
-]
-
-const PERMISSIONS: Permission[] = [
-  { key: 'staff.write', description: 'Invite, edit and suspend staff', roles: ['Owner'] },
-  { key: 'roles.write', description: 'Create roles and assign permissions', roles: ['Owner'] },
-  { key: 'products.read', description: 'View the catalog', roles: ['Owner', 'Catalog', 'Fulfilment'] },
-  { key: 'products.write', description: 'Create and edit products', roles: ['Owner', 'Catalog'] },
-  { key: 'orders.read', description: 'View orders and history', roles: ['Owner', 'Catalog', 'Fulfilment'] },
-  { key: 'orders.write', description: 'Advance and cancel orders', roles: ['Owner', 'Fulfilment'] },
-]
-
-export function listStaff(): Promise<StaffMember[]> {
-  return respond(STAFF, [])
+export function getMe(): Promise<Auth> {
+  return api.get<Auth>('/api/v1/me')
 }
 
-export function listRoles(): Promise<Role[]> {
-  return respond(ROLES, [])
+export function changeMyPassword(currentPassword: string, newPassword: string): Promise<void> {
+  return api.post<void>('/api/v1/me/password', { currentPassword, newPassword })
 }
 
-export function listPermissions(): Promise<Permission[]> {
-  return respond(PERMISSIONS, [])
+export async function listStaff(): Promise<Staff[]> {
+  const { staff } = await api.get<{ staff: Staff[] }>('/api/v1/staff')
+  return staff
 }
 
-export const staffStatusLabels: Record<StaffStatus, string> = {
-  active: 'Active',
-  invited: 'Invited',
-  suspended: 'Suspended',
+export function getStaff(id: string): Promise<Staff> {
+  return api.get<Staff>(`/api/v1/staff/${id}`)
+}
+
+export function createStaff(body: CreateStaffRequest): Promise<{ staff: Staff; password: string }> {
+  return api.post<{ staff: Staff; password: string }>('/api/v1/staff', body)
+}
+
+export function updateStaff(id: string, body: UpdateStaffRequest): Promise<Staff> {
+  return api.patch<Staff>(`/api/v1/staff/${id}`, body)
+}
+
+export function deactivateStaff(id: string): Promise<Staff> {
+  return api.post<Staff>(`/api/v1/staff/${id}/deactivate`)
+}
+
+export async function listRoles(): Promise<Role[]> {
+  const { roles } = await api.get<{ roles: Role[] }>('/api/v1/roles')
+  return roles
+}
+
+export function getRole(id: string): Promise<Role> {
+  return api.get<Role>(`/api/v1/roles/${id}`)
+}
+
+export function createRole(body: CreateRoleRequest): Promise<Role> {
+  return api.post<Role>('/api/v1/roles', body)
+}
+
+export function updateRole(id: string, body: UpdateRoleRequest): Promise<Role> {
+  return api.patch<Role>(`/api/v1/roles/${id}`, body)
+}
+
+export function deleteRole(id: string): Promise<void> {
+  return api.delete<void>(`/api/v1/roles/${id}`)
+}
+
+export async function listPermissions(): Promise<Permission[]> {
+  const { permissions } = await api.get<{ permissions: Permission[] }>('/api/v1/permissions')
+  return permissions
 }
