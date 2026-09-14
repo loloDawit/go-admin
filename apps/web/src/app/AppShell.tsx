@@ -79,15 +79,6 @@ export function AppShell() {
               ))}
             </div>
           ))}
-          <div className={styles.sidebarFooter}>
-            <NavLink
-              to="/kit"
-              onClick={() => setNavOpen(false)}
-              className={({ isActive }) => `${styles.link} ${isActive ? styles.linkActive : ''}`}
-            >
-              Interface kit
-            </NavLink>
-          </div>
         </nav>
 
         <main className={styles.main}>

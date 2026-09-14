@@ -36,6 +36,8 @@ export const router = createBrowserRouter([
       { path: '/permissions', element: <Permissions /> },
       { path: '/profile', element: <Profile /> },
       { path: '/settings', element: <Settings /> },
+      // Not in the sidebar: a component gallery is a developer tool, and the
+      // Playwright suite renders it to verify every primitive's state matrix.
       { path: '/kit', element: <Kit /> },
       { path: '/403', element: <Forbidden /> },
       { path: '/500', element: <ServerError /> },
