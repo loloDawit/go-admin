@@ -10,6 +10,7 @@ import (
 
 	"github.com/loloDawit/go-admin/platform/httpx"
 	"github.com/loloDawit/go-admin/platform/requestid"
+	"github.com/loloDawit/go-admin/services/catalog/internal/image"
 	"github.com/loloDawit/go-admin/services/catalog/internal/platformcheck"
 	"github.com/loloDawit/go-admin/services/catalog/internal/product"
 )
@@ -40,6 +41,14 @@ func (h *Writer) Write(ctx context.Context, w http.ResponseWriter, err error) {
 		httpx.WriteError(w, http.StatusUnprocessableEntity, "validation_failed", "sort is not supported")
 	case errors.Is(err, product.ErrEmptySearchQuery):
 		httpx.WriteError(w, http.StatusUnprocessableEntity, "validation_failed", "q must not be empty")
+	case errors.Is(err, product.ErrResolveBatchTooLarge):
+		httpx.WriteError(w, http.StatusUnprocessableEntity, "validation_failed", "too many ids requested")
+	case errors.Is(err, image.ErrImageNotFound):
+		httpx.WriteError(w, http.StatusNotFound, "not_found", "no matching image was found")
+	case errors.Is(err, image.ErrUnsupportedImageType):
+		httpx.WriteError(w, http.StatusUnprocessableEntity, "unsupported_image_type", "that image type is not supported")
+	case errors.Is(err, image.ErrImageTooLarge):
+		httpx.WriteError(w, http.StatusRequestEntityTooLarge, "image_too_large", "the image exceeds the maximum upload size")
 	case errors.Is(err, platformcheck.ErrDirtySchema):
 		httpx.WriteError(w, http.StatusServiceUnavailable, "schema_dirty", "the service is not ready")
 	case errors.Is(err, platformcheck.ErrNoMigrations):
