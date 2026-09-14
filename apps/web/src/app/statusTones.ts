@@ -1,6 +1,5 @@
 import type { ProductStatus } from '../api/catalog'
 import type { OrderStatus } from '../api/orders'
-import type { StaffStatus } from '../api/identity'
 import type { StatusTone } from '../ui'
 
 export const orderStatusTones: Record<OrderStatus, StatusTone> = {
@@ -18,8 +17,7 @@ export const productStatusTones: Record<ProductStatus, StatusTone> = {
   discontinued: 'neutral',
 }
 
-export const staffStatusTones: Record<StaffStatus, StatusTone> = {
+export const staffActiveTones: Record<'active' | 'inactive', StatusTone> = {
   active: 'success',
-  invited: 'info',
-  suspended: 'danger',
+  inactive: 'neutral',
 }

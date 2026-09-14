@@ -27,7 +27,12 @@ export function Dialog({
   }, [open])
 
   return (
-    <dialog ref={ref} className={styles.dialog} onCancel={onClose} onClose={onClose}>
+    <dialog
+      ref={ref}
+      className={styles.dialog}
+      onCancel={onClose}
+      onClose={onClose}
+    >
       <div className={styles.header}>
         <h2 className={styles.title}>{title}</h2>
         {description && <p className={styles.description}>{description}</p>}

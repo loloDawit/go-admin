@@ -1,52 +1,133 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
+  Alert,
   Button,
+  CheckboxField,
   DataTable,
   Dialog,
   PageHeader,
   PageStack,
+  Section,
   SelectField,
   Status,
   TextField,
 } from '../ui'
 import type { Column } from '../ui'
-import { listStaff, staffStatusLabels } from '../api/identity'
-import type { StaffMember } from '../api/identity'
-import { formatDateTime } from '../api/format'
+import { createStaff, listRoles, listStaff } from '../api/identity'
+import type { Staff as StaffMember } from '../api/identity'
 import { useResource } from '../api/useResource'
-import { staffStatusTones } from '../app/statusTones'
+import { useAuth } from '../api/auth'
+import { isApiError } from '../api/http'
+import { staffActiveTones } from '../app/statusTones'
 
-const columns: Column<StaffMember>[] = [
-  { key: 'name', header: 'Name', cell: (member) => member.name },
-  { key: 'email', header: 'Email', cell: (member) => member.email },
-  { key: 'role', header: 'Role', cell: (member) => member.role },
-  {
-    key: 'status',
-    header: 'Status',
-    cell: (member) => <Status tone={staffStatusTones[member.status]}>{staffStatusLabels[member.status]}</Status>,
-  },
-  {
-    key: 'seen',
-    header: 'Last seen',
-    cell: (member) => formatDateTime(member.lastSeenAt),
-  },
-]
+type Step = 'form' | 'password'
 
 export function Staff() {
   const staff = useResource('staff', listStaff)
-  const [inviteOpen, setInviteOpen] = useState(false)
+  const roles = useResource('roles', listRoles)
+  const auth = useAuth()
+  const canEdit = auth.hasPermission('edit_staff')
+
+  const [open, setOpen] = useState(false)
+  const [step, setStep] = useState<Step>('form')
+  const [email, setEmail] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [roleId, setRoleId] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [formError, setFormError] = useState<string>()
+  const [generatedPassword, setGeneratedPassword] = useState('')
+  const [acknowledged, setAcknowledged] = useState(false)
+
+  const roleNames = new Map((roles.data ?? []).map((role) => [role.id, role.name]))
+
+  const columns: Column<StaffMember>[] = [
+    {
+      key: 'name',
+      header: 'Name',
+      cell: (member) => (
+        <Link to={`/staff/${member.id}`}>
+          {member.firstName} {member.lastName}
+        </Link>
+      ),
+    },
+    { key: 'email', header: 'Email', cell: (member) => member.email },
+    { key: 'role', header: 'Role', cell: (member) => roleNames.get(member.roleId) ?? member.roleId },
+    {
+      key: 'status',
+      header: 'Status',
+      cell: (member) => (
+        <Status tone={staffActiveTones[member.isActive ? 'active' : 'inactive']}>
+          {member.isActive ? 'Active' : 'Deactivated'}
+        </Status>
+      ),
+    },
+  ]
+
+  function openDialog() {
+    setEmail('')
+    setFirstName('')
+    setLastName('')
+    // No default: picking a role, including the most privileged one, must be a deliberate choice.
+    setRoleId('')
+    setFormError(undefined)
+    setAcknowledged(false)
+    setStep('form')
+    setOpen(true)
+  }
+
+  // The native close event re-enters here after Done; the reload belongs on the button instead.
+  function closeDialog() {
+    setOpen(false)
+  }
+
+  function dismissPasswordReveal() {
+    setStep('form')
+    staff.reload()
+  }
+
+  const addAction = canEdit ? (
+    <Button variant="primary" onClick={openDialog}>
+      Add colleague
+    </Button>
+  ) : undefined
 
   return (
     <PageStack>
       <PageHeader
         title="Staff"
         description="People who can sign in to this back office."
-        actions={
-          <Button variant="primary" onClick={() => setInviteOpen(true)}>
-            Invite colleague
-          </Button>
-        }
+        actions={addAction}
       />
+
+      {step === 'password' && (
+        // A page-level panel, not a dialog: a <dialog>'s cancel event can still close it after
+        // enough Escape presses (preventDefault only blocks the first one per user gesture), and
+        // this password cannot be shown again once dismissed. Placed above the table so it is
+        // never scrolled out of view.
+        <Section title="Account created">
+          <Alert tone="warning" title="Shown once, never retrievable again">
+            {email} can sign in with the password below. Copy it now — it cannot be displayed a
+            second time.
+          </Alert>
+          <TextField
+            label="Generated password"
+            readOnly
+            value={generatedPassword}
+            style={{ fontFamily: 'var(--font-mono)' }}
+            onFocus={(event) => event.currentTarget.select()}
+          />
+          <CheckboxField
+            label="I have saved this password"
+            checked={acknowledged}
+            onChange={(event) => setAcknowledged(event.target.checked)}
+          />
+          <Button variant="primary" disabled={!acknowledged} onClick={dismissPasswordReveal}>
+            Done
+          </Button>
+        </Section>
+      )}
 
       <DataTable
         columns={columns}
@@ -54,37 +135,90 @@ export function Staff() {
         rowKey={(member) => member.id}
         status={staff.status}
         emptyTitle="No colleagues yet"
-        emptyDescription="Invite someone and they will appear here once they accept."
-        emptyAction={
-          <Button variant="primary" onClick={() => setInviteOpen(true)}>
-            Invite colleague
-          </Button>
-        }
+        emptyDescription="Add someone and they will appear here."
+        emptyAction={addAction}
         errorDescription={staff.error?.message}
         onRetry={staff.reload}
       />
 
       <Dialog
-        open={inviteOpen}
-        title="Invite a colleague"
-        description="They receive an email and choose their own password."
-        onClose={() => setInviteOpen(false)}
+        open={open && step === 'form'}
+        title="Add a colleague"
+        description="A password is generated for them; they choose their own on first sign-in."
+        onClose={closeDialog}
         footer={
           <>
-            <Button variant="ghost" onClick={() => setInviteOpen(false)}>
+            <Button variant="ghost" onClick={closeDialog}>
               Cancel
             </Button>
-            <Button variant="primary" onClick={() => setInviteOpen(false)}>
-              Send invitation
+            <Button
+              variant="primary"
+              loading={submitting}
+              onClick={() => {
+                if (
+                  email.trim() === '' ||
+                  firstName.trim() === '' ||
+                  lastName.trim() === '' ||
+                  roleId === ''
+                ) {
+                  setFormError('Fill in every field.')
+                  return
+                }
+                setFormError(undefined)
+                setSubmitting(true)
+                createStaff({ email, firstName, lastName, roleId })
+                  .then((result) => {
+                    setGeneratedPassword(result.password)
+                    setStep('password')
+                    setOpen(false)
+                  })
+                  .catch((cause: unknown) => {
+                    setFormError(isApiError(cause) ? cause.message : 'Something went wrong.')
+                  })
+                  .finally(() => setSubmitting(false))
+              }}
+            >
+              Create account
             </Button>
           </>
         }
       >
-        <TextField label="Email" type="email" placeholder="name@northgate.example" />
-        <SelectField label="Role" defaultValue="Fulfilment" help="Roles decide what they can change.">
-          <option>Owner</option>
-          <option>Catalog</option>
-          <option>Fulfilment</option>
+        {formError && (
+          <Alert tone="danger" title="Could not create the account">
+            {formError}
+          </Alert>
+        )}
+        <TextField
+          label="Email"
+          type="email"
+          placeholder="name@northgate.example"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+        />
+        <TextField
+          label="First name"
+          value={firstName}
+          onChange={(event) => setFirstName(event.target.value)}
+        />
+        <TextField
+          label="Last name"
+          value={lastName}
+          onChange={(event) => setLastName(event.target.value)}
+        />
+        <SelectField
+          label="Role"
+          value={roleId}
+          onChange={(event) => setRoleId(event.target.value)}
+          help="Decides what they can see and change."
+        >
+          <option value="" disabled>
+            Choose a role
+          </option>
+          {(roles.data ?? []).map((role) => (
+            <option key={role.id} value={role.id}>
+              {role.name}
+            </option>
+          ))}
         </SelectField>
       </Dialog>
     </PageStack>
