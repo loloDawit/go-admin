@@ -1,15 +1,16 @@
 // Package platformcheck is temporary scaffolding proving the gateway -> service -> database path; do not build on it.
 package platformcheck
 
-import "errors"
+import "github.com/loloDawit/go-admin/services/catalog/internal/errs"
 
 type SchemaState struct {
 	Version int
 	Dirty   bool
 }
 
+// Aliased from errs, never redeclared: a second errors.New with identical text would be a distinct value that errors.Is stops matching.
 var (
-	ErrNoMigrations        = errors.New("no migrations applied")
-	ErrDirtySchema         = errors.New("schema is in a dirty state")
-	ErrDatabaseUnavailable = errors.New("database is unavailable")
+	ErrNoMigrations        = errs.ErrNoMigrations
+	ErrDirtySchema         = errs.ErrDirtySchema
+	ErrDatabaseUnavailable = errs.ErrDatabaseUnavailable
 )

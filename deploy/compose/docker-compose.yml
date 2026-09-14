@@ -83,6 +83,16 @@ services:
     environment:
       PORT: "8082"
       DATABASE_URL: "postgres://catalog_user:dev_only_catalog@postgres:5432/catalog_db?sslmode=disable"
+      S3_ENDPOINT: "minio:9000"
+      S3_BUCKET: "catalog-images"
+      S3_ACCESS_KEY: "dev_only_minio"
+      S3_SECRET_KEY: "dev_only_minio_secret"
+      S3_USE_SSL: "false"
+      IMAGE_MAX_BYTES: "5242880"
+      IMAGE_URL_TTL: "15m"
+      PRODUCT_PAGE_SIZE_MAX: "100"
+      DEFAULT_CURRENCY: "USD"
+      PRINCIPAL_SIGNING_KEY: "dev_only_principal_key_at_least_32_bytes"
     ports:
       - "8082:8082"
 
