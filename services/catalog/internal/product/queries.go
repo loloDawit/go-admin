@@ -27,14 +27,17 @@ RETURNING ` + productColumns
 
 // statusFilterClause: a NULL $N means the default view (archived excluded);
 // a non-NULL value filters to exactly that status, archived included.
-const statusFilterClause = `(($%d::product_status IS NULL AND status <> 'archived') OR status = $%d)`
+// The indexed verb fills both positions from one argument: numbering them
+// separately let a caller pass an argument the query never referenced, which
+// Postgres rejects as an undetermined parameter type.
+const statusFilterClause = `(($%[1]d::product_status IS NULL AND status <> 'archived') OR status = $%[1]d)`
 
 // listProductsQueryTemplate takes the sort column and direction, both
 // resolved from a fixed allowlist in postgres.go, never from caller input.
 const listProductsQueryTemplate = `SELECT ` + productColumns + ` FROM products
 WHERE ` + statusFilterClause + `
-ORDER BY %s %s
-LIMIT $3 OFFSET $4`
+ORDER BY %[2]s %[3]s
+LIMIT $2 OFFSET $3`
 
 const listProductsCountQuery = `SELECT COUNT(*) FROM products WHERE ` + statusFilterClause
 
@@ -45,7 +48,7 @@ const searchProductsQueryTemplate = `SELECT ` + productColumns + ` FROM products
 WHERE search @@ websearch_to_tsquery('english', $1)
   AND ` + statusFilterClause + `
 ORDER BY ts_rank(search, websearch_to_tsquery('english', $1)) DESC
-LIMIT $4 OFFSET $5`
+LIMIT $3 OFFSET $4`
 
 const searchProductsCountQuery = `SELECT COUNT(*) FROM products
 WHERE search @@ websearch_to_tsquery('english', $1)

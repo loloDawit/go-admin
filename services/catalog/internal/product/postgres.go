@@ -118,8 +118,8 @@ func (r *PostgresRepository) List(ctx context.Context, q ListQuery) ([]Product, 
 	}
 	status := statusParam(q.Status)
 
-	stmt := fmt.Sprintf(listProductsQueryTemplate, 1, 1, col, direction)
-	rows, err := r.q.Query(ctx, stmt, status, status, q.PageSize, offset(q.Page, q.PageSize))
+	stmt := fmt.Sprintf(listProductsQueryTemplate, 1, col, direction)
+	rows, err := r.q.Query(ctx, stmt, status, q.PageSize, offset(q.Page, q.PageSize))
 	if err != nil {
 		return nil, 0, err
 	}
@@ -128,9 +128,9 @@ func (r *PostgresRepository) List(ctx context.Context, q ListQuery) ([]Product, 
 		return nil, 0, err
 	}
 
-	countStmt := fmt.Sprintf(listProductsCountQuery, 1, 1)
+	countStmt := fmt.Sprintf(listProductsCountQuery, 1)
 	var total int
-	if err := r.q.QueryRow(ctx, countStmt, status, status).Scan(&total); err != nil {
+	if err := r.q.QueryRow(ctx, countStmt, status).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 	return items, total, nil
@@ -139,7 +139,7 @@ func (r *PostgresRepository) List(ctx context.Context, q ListQuery) ([]Product, 
 func (r *PostgresRepository) Search(ctx context.Context, q SearchQuery) ([]Product, int, error) {
 	status := statusParam(q.Status)
 
-	stmt := fmt.Sprintf(searchProductsQueryTemplate, 2, 2)
+	stmt := fmt.Sprintf(searchProductsQueryTemplate, 2)
 	rows, err := r.q.Query(ctx, stmt, q.Text, status, q.PageSize, offset(q.Page, q.PageSize))
 	if err != nil {
 		return nil, 0, err
@@ -149,7 +149,7 @@ func (r *PostgresRepository) Search(ctx context.Context, q SearchQuery) ([]Produ
 		return nil, 0, err
 	}
 
-	countStmt := fmt.Sprintf(searchProductsCountQuery, 2, 2)
+	countStmt := fmt.Sprintf(searchProductsCountQuery, 2)
 	var total int
 	if err := r.q.QueryRow(ctx, countStmt, q.Text, status).Scan(&total); err != nil {
 		return nil, 0, err
