@@ -15,3 +15,6 @@ uploads/*
 docs/
 CLAUDE.md
 .superpowers/
+
+# Binaries from `go build ./tools/...`
+/permgen

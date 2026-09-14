@@ -9,7 +9,7 @@ export OWNER_EMAIL       ?= owner@example.com
 export OWNER_PASSWORD    ?= dev_only_owner_password
 export SESSION_CACHE_TTL ?= 10s
 
-.PHONY: help hooks up down dev logs seed test test-unit test-integration fmt lint tidy
+.PHONY: help hooks generate up down dev logs seed test test-unit test-integration fmt lint tidy
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -19,6 +19,9 @@ up: ## Boot the stack and wait for containers to report ready
 
 down: ## Stop the stack (volumes preserved)
 	$(COMPOSE) down
+
+generate: ## Regenerate code from published contracts
+	go run ./tools/permgen
 
 seed: up ## Create the first owner account (idempotent)
 	$(COMPOSE) --profile seed run --rm identity-seed
