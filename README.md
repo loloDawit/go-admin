@@ -11,12 +11,16 @@ Go 1.27 and Docker. No `.env` step — local config lives in
 
 ```bash
 make up
-curl -s -H 'X-Request-Id: check' localhost:8080/_platform/identity
-# {"service":"identity","schemaVersion":1,"requestId":"check"}
+make seed
+curl -s -c /tmp/j -X POST localhost:8080/api/v1/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"owner@example.com","password":"dev_only_owner_password"}'
+curl -s -b /tmp/j localhost:8080/api/v1/me
 ```
 
 `make up` boots postgres, the migrate jobs, the three services and the gateway,
-and waits for all of them to report healthy. `make help` lists the rest.
+and waits for all of them to report healthy. `make seed` creates the first owner
+account and leaves an existing one alone. `make help` lists the rest.
 
 | gateway | identity | catalog | orders | postgres |
 |---|---|---|---|---|
@@ -35,12 +39,14 @@ runs zero of them and still reports `ok`.
 
 ## What exists
 
-The stack boots, migrates, and routes. There is no domain functionality yet —
-no login, products, orders, staff or customers.
+Identity is complete: login and sessions, staff, roles and permissions, all
+behind route-level authorization. See `services/identity/openapi/identity.yaml`
+for the contract. Products and orders do not exist yet.
 
-`GET /_platform/{service}` returns `{service, schemaVersion, requestId}`. It is
-scaffolding so there is something to verify end to end, not a product API, and
-it is removed per service as real routes land. Don't build against it.
+Catalog and orders still answer `GET /_platform/{service}` with
+`{service, schemaVersion, requestId}`. That is scaffolding so there is something
+to verify end to end, not a product API, and each one loses it when its real
+routes land. Don't build against it.
 
 ## Dev credentials
 

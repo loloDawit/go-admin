@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -26,7 +27,7 @@ type platformResponse struct {
 func TestWalkingSkeletonThroughTheGateway(t *testing.T) {
 	client := &http.Client{Timeout: 10 * time.Second}
 
-	for _, service := range []string{"identity", "catalog", "orders"} {
+	for _, service := range []string{"catalog", "orders"} {
 		t.Run(service, func(t *testing.T) {
 			req, err := http.NewRequest(http.MethodGet, gatewayURL()+"/_platform/"+service, nil)
 			if err != nil {
@@ -87,5 +88,43 @@ func TestUnknownServiceReturnsTheStandardEnvelope(t *testing.T) {
 	}
 	if body.Code == "" || body.Message == "" {
 		t.Errorf("want the standard envelope, got %+v", body)
+	}
+}
+
+// Identity retired its walking skeleton when it gained real routes. A rejected
+// login proves the same path the skeleton proved — through the gateway, into
+// identity, to its own database — using the product API instead of scaffolding.
+func TestIdentityAnswersThroughTheGatewayFromItsOwnDatabase(t *testing.T) {
+	client := &http.Client{Timeout: 10 * time.Second}
+
+	body := strings.NewReader(`{"email":"nobody@example.com","password":"wrong"}`)
+	req, err := http.NewRequest(http.MethodPost, gatewayURL()+"/api/v1/login", body)
+	if err != nil {
+		t.Fatalf("build request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Request-Id", "smoke-identity")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("status: want 401, got %d", resp.StatusCode)
+	}
+	if got := resp.Header.Get("X-Request-Id"); got != "smoke-identity" {
+		t.Errorf("request id: want smoke-identity, got %q", got)
+	}
+
+	var envelope struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if envelope.Code != "invalid_credentials" {
+		t.Errorf("code: want invalid_credentials, got %q", envelope.Code)
 	}
 }

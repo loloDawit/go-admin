@@ -14,7 +14,7 @@ import (
 	"github.com/loloDawit/go-admin/platform/requestid"
 	"github.com/loloDawit/go-admin/services/identity/internal/errs"
 	"github.com/loloDawit/go-admin/services/identity/internal/httperr"
-	"github.com/loloDawit/go-admin/services/identity/internal/platformcheck"
+	"github.com/loloDawit/go-admin/services/identity/internal/schemacheck"
 	"github.com/loloDawit/go-admin/services/identity/internal/session"
 )
 
@@ -184,7 +184,7 @@ func TestWriteMapsPermissionRowMismatchTo500NotClientDetail(t *testing.T) {
 func TestWriteMapsDirtySchemaTo503(t *testing.T) {
 	logger, _ := observability.NewCaptured()
 	rec := httptest.NewRecorder()
-	httperr.New(logger).Write(t.Context(), rec, platformcheck.ErrDirtySchema)
+	httperr.New(logger).Write(t.Context(), rec, schemacheck.ErrDirtySchema)
 
 	if rec.Code != 503 {
 		t.Fatalf("status: want 503, got %d", rec.Code)
@@ -201,7 +201,7 @@ func TestWriteMapsDirtySchemaTo503(t *testing.T) {
 func TestWriteMapsNoMigrationsTo503(t *testing.T) {
 	logger, _ := observability.NewCaptured()
 	rec := httptest.NewRecorder()
-	httperr.New(logger).Write(t.Context(), rec, platformcheck.ErrNoMigrations)
+	httperr.New(logger).Write(t.Context(), rec, schemacheck.ErrNoMigrations)
 
 	if rec.Code != 503 {
 		t.Fatalf("status: want 503, got %d", rec.Code)

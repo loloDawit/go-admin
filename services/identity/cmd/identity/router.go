@@ -13,7 +13,6 @@ import (
 	"github.com/loloDawit/go-admin/platform/requestid"
 	"github.com/loloDawit/go-admin/services/identity/internal/authz"
 	"github.com/loloDawit/go-admin/services/identity/internal/permission"
-	"github.com/loloDawit/go-admin/services/identity/internal/platformcheck"
 	"github.com/loloDawit/go-admin/services/identity/internal/role"
 	"github.com/loloDawit/go-admin/services/identity/internal/session"
 	"github.com/loloDawit/go-admin/services/identity/internal/staff"
@@ -28,7 +27,6 @@ import (
 // a router_test.go pin that runs without a database.
 func newRouter(
 	logger *slog.Logger,
-	handler *platformcheck.Handler,
 	ready *readiness.Handler,
 	sessionHandler *session.Handler,
 	staffHandler *staff.Handler,
@@ -44,7 +42,6 @@ func newRouter(
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 	r.Get("/readyz", ready.Ready)
-	r.Get("/_platform", handler.Platform)
 
 	r.Post("/api/v1/login", sessionHandler.Login)
 	r.Post("/internal/sessions/validate", sessionHandler.Validate)

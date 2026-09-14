@@ -33,12 +33,12 @@ func TestRouterProxiesThroughTheFullMiddlewareStack(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seenByUpstream = r.Header.Get(requestid.Header)
 		w.Header().Set(requestid.Header, seenByUpstream)
-		httpx.WriteJSON(w, http.StatusOK, map[string]string{"service": "identity"})
+		httpx.WriteJSON(w, http.StatusOK, map[string]string{"service": "catalog"})
 	}))
 	defer upstream.Close()
 
 	logger, captured := observability.NewCaptured()
-	upstreams, err := routing.New(logger, map[string]string{"identity": upstream.URL}, time.Second)
+	upstreams, err := routing.New(logger, map[string]string{"catalog": upstream.URL}, time.Second)
 	if err != nil {
 		t.Fatalf("routing.New: %v", err)
 	}
@@ -46,7 +46,7 @@ func TestRouterProxiesThroughTheFullMiddlewareStack(t *testing.T) {
 	r := newRouter(logger, upstreams, noSessionValidator(t, logger))
 
 	rec := httptest.NewRecorder()
-	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/_platform/identity", nil))
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/_platform/catalog", nil))
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status: want 200, got %d", rec.Code)
@@ -65,7 +65,7 @@ func TestRouterProxiesThroughTheFullMiddlewareStack(t *testing.T) {
 		t.Fatalf("want 1 logged request, got %d", len(records))
 	}
 	route, ok := captured.Attr(0, "route")
-	if !ok || route.String() != "/_platform/identity" {
+	if !ok || route.String() != "/_platform/catalog" {
 		t.Errorf("route: want /_platform/identity, got %v (ok=%v)", route, ok)
 	}
 }

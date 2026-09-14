@@ -1,9 +1,19 @@
 openapi: 3.1.0
 info:
   title: Identity Service
-  version: 0.1.0
+  version: 1.0.0
   description: >
-    M1 exposes only infrastructure endpoints. Domain endpoints arrive in M2.
+    Staff identity, sessions, roles and permissions. Every /api/v1 route except
+    login requires a signed principal, forwarded by the gateway after it
+    resolves the session cookie. Services never call this API to authenticate a
+    request; they verify the principal's signature.
+
+    Identifiers are strings on every surface. They are BIGSERIAL values that can
+    exceed JavaScript's safe integer range, where a JSON number would silently
+    lose precision.
+servers:
+  - url: http://localhost:8080
+    description: Through the gateway
 paths:
   /healthz:
     get:
@@ -15,37 +25,313 @@ paths:
       summary: Readiness. Checks database connectivity and clean migration state.
       responses:
         "200": { description: Ready to serve }
-        "503": { description: Not ready, $ref: "#/components/responses/Error" }
-  /_platform:
-    get:
-      summary: >
-        Temporary M1 walking skeleton. Removed in M2. Not a product endpoint.
+        "503": { $ref: "#/components/responses/Error" }
+
+  /api/v1/login:
+    post:
+      summary: Exchange credentials for a session cookie.
+      description: >
+        An unknown email, a wrong password and a deactivated account are
+        indistinguishable in both the response and its timing.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
       responses:
         "200":
-          description: Schema state
+          description: Signed in; the session cookie is set HttpOnly
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Auth" }
+        "401": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /api/v1/logout:
+    post:
+      summary: Revoke the caller's session.
+      responses:
+        "204": { description: Revoked }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/v1/me:
+    get:
+      summary: The caller's own record.
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Auth" }
+          description: The caller
+        "401": { $ref: "#/components/responses/Error" }
+  /api/v1/me/password:
+    post:
+      summary: Change the caller's own password.
+      description: >
+        Reachable while mustChangePassword is set; every other route is refused
+        until it clears.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ChangePasswordRequest" }
+      responses:
+        "204": { description: Changed }
+        "401": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /api/v1/staff:
+    get:
+      summary: List staff. Requires view_staff.
+      responses:
+        "200":
+          description: Staff
           content:
             application/json:
               schema:
                 type: object
-                required: [service, schemaVersion, requestId]
+                required: [staff]
                 properties:
-                  service: { type: string }
-                  schemaVersion: { type: integer }
-                  requestId: { type: string }
-        "503": { description: Not ready, $ref: "#/components/responses/Error" }
+                  staff:
+                    type: array
+                    items: { $ref: "#/components/schemas/Staff" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+    post:
+      summary: Create a staff member. Requires edit_staff.
+      description: >
+        The generated password is returned exactly once, here. It is stored only
+        as a hash and no later response repeats it. The account is created with
+        mustChangePassword set.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateStaffRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [staff, password]
+                properties:
+                  staff: { $ref: "#/components/schemas/Staff" }
+                  password: { type: string }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /api/v1/staff/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      summary: One staff member. Requires view_staff.
+      responses:
+        "200":
+          description: The staff member
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Staff" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    patch:
+      summary: Update a staff member. Requires edit_staff.
+      description: >
+        Every field is optional; an omitted field leaves that column unchanged.
+        A caller editing their own record may change only their name and email —
+        roleId and isActive are not accepted, so nobody can promote themselves.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateStaffRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Staff" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /api/v1/staff/{id}/deactivate:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    post:
+      summary: Deactivate a staff member. Requires edit_staff.
+      description: >
+        Revokes their live sessions. Refused with last_admin when no other
+        active staff member would still hold edit_staff.
+      responses:
+        "200":
+          description: Deactivated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Staff" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /api/v1/roles:
+    get:
+      summary: List roles. Requires view_roles.
+      responses:
+        "200":
+          description: Roles
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [roles]
+                properties:
+                  roles:
+                    type: array
+                    items: { $ref: "#/components/schemas/Role" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+    post:
+      summary: Create a role. Requires edit_roles.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateRoleRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Role" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /api/v1/roles/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      summary: One role. Requires view_roles.
+      responses:
+        "200":
+          description: The role
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Role" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    patch:
+      summary: Update a role. Requires edit_roles.
+      description: >
+        Refused with last_admin when it would remove edit_staff from the only
+        role granting it to an active staff member.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateRoleRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Role" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+    delete:
+      summary: Delete a role. Requires edit_roles.
+      description: Refused with conflict while any staff member still holds it.
+      responses:
+        "204": { description: Deleted }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /api/v1/permissions:
+    get:
+      summary: The canonical permission vocabulary. Requires view_roles.
+      responses:
+        "200":
+          description: Permissions
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [permissions]
+                properties:
+                  permissions:
+                    type: array
+                    items: { $ref: "#/components/schemas/Permission" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+
+  /internal/sessions/validate:
+    post:
+      summary: Resolve a session token. Gateway only.
+      description: >
+        Not routed through the gateway and reachable on the container network
+        only. A client that could call it could validate arbitrary tokens. The
+        token travels in the body, never a query string, which would reach
+        access logs.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string }
+      responses:
+        "200":
+          description: The resolved caller
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [staffId, permissions, mustChangePassword]
+                properties:
+                  staffId: { type: string }
+                  permissions:
+                    type: array
+                    items: { $ref: "#/components/schemas/Permission" }
+                  mustChangePassword: { type: boolean }
+        "401": { $ref: "#/components/responses/Error" }
+
 components:
   responses:
     Error:
       description: Standard error envelope
       content:
         application/json:
-          schema:
-            type: object
-            required: [code, message]
-            properties:
-              code: { type: string }
-              message: { type: string }
+          schema: { $ref: "#/components/schemas/Error" }
   schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum:
+            - invalid_credentials
+            - unauthenticated
+            - forbidden
+            - password_change_required
+            - not_found
+            - conflict
+            - last_admin
+            - validation_failed
+            - internal
+            - schema_dirty
+            - schema_not_migrated
+            - database_unavailable
+        message: { type: string }
     Permission:
       description: >
         The canonical permission vocabulary. Identity owns this list; Catalog
@@ -61,3 +347,76 @@ components:
         - edit_products
         - view_orders
         - edit_orders
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword: { type: string }
+        newPassword: { type: string }
+    Auth:
+      type: object
+      required: [staffId, email, permissions, mustChangePassword]
+      properties:
+        staffId: { type: string }
+        email: { type: string, format: email }
+        permissions:
+          type: array
+          items: { $ref: "#/components/schemas/Permission" }
+        mustChangePassword: { type: boolean }
+    Staff:
+      type: object
+      required: [id, email, firstName, lastName, roleId, isActive, mustChangePassword]
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+        firstName: { type: string }
+        lastName: { type: string }
+        roleId: { type: string }
+        isActive: { type: boolean }
+        mustChangePassword: { type: boolean }
+    CreateStaffRequest:
+      type: object
+      required: [email, firstName, lastName, roleId]
+      properties:
+        email: { type: string, format: email }
+        firstName: { type: string }
+        lastName: { type: string }
+        roleId: { type: string }
+    UpdateStaffRequest:
+      type: object
+      properties:
+        firstName: { type: string }
+        lastName: { type: string }
+        email: { type: string, format: email }
+        roleId: { type: string }
+        isActive: { type: boolean }
+    Role:
+      type: object
+      required: [id, name, permissions]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        permissions:
+          type: array
+          items: { $ref: "#/components/schemas/Permission" }
+    CreateRoleRequest:
+      type: object
+      required: [name, permissions]
+      properties:
+        name: { type: string }
+        permissions:
+          type: array
+          items: { $ref: "#/components/schemas/Permission" }
+    UpdateRoleRequest:
+      type: object
+      properties:
+        name: { type: string }
+        permissions:
+          type: array
+          items: { $ref: "#/components/schemas/Permission" }

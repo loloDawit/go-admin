@@ -17,8 +17,8 @@ import (
 	"github.com/loloDawit/go-admin/platform/readiness"
 	"github.com/loloDawit/go-admin/services/identity/internal/httperr"
 	"github.com/loloDawit/go-admin/services/identity/internal/permission"
-	"github.com/loloDawit/go-admin/services/identity/internal/platformcheck"
 	"github.com/loloDawit/go-admin/services/identity/internal/role"
+	"github.com/loloDawit/go-admin/services/identity/internal/schemacheck"
 	"github.com/loloDawit/go-admin/services/identity/internal/session"
 	"github.com/loloDawit/go-admin/services/identity/internal/staff"
 )
@@ -37,7 +37,7 @@ func newTestAuthzHandlers(errWriter func(context.Context, http.ResponseWriter, e
 }
 
 // emptySessionRepository matches no staff and no session; the routes these
-// tests exercise (/healthz, /readyz, /_platform, /boom) never call it.
+// tests exercise (/healthz, /readyz, /boom) never call it.
 type emptySessionRepository struct{}
 
 func (emptySessionRepository) AuthByEmail(context.Context, string) (session.StaffAuth, error) {
@@ -159,12 +159,11 @@ func newRouterWithLogin(t *testing.T) (*chi.Mux, *memorySessionRepository) {
 	}
 	sessionHandler := session.NewHandler(svc, false, time.Hour, 1<<20, errWriter.Write)
 
-	platformSvc := platformcheck.NewService(&alwaysFailRepo{})
-	platformHandler := platformcheck.NewHandler(platformSvc, "identity", errWriter.Write)
+	platformSvc := schemacheck.NewService(&alwaysFailRepo{})
 	ready := readiness.NewHandler(platformSvc.Probe, errWriter.Write)
 
 	staffHandler, roleHandler, permissionHandler := newTestAuthzHandlers(errWriter.Write)
-	r := newRouter(logger, platformHandler, ready, sessionHandler, staffHandler, roleHandler, permissionHandler, testPrincipalKey, errWriter.Write)
+	r := newRouter(logger, ready, sessionHandler, staffHandler, roleHandler, permissionHandler, testPrincipalKey, errWriter.Write)
 	return r, repo
 }
 
@@ -369,21 +368,20 @@ type alwaysFailRepo struct {
 	calls int
 }
 
-func (r *alwaysFailRepo) SchemaState(context.Context) (platformcheck.SchemaState, error) {
+func (r *alwaysFailRepo) SchemaState(context.Context) (schemacheck.SchemaState, error) {
 	r.calls++
-	return platformcheck.SchemaState{}, errors.New("dial tcp 10.0.0.5:5432: connect: connection refused")
+	return schemacheck.SchemaState{}, errors.New("dial tcp 10.0.0.5:5432: connect: connection refused")
 }
 
 func TestPanickingHandlerStillProducesALogLineWithStatus500(t *testing.T) {
 	logger, captured := observability.NewCaptured()
 	errWriter := httperr.New(logger)
-	svc := platformcheck.NewService(&alwaysFailRepo{})
-	handler := platformcheck.NewHandler(svc, "identity", errWriter.Write)
+	svc := schemacheck.NewService(&alwaysFailRepo{})
 	ready := readiness.NewHandler(svc.Probe, errWriter.Write)
 
 	sessionHandler := newTestSessionHandler(t, errWriter.Write)
 	staffHandler, roleHandler, permissionHandler := newTestAuthzHandlers(errWriter.Write)
-	r := newRouter(logger, handler, ready, sessionHandler, staffHandler, roleHandler, permissionHandler, testPrincipalKey, errWriter.Write)
+	r := newRouter(logger, ready, sessionHandler, staffHandler, roleHandler, permissionHandler, testPrincipalKey, errWriter.Write)
 	r.Get("/boom", func(http.ResponseWriter, *http.Request) {
 		panic("kaboom")
 	})
@@ -417,13 +415,12 @@ func TestStartupContractHealthzSkipsTheDatabaseAndReadyzReportsFailureSafely(t *
 	logger, captured := observability.NewCaptured()
 	errWriter := httperr.New(logger)
 	repo := &alwaysFailRepo{}
-	svc := platformcheck.NewService(repo)
-	handler := platformcheck.NewHandler(svc, "identity", errWriter.Write)
+	svc := schemacheck.NewService(repo)
 	ready := readiness.NewHandler(svc.Probe, errWriter.Write)
 
 	sessionHandler := newTestSessionHandler(t, errWriter.Write)
 	staffHandler, roleHandler, permissionHandler := newTestAuthzHandlers(errWriter.Write)
-	r := newRouter(logger, handler, ready, sessionHandler, staffHandler, roleHandler, permissionHandler, testPrincipalKey, errWriter.Write)
+	r := newRouter(logger, ready, sessionHandler, staffHandler, roleHandler, permissionHandler, testPrincipalKey, errWriter.Write)
 
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
@@ -434,7 +431,7 @@ func TestStartupContractHealthzSkipsTheDatabaseAndReadyzReportsFailureSafely(t *
 		t.Errorf("healthz touched the repository: called %d times", repo.calls)
 	}
 
-	for _, route := range []string{"/readyz", "/_platform"} {
+	for _, route := range []string{"/readyz"} {
 		rec := httptest.NewRecorder()
 		r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, route, nil))
 		if rec.Code != http.StatusServiceUnavailable {

@@ -45,9 +45,7 @@ var (
 	// ErrNoAdminRole means migrations have not run: 000002 seeds the role.
 	ErrNoAdminRole = errors.New("no admin role exists")
 
-	// ErrNoMigrations, ErrDirtySchema, and ErrDatabaseUnavailable are
-	// platformcheck's sentinels (the M1 walking skeleton's schema-state
-	// probe); httperr maps all three to a 503.
+	// httperr maps all three to 503: each means not ready, never a request fault.
 	ErrNoMigrations        = errors.New("no migrations applied")
 	ErrDirtySchema         = errors.New("schema is in a dirty state")
 	ErrDatabaseUnavailable = errors.New("database is unavailable")

@@ -79,8 +79,13 @@ func New(logger *slog.Logger, upstreams map[string]string, timeout time.Duration
 		targets[name] = target
 	}
 
+	// Identity has real routes now, so its walking skeleton was retired; catalog
+	// and orders keep theirs until M3 and M4 replace them.
 	platformProxies := make(map[string]*httputil.ReverseProxy, len(targets))
 	for name, target := range targets {
+		if name == "identity" {
+			continue
+		}
 		platformProxies[name] = newProxy(logger, name, target, func(out *http.Request) {
 			out.URL.Path, out.URL.RawPath = "/_platform", ""
 		})

@@ -13,7 +13,7 @@ import (
 	"github.com/loloDawit/go-admin/platform/principal"
 	"github.com/loloDawit/go-admin/platform/requestid"
 	"github.com/loloDawit/go-admin/services/identity/internal/errs"
-	"github.com/loloDawit/go-admin/services/identity/internal/platformcheck"
+	"github.com/loloDawit/go-admin/services/identity/internal/schemacheck"
 	"github.com/loloDawit/go-admin/services/identity/internal/session"
 )
 
@@ -70,11 +70,11 @@ func (h *Writer) Write(ctx context.Context, w http.ResponseWriter, err error) {
 		httpx.WriteError(w, http.StatusNotFound, "not_found", "no matching record was found")
 	case errors.Is(err, errs.ErrEmptyPassword):
 		httpx.WriteError(w, http.StatusUnprocessableEntity, "validation_failed", "password must not be empty")
-	case errors.Is(err, platformcheck.ErrDirtySchema):
+	case errors.Is(err, schemacheck.ErrDirtySchema):
 		httpx.WriteError(w, http.StatusServiceUnavailable, "schema_dirty", "the service is not ready")
-	case errors.Is(err, platformcheck.ErrNoMigrations):
+	case errors.Is(err, schemacheck.ErrNoMigrations):
 		httpx.WriteError(w, http.StatusServiceUnavailable, "schema_not_migrated", "the service is not ready")
-	case errors.Is(err, platformcheck.ErrDatabaseUnavailable):
+	case errors.Is(err, schemacheck.ErrDatabaseUnavailable):
 		// readiness.Handler.Ready has no logging of its own; this is the only
 		// place the driver cause (kept reachable via %w in Service.Check)
 		// reaches the log before the client gets the generic message.

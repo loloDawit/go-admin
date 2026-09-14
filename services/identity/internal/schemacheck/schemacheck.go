@@ -1,7 +1,7 @@
-// Package platformcheck is the M1 walking skeleton and is TEMPORARY. It proves
-// the gateway -> service -> service-owned database path works. It is removed
-// when this service gains its real capabilities in M2. Do not build on it.
-package platformcheck
+// Package schemacheck reports whether this service's schema is migrated and
+// clean. It supplies the readiness probe; the /_platform route it once served
+// was retired when identity gained real routes.
+package schemacheck
 
 import "github.com/loloDawit/go-admin/services/identity/internal/errs"
 
