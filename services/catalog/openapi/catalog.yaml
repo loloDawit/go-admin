@@ -8,10 +8,11 @@ info:
     /internal/products/resolve is gateway-network-only, called by Orders to
     snapshot title and price at purchase time.
 
-    Identifiers are strings on every surface a client can reach, except image
-    ids, which travel as JSON numbers. Money is priceMinor (an integer count of
-    the currency's smallest unit) plus a currency code; the default currency
-    when a caller omits one is USD.
+    Identifiers are strings on every surface. They are BIGSERIAL values that can
+    exceed JavaScript's safe integer range, where a JSON number would silently
+    lose precision. Money is priceMinor (an integer count of the currency's
+    smallest unit) plus a currency code; the default when a caller omits one is
+    USD.
 servers:
   - url: http://localhost:8080
     description: Through the gateway
@@ -310,7 +311,7 @@ components:
       type: object
       required: [id, url, alt, position]
       properties:
-        id: { type: integer }
+        id: { type: string }
         url: { type: string, description: A presigned URL, valid for a limited time; fetch it fresh rather than caching it. }
         alt: { type: string }
         position: { type: integer }
