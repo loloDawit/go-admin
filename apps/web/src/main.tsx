@@ -5,9 +5,12 @@ import '@fontsource-variable/ibm-plex-sans'
 import './styles/tokens.css'
 import './styles/base.css'
 import { router } from './app/routes'
+import { AuthProvider } from './api/auth'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <RouterProvider router={router} />
+    <AuthProvider>
+      <RouterProvider router={router} />
+    </AuthProvider>
   </StrictMode>,
 )
