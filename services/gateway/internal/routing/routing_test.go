@@ -178,6 +178,51 @@ func TestSlowUpstreamTripsTheDeadlineAndReturnsGatewayTimeout(t *testing.T) {
 	}
 }
 
+func TestAPIV1RoutesToIdentityPreservingThePath(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	var gotPath string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		httpx.WriteJSON(w, http.StatusOK, map[string]string{"service": "identity"})
+	}))
+	defer upstream.Close()
+
+	h, err := routing.New(logger, map[string]string{"identity": upstream.URL}, time.Second)
+	if err != nil {
+		t.Fatalf("routing.New: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/me", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d", rec.Code)
+	}
+	if gotPath != "/api/v1/me" {
+		t.Errorf("upstream path: want /api/v1/me (preserved), got %q", gotPath)
+	}
+}
+
+func TestInternalRoutesAreNotProxied(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("internal routes must never reach an upstream through the gateway")
+	}))
+	defer upstream.Close()
+
+	h, err := routing.New(logger, map[string]string{"identity": upstream.URL}, time.Second)
+	if err != nil {
+		t.Fatalf("routing.New: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/internal/sessions/validate", nil))
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status: want 404, got %d", rec.Code)
+	}
+}
+
 func TestRejectsAnUnparseableUpstream(t *testing.T) {
 	logger, _ := observability.NewCaptured()
 	if _, err := routing.New(logger, map[string]string{"identity": "://bad"}, time.Second); err == nil {

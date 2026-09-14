@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -8,9 +10,23 @@ import (
 
 	"github.com/loloDawit/go-admin/platform/httpx"
 	"github.com/loloDawit/go-admin/platform/observability"
+	"github.com/loloDawit/go-admin/platform/principal"
 	"github.com/loloDawit/go-admin/platform/requestid"
+	"github.com/loloDawit/go-admin/services/gateway/internal/auth"
+	"github.com/loloDawit/go-admin/services/gateway/internal/httperr"
 	"github.com/loloDawit/go-admin/services/gateway/internal/routing"
 )
+
+const testSigningKey = "test-signing-key-at-least-32-bytes-long"
+
+func noSessionValidator(t *testing.T, logger *slog.Logger) *auth.Validator {
+	t.Helper()
+	stub := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("identity must not be called for a request with no session cookie")
+	}))
+	t.Cleanup(stub.Close)
+	return auth.NewValidator(stub.Client(), stub.URL+"/internal/sessions/validate", []byte(testSigningKey), time.Minute, auth.NewCache(time.Minute), httperr.New(logger), logger)
+}
 
 func TestRouterProxiesThroughTheFullMiddlewareStack(t *testing.T) {
 	var seenByUpstream string
@@ -27,7 +43,7 @@ func TestRouterProxiesThroughTheFullMiddlewareStack(t *testing.T) {
 		t.Fatalf("routing.New: %v", err)
 	}
 
-	r := newRouter(logger, upstreams)
+	r := newRouter(logger, upstreams, noSessionValidator(t, logger))
 
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/_platform/identity", nil))
@@ -54,6 +70,37 @@ func TestRouterProxiesThroughTheFullMiddlewareStack(t *testing.T) {
 	}
 }
 
+func TestRouterStripsAClientSuppliedPrincipal(t *testing.T) {
+	var seenHeader, seenSig string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seenHeader = r.Header.Get(principal.HeaderPrincipal)
+		seenSig = r.Header.Get(principal.HeaderSignature)
+		httpx.WriteJSON(w, http.StatusOK, map[string]string{"service": "identity"})
+	}))
+	defer upstream.Close()
+
+	logger, _ := observability.NewCaptured()
+	upstreams, err := routing.New(logger, map[string]string{"identity": upstream.URL}, time.Second)
+	if err != nil {
+		t.Fatalf("routing.New: %v", err)
+	}
+	r := newRouter(logger, upstreams, noSessionValidator(t, logger))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
+	req.Header.Set(principal.HeaderPrincipal, "forged-principal")
+	req.Header.Set(principal.HeaderSignature, "forged-signature")
+
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if seenHeader == "forged-principal" {
+		t.Fatal("the gateway forwarded a client-supplied principal")
+	}
+	if seenSig == "forged-signature" {
+		t.Fatal("the gateway forwarded a client-supplied signature")
+	}
+}
+
 func TestRouterRecoversFromAPanicAndStillLogs(t *testing.T) {
 	logger, captured := observability.NewCaptured()
 	upstreams, err := routing.New(logger, map[string]string{"identity": "http://127.0.0.1:1"}, time.Second)
@@ -61,7 +108,7 @@ func TestRouterRecoversFromAPanicAndStillLogs(t *testing.T) {
 		t.Fatalf("routing.New: %v", err)
 	}
 
-	r := newRouter(logger, upstreams)
+	r := newRouter(logger, upstreams, noSessionValidator(t, logger))
 	r.Get("/panics", func(http.ResponseWriter, *http.Request) { panic("boom") })
 
 	rec := httptest.NewRecorder()
@@ -81,18 +128,13 @@ func TestRouterRecoversFromAPanicAndStillLogs(t *testing.T) {
 	}
 }
 
-// I5: the container HEALTHCHECK depends on /healthz, and compose gates the
-// gateway's own readiness on identity, catalog, and orders each being
-// service_healthy — a refactor that mounted the router under a prefix would
-// 404 both, hang `make up --wait`, and nothing would name the cause without a
-// test pinning these two routes.
 func TestHealthzReturns200(t *testing.T) {
 	logger, _ := observability.NewCaptured()
 	upstreams, err := routing.New(logger, map[string]string{"identity": "http://127.0.0.1:1"}, time.Second)
 	if err != nil {
 		t.Fatalf("routing.New: %v", err)
 	}
-	r := newRouter(logger, upstreams)
+	r := newRouter(logger, upstreams, noSessionValidator(t, logger))
 
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
@@ -108,12 +150,58 @@ func TestReadyzReturns200(t *testing.T) {
 	if err != nil {
 		t.Fatalf("routing.New: %v", err)
 	}
-	r := newRouter(logger, upstreams)
+	r := newRouter(logger, upstreams, noSessionValidator(t, logger))
 
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/readyz", nil))
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status: want 200, got %d", rec.Code)
+	}
+}
+
+func TestRouterForwardsASignedPrincipalForAValidSession(t *testing.T) {
+	var seenHeader, seenSig string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seenHeader = r.Header.Get(principal.HeaderPrincipal)
+		seenSig = r.Header.Get(principal.HeaderSignature)
+		httpx.WriteJSON(w, http.StatusOK, map[string]string{"service": "identity"})
+	}))
+	defer upstream.Close()
+
+	identityValidate := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"staffId":            "staff-1",
+			"permissions":        []string{"orders_view"},
+			"mustChangePassword": false,
+		})
+	}))
+	defer identityValidate.Close()
+
+	logger, _ := observability.NewCaptured()
+	upstreams, err := routing.New(logger, map[string]string{"identity": upstream.URL}, time.Second)
+	if err != nil {
+		t.Fatalf("routing.New: %v", err)
+	}
+
+	key := []byte(testSigningKey)
+	validator := auth.NewValidator(identityValidate.Client(), identityValidate.URL+"/internal/sessions/validate", key, time.Minute, auth.NewCache(time.Minute), httperr.New(logger), logger)
+	r := newRouter(logger, upstreams, validator)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
+	req.AddCookie(&http.Cookie{Name: "session", Value: "a-live-session-token"})
+
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if seenHeader == "" || seenSig == "" {
+		t.Fatal("want a signed principal forwarded for a valid session")
+	}
+	p, err := principal.Verify(seenHeader, seenSig, key, time.Now())
+	if err != nil {
+		t.Fatalf("the forwarded principal must verify against the gateway's own key: %v", err)
+	}
+	if p.StaffID != "staff-1" {
+		t.Errorf("StaffID: want staff-1, got %q", p.StaffID)
 	}
 }

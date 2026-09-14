@@ -13,7 +13,9 @@ import (
 
 	"github.com/loloDawit/go-admin/platform/healthcheck"
 	"github.com/loloDawit/go-admin/platform/observability"
+	"github.com/loloDawit/go-admin/services/gateway/internal/auth"
 	"github.com/loloDawit/go-admin/services/gateway/internal/config"
+	"github.com/loloDawit/go-admin/services/gateway/internal/httperr"
 	"github.com/loloDawit/go-admin/services/gateway/internal/routing"
 )
 
@@ -45,7 +47,21 @@ func main() {
 		os.Exit(1)
 	}
 
-	r := newRouter(logger, upstreams)
+	validator := auth.NewValidator(
+		&http.Client{Timeout: cfg.UpstreamTimeout},
+		cfg.Upstreams["identity"]+"/internal/sessions/validate",
+		cfg.PrincipalKey,
+		cfg.PrincipalTTL,
+		auth.NewCache(cfg.SessionCacheTTL),
+		httperr.New(logger),
+		logger,
+	)
+	logger.Info("session validation configured",
+		slog.Duration("principal_ttl", cfg.PrincipalTTL),
+		slog.Duration("session_cache_ttl", cfg.SessionCacheTTL),
+	)
+
+	r := newRouter(logger, upstreams, validator)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
