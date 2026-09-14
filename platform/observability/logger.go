@@ -33,9 +33,7 @@ func RequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 	}
 }
 
-// statusRecorder captures the status for the log line. The constructor's
-// initializer covers a handler that writes nothing at all: WriteHeader is
-// then never called, and the field must still read 200.
+// statusRecorder's status field must default to 200: a handler that writes nothing at all never calls WriteHeader.
 type statusRecorder struct {
 	http.ResponseWriter
 	status      int
@@ -58,7 +56,5 @@ func (r *statusRecorder) Write(b []byte) (int, error) {
 	return r.ResponseWriter.Write(b)
 }
 
-// Unwrap lets http.NewResponseController (used by httputil.ReverseProxy for
-// flushing and Hijack/websocket upgrades) reach the underlying writer through
-// this wrapper.
+// Unwrap lets http.NewResponseController (httputil.ReverseProxy's flushing and Hijack/websocket upgrades) reach the underlying writer.
 func (r *statusRecorder) Unwrap() http.ResponseWriter { return r.ResponseWriter }

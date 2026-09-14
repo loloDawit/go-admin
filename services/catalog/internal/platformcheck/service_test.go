@@ -47,11 +47,16 @@ func TestCheckRejectsAnUnmigratedSchema(t *testing.T) {
 	}
 }
 
+// Check must classify a repository failure as ErrDatabaseUnavailable while keeping the cause reachable via %w for the log.
 func TestCheckPropagatesRepositoryFailure(t *testing.T) {
 	want := errors.New("connection refused")
 	svc := platformcheck.NewService(stubRepo{err: want})
 
-	if _, err := svc.Check(context.Background()); !errors.Is(err, want) {
-		t.Fatalf("want the repository error, got %v", err)
+	_, err := svc.Check(context.Background())
+	if !errors.Is(err, platformcheck.ErrDatabaseUnavailable) {
+		t.Fatalf("want ErrDatabaseUnavailable, got %v", err)
+	}
+	if !errors.Is(err, want) {
+		t.Fatalf("want the repository error reachable via %%w, got %v", err)
 	}
 }

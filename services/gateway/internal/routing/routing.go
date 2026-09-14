@@ -12,72 +12,83 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/loloDawit/go-admin/platform/requestid"
+	"github.com/loloDawit/go-admin/services/gateway/internal/errs"
 	"github.com/loloDawit/go-admin/services/gateway/internal/httperr"
 )
 
-// New builds the fixed route-to-upstream mapping. Upstreams are statically
-// configured; there is deliberately no service registry.
-//
-// ReverseProxy logs a transport error only from its own default ErrorHandler;
-// installing a custom one (below) means the dial error, DNS failure, or TLS
-// error is recorded nowhere unless this function logs it itself. Every
-// service already logs the cause before returning a generic body
-// (internal/httperr); the gateway does the same here.
-func New(logger *slog.Logger, upstreams map[string]string, timeout time.Duration) (http.Handler, error) {
-	proxies := make(map[string]*httputil.ReverseProxy, len(upstreams))
+// rewrite runs after the default director points the request at target;
+// nil preserves the inbound path.
+func newProxy(logger *slog.Logger, name string, target *url.URL, rewrite func(*http.Request)) *httputil.ReverseProxy {
+	proxy := httputil.NewSingleHostReverseProxy(target)
 
+	baseDirector := proxy.Director
+	proxy.Director = func(out *http.Request) {
+		baseDirector(out)
+		if rewrite != nil {
+			rewrite(out)
+		}
+		// The upstream would otherwise mint its own request ID.
+		if id := requestid.FromContext(out.Context()); id != "" {
+			out.Header.Set(requestid.Header, id)
+		}
+	}
+
+	// ReverseProxy's default ErrorHandler is the only thing that would log a
+	// transport failure; this one replaces it and must log itself.
+	proxy.ErrorHandler = func(w http.ResponseWriter, req *http.Request, err error) {
+		logger.ErrorContext(req.Context(), "upstream unavailable",
+			slog.String("upstream", name),
+			slog.String("request_id", requestid.FromContext(req.Context())),
+			slog.String("error", err.Error()),
+		)
+
+		if errors.Is(err, context.DeadlineExceeded) {
+			httperr.WriteGatewayTimeout(w)
+			return
+		}
+		httperr.WriteUpstreamUnavailable(w)
+	}
+
+	// Without this, copyHeader adds a second X-Request-Id alongside the
+	// upstream's echo of the one this gateway already set.
+	proxy.ModifyResponse = func(resp *http.Response) error {
+		resp.Header.Del(requestid.Header)
+		return nil
+	}
+
+	return proxy
+}
+
+func withTimeout(proxy *httputil.ReverseProxy, timeout time.Duration) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		ctx, cancel := context.WithTimeout(req.Context(), timeout)
+		defer cancel()
+		proxy.ServeHTTP(w, req.WithContext(ctx))
+	}
+}
+
+// "/_platform/{service}" and "/api/v1/*" use separate directors so a change
+// to one cannot alter the other. "/internal/*" is never routed here.
+func New(logger *slog.Logger, upstreams map[string]string, timeout time.Duration) (http.Handler, error) {
+	targets := make(map[string]*url.URL, len(upstreams))
 	for name, raw := range upstreams {
-		name := name
 		target, err := url.Parse(raw)
 		if err != nil || target.Scheme == "" || target.Host == "" {
-			return nil, fmt.Errorf("upstream %q is not a valid URL", name)
+			return nil, errs.Wrap(errs.OpParseUpstreamURL, fmt.Errorf("%s: %w", name, errs.ErrInvalidUpstreamURL))
 		}
+		targets[name] = target
+	}
 
-		proxy := httputil.NewSingleHostReverseProxy(target)
-		proxy.ErrorHandler = func(w http.ResponseWriter, req *http.Request, err error) {
-			// req is ReverseProxy's clone of the inbound request (req.Clone),
-			// so it still carries the request ID this gateway's own
-			// requestid.Middleware stamped into the context.
-			logger.ErrorContext(req.Context(), "upstream unavailable",
-				slog.String("upstream", name),
-				slog.String("request_id", requestid.FromContext(req.Context())),
-				slog.String("error", err.Error()),
-			)
-
-			// The transport error names the upstream host; the client gets none of it.
-			// context.DeadlineExceeded means the request's own per-call timeout fired
-			// (the upstream was too slow), distinct from a refused/dropped connection.
-			if errors.Is(err, context.DeadlineExceeded) {
-				httperr.WriteGatewayTimeout(w)
-				return
-			}
-			httperr.WriteUpstreamUnavailable(w)
+	// Identity has real routes now, so its walking skeleton was retired; catalog
+	// and orders keep theirs until M3 and M4 replace them.
+	platformProxies := make(map[string]*httputil.ReverseProxy, len(targets))
+	for name, target := range targets {
+		if name == "identity" {
+			continue
 		}
-
-		// ReverseProxy.ServeHTTP runs Director on a clone of the inbound request
-		// (req.Clone), so rewriting the path here — rather than on the request
-		// the route handler holds — cannot leak "/_platform" back into the
-		// gateway's own request-logger route label.
-		director := proxy.Director
-		proxy.Director = func(out *http.Request) {
-			director(out)
+		platformProxies[name] = newProxy(logger, name, target, func(out *http.Request) {
 			out.URL.Path, out.URL.RawPath = "/_platform", ""
-			// requestid.Middleware stamps the response header and the request
-			// context, not the inbound request's own header; without this the
-			// upstream would mint its own ID and the two logs wouldn't correlate.
-			if id := requestid.FromContext(out.Context()); id != "" {
-				out.Header.Set(requestid.Header, id)
-			}
-		}
-
-		// The gateway's own requestid.Middleware already set this header on the
-		// response before the proxy ran; without deleting the upstream's echo of
-		// it here, copyHeader adds a second identical one instead of replacing it.
-		proxy.ModifyResponse = func(resp *http.Response) error {
-			resp.Header.Del(requestid.Header)
-			return nil
-		}
-		proxies[name] = proxy
+		})
 	}
 
 	r := chi.NewRouter()
@@ -87,17 +98,18 @@ func New(logger *slog.Logger, upstreams map[string]string, timeout time.Duration
 
 	r.Get("/_platform/{service}", func(w http.ResponseWriter, req *http.Request) {
 		name := chi.URLParam(req, "service")
-		proxy, ok := proxies[name]
+		proxy, ok := platformProxies[name]
 		if !ok {
 			httperr.WriteUnknownRoute(w)
 			return
 		}
-
-		ctx, cancel := context.WithTimeout(req.Context(), timeout)
-		defer cancel()
-
-		proxy.ServeHTTP(w, req.WithContext(ctx))
+		withTimeout(proxy, timeout)(w, req)
 	})
+
+	if identityTarget, ok := targets["identity"]; ok {
+		identityAPI := newProxy(logger, "identity", identityTarget, nil)
+		r.Handle("/api/v1/*", withTimeout(identityAPI, timeout))
+	}
 
 	r.NotFound(func(w http.ResponseWriter, _ *http.Request) { httperr.WriteUnknownRoute(w) })
 

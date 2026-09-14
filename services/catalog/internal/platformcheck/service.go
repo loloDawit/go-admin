@@ -1,6 +1,9 @@
 package platformcheck
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 type Service struct {
 	repo Repository
@@ -12,8 +15,9 @@ func NewService(repo Repository) *Service {
 
 func (s *Service) Check(ctx context.Context) (SchemaState, error) {
 	state, err := s.repo.SchemaState(ctx)
+	// Wrapped here, not in the Postgres implementation, since a fake Repository bypasses that.
 	if err != nil {
-		return SchemaState{}, err
+		return SchemaState{}, fmt.Errorf("%w: %w", ErrDatabaseUnavailable, err)
 	}
 	if state.Dirty {
 		return SchemaState{}, ErrDirtySchema

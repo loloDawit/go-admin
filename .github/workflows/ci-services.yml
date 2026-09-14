@@ -35,10 +35,14 @@ jobs:
       # integration tests both need it. Do not move this job to a runner
       # without one.
       - run: docker compose -f deploy/compose/docker-compose.yml down -v
-      - run: docker compose -f deploy/compose/docker-compose.yml up -d --build --wait
+      - run: make up
+      # The suite asserts against the seeded owner, and reads OWNER_* and
+      # SESSION_CACHE_TTL from the environment rather than defaulting, so it
+      # must run through the Makefile that defines them for compose too.
+      - run: make seed
       # -tags integration is required: without it this matches zero test
       # files in test/integration and the job reports success having run
       # nothing.
-      - run: go test -tags integration ./test/integration/... -count=1 -v
+      - run: make test-integration
       - if: failure()
         run: docker compose -f deploy/compose/docker-compose.yml logs

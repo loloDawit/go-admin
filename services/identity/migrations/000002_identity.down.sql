@@ -1,0 +1,7 @@
+DROP INDEX IF EXISTS sessions_staff_id_idx;
+DROP TABLE IF EXISTS sessions;
+DROP TABLE IF EXISTS staff;
+DROP TABLE IF EXISTS role_permissions;
+DROP TABLE IF EXISTS permissions;
+DROP TABLE IF EXISTS roles;
+DROP EXTENSION IF EXISTS citext;

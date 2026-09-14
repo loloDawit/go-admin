@@ -10,15 +10,201 @@ import (
 
 	"github.com/loloDawit/go-admin/platform/httpx"
 	"github.com/loloDawit/go-admin/platform/observability"
+	"github.com/loloDawit/go-admin/platform/principal"
 	"github.com/loloDawit/go-admin/platform/requestid"
+	"github.com/loloDawit/go-admin/services/identity/internal/errs"
 	"github.com/loloDawit/go-admin/services/identity/internal/httperr"
-	"github.com/loloDawit/go-admin/services/identity/internal/platformcheck"
+	"github.com/loloDawit/go-admin/services/identity/internal/schemacheck"
+	"github.com/loloDawit/go-admin/services/identity/internal/session"
 )
+
+func TestWriteMapsInvalidCredentialsTo401AndDoesNotDistinguishReasons(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, session.ErrInvalidCredentials)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status: want 401, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Code != "invalid_credentials" {
+		t.Errorf("code: want invalid_credentials, got %q", body.Code)
+	}
+}
+
+func TestWriteMapsUnauthenticatedTo401(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, session.ErrUnauthenticated)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status: want 401, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Code != "unauthenticated" {
+		t.Errorf("code: want unauthenticated, got %q", body.Code)
+	}
+}
+
+func TestWriteMapsPasswordChangeRequiredTo403(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, session.ErrPasswordChangeRequired)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status: want 403, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Code != "password_change_required" {
+		t.Errorf("code: want password_change_required, got %q", body.Code)
+	}
+}
+
+func TestWriteMapsAnUnverifiablePrincipalTo401(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+
+	for _, cause := range []error{principal.ErrMissing, principal.ErrBadSignature, principal.ErrExpired} {
+		rec := httptest.NewRecorder()
+		httperr.New(logger).Write(t.Context(), rec, cause)
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("%v: status: want 401, got %d", cause, rec.Code)
+		}
+	}
+}
+
+func TestWriteMapsMalformedBodyTo400(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, httpx.ErrMalformedBody)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status: want 400, got %d", rec.Code)
+	}
+}
+
+// TestWriteMapsEmptyPasswordTo422 pins that a client validation mistake
+// (an empty new password) surfaces as 422, never as an unmapped 500.
+func TestWriteMapsEmptyPasswordTo422(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, errs.ErrEmptyPassword)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status: want 422, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.Code != "validation_failed" {
+		t.Errorf("code: want validation_failed, got %q", body.Code)
+	}
+}
+
+func TestWriteMapsForbiddenTo403(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, errs.ErrForbidden)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status: want 403, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Code != "forbidden" {
+		t.Errorf("code: want forbidden, got %q", body.Code)
+	}
+}
+
+func TestWriteMapsRoleNameTakenTo409(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, errs.ErrRoleNameTaken)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status: want 409, got %d", rec.Code)
+	}
+}
+
+func TestWriteMapsRoleInUseTo409(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, errs.ErrRoleInUse)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status: want 409, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Code != "role_in_use" {
+		t.Errorf("code: want role_in_use, got %q", body.Code)
+	}
+}
+
+// TestWriteMapsRoleNotFoundTo422 pins that a bad roleId on staff create/update
+// (a foreign key violation, translated by staff/postgres.go) is a client
+// mistake, never an unmapped 500.
+func TestWriteMapsRoleNotFoundTo422(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, errs.ErrRoleNotFound)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status: want 422, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Code != "validation_failed" {
+		t.Errorf("code: want validation_failed, got %q", body.Code)
+	}
+}
+
+func TestWriteMapsUnknownPermissionTo422(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, errs.ErrUnknownPermission)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status: want 422, got %d", rec.Code)
+	}
+}
+
+func TestWriteMapsPermissionRowMismatchTo500NotClientDetail(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, errs.ErrPermissionRowMismatch)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status: want 500, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Code != "internal" {
+		t.Errorf("code: want internal, got %q", body.Code)
+	}
+}
 
 func TestWriteMapsDirtySchemaTo503(t *testing.T) {
 	logger, _ := observability.NewCaptured()
 	rec := httptest.NewRecorder()
-	httperr.New(logger).Write(t.Context(), rec, platformcheck.ErrDirtySchema)
+	httperr.New(logger).Write(t.Context(), rec, schemacheck.ErrDirtySchema)
 
 	if rec.Code != 503 {
 		t.Fatalf("status: want 503, got %d", rec.Code)
@@ -35,7 +221,7 @@ func TestWriteMapsDirtySchemaTo503(t *testing.T) {
 func TestWriteMapsNoMigrationsTo503(t *testing.T) {
 	logger, _ := observability.NewCaptured()
 	rec := httptest.NewRecorder()
-	httperr.New(logger).Write(t.Context(), rec, platformcheck.ErrNoMigrations)
+	httperr.New(logger).Write(t.Context(), rec, schemacheck.ErrNoMigrations)
 
 	if rec.Code != 503 {
 		t.Fatalf("status: want 503, got %d", rec.Code)
@@ -49,6 +235,27 @@ func TestWriteMapsNoMigrationsTo503(t *testing.T) {
 	}
 }
 
+func TestUnmappedErrorIsInternalNotUnavailable(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+
+	httperr.New(logger).Write(t.Context(), rec, errors.New("wrong password"))
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status: want 500, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Code != "internal" {
+		t.Errorf("code: want internal, got %q", body.Code)
+	}
+	if strings.Contains(body.Message, "wrong password") {
+		t.Errorf("cause leaked to the client: %q", body.Message)
+	}
+}
+
 // The default branch is where an unmapped, driver-level error would otherwise
 // leak connection details to a client; this pins that it never does.
 func TestWriteNeverLeaksTheCauseOfAnUnmappedError(t *testing.T) {
@@ -58,8 +265,8 @@ func TestWriteNeverLeaksTheCauseOfAnUnmappedError(t *testing.T) {
 	rec := httptest.NewRecorder()
 	httperr.New(logger).Write(t.Context(), rec, cause)
 
-	if rec.Code != 503 {
-		t.Fatalf("status: want 503, got %d", rec.Code)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status: want 500, got %d", rec.Code)
 	}
 	raw := rec.Body.String()
 
@@ -67,8 +274,8 @@ func TestWriteNeverLeaksTheCauseOfAnUnmappedError(t *testing.T) {
 	if err := json.NewDecoder(strings.NewReader(raw)).Decode(&body); err != nil {
 		t.Fatalf("decode body: %v", err)
 	}
-	if body.Code != "database_unavailable" {
-		t.Errorf("code: want database_unavailable, got %q", body.Code)
+	if body.Code != "internal" {
+		t.Errorf("code: want internal, got %q", body.Code)
 	}
 	// Checked against the whole raw response, not just body.Message: a leak
 	// through any future envelope field must be caught too.
@@ -77,9 +284,7 @@ func TestWriteNeverLeaksTheCauseOfAnUnmappedError(t *testing.T) {
 	}
 }
 
-// This pins spec §10's request-ID groundwork: an unmapped error's log line
-// must carry the same request_id as the request line RequestLogger emits for
-// the same request, or the two cannot be correlated during an outage.
+// An unmapped error's log line must carry the same request_id as RequestLogger's request line, or the two cannot be correlated.
 func TestWriteLogsTheCauseCorrelatedByRequestID(t *testing.T) {
 	logger, captured := observability.NewCaptured()
 	writer := httperr.New(logger)

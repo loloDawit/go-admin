@@ -1,6 +1,4 @@
-// Package httpx supplies the wire shape for HTTP responses. It owns the
-// envelope, never the catalogue of errors: each service maps its own sentinels
-// in internal/httperr.
+// Package httpx owns the response envelope, never the catalogue of errors: each service maps its own sentinels in internal/httperr.
 package httpx
 
 import (

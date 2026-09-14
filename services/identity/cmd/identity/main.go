@@ -17,13 +17,15 @@ import (
 	"github.com/loloDawit/go-admin/platform/readiness"
 	"github.com/loloDawit/go-admin/services/identity/internal/config"
 	"github.com/loloDawit/go-admin/services/identity/internal/httperr"
-	"github.com/loloDawit/go-admin/services/identity/internal/platformcheck"
+	"github.com/loloDawit/go-admin/services/identity/internal/permission"
+	"github.com/loloDawit/go-admin/services/identity/internal/role"
+	"github.com/loloDawit/go-admin/services/identity/internal/schemacheck"
+	"github.com/loloDawit/go-admin/services/identity/internal/session"
+	"github.com/loloDawit/go-admin/services/identity/internal/staff"
 )
 
 func main() {
-	// The distroless image has no shell, curl, or wget, so Docker's
-	// HEALTHCHECK runs this binary against itself instead. It must exit before
-	// any of the normal startup below runs a second copy of the process.
+	// Must exit before any normal startup below runs a second copy of the process.
 	healthCheck := flag.Bool("health-check", false, "check this process's own /healthz and exit 0 or 1")
 	flag.Parse()
 
@@ -51,12 +53,26 @@ func main() {
 	}
 
 	errWriter := httperr.New(logger)
-	svc := platformcheck.NewService(platformcheck.NewPostgresRepository(pool))
+	svc := schemacheck.NewService(schemacheck.NewPostgresRepository(pool))
 
-	handler := platformcheck.NewHandler(svc, cfg.ServiceName, errWriter.Write)
 	ready := readiness.NewHandler(svc.Probe, errWriter.Write)
 
-	r := newRouter(logger, handler, ready)
+	sessionSvc, err := session.NewService(session.NewPostgresRepository(pool), session.NewHasher(cfg.BcryptCost), cfg.SessionTTL)
+	if err != nil {
+		logger.Error("session service", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	sessionHandler := session.NewHandler(sessionSvc, cfg.CookieSecure, cfg.SessionTTL, cfg.MaxRequestBodyBytes, errWriter.Write)
+
+	staffSvc := staff.NewService(staff.NewPostgresRepository(pool), session.NewHasher(cfg.BcryptCost))
+	staffHandler := staff.NewHandler(staffSvc, cfg.MaxRequestBodyBytes, errWriter.Write)
+
+	roleSvc := role.NewService(role.NewPostgresRepository(pool))
+	roleHandler := role.NewHandler(roleSvc, cfg.MaxRequestBodyBytes, errWriter.Write)
+
+	permissionHandler := permission.NewHandler()
+
+	r := newRouter(logger, ready, sessionHandler, staffHandler, roleHandler, permissionHandler, cfg.PrincipalKey, errWriter.Write)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

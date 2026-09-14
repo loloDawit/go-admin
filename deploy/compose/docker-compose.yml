@@ -42,8 +42,26 @@ services:
     environment:
       PORT: "8081"
       DATABASE_URL: "postgres://identity_user:dev_only_identity@postgres:5432/identity_db?sslmode=disable"
+      BCRYPT_COST: "12"
+      SESSION_TTL: "24h"
+      COOKIE_SECURE: "false"
+      PRINCIPAL_SIGNING_KEY: "dev_only_principal_key_at_least_32_bytes"
+      MAX_REQUEST_BODY_BYTES: "1048576"
     ports:
       - "8081:8081"
+
+  identity-seed:
+    build:
+      context: ../..
+      dockerfile: services/identity/Dockerfile.seed
+    profiles: ["seed"]
+    depends_on:
+      identity-migrate: { condition: service_completed_successfully }
+    environment:
+      DATABASE_URL: "postgres://identity_user:dev_only_identity@postgres:5432/identity_db?sslmode=disable"
+      BCRYPT_COST: "12"
+      OWNER_EMAIL: "${OWNER_EMAIL:-owner@example.com}"
+      OWNER_PASSWORD: "${OWNER_PASSWORD:-dev_only_owner_password}"
 
   catalog-migrate:
     image: migrate/migrate:v4.17.1
@@ -104,6 +122,9 @@ services:
       IDENTITY_URL: "http://identity:8081"
       CATALOG_URL: "http://catalog:8082"
       ORDERS_URL: "http://orders:8083"
+      PRINCIPAL_SIGNING_KEY: "dev_only_principal_key_at_least_32_bytes"
+      PRINCIPAL_TTL: "30s"
+      SESSION_CACHE_TTL: "${SESSION_CACHE_TTL:-10s}"
     ports:
       - "8080:8080"
 

@@ -12,13 +12,8 @@ import (
 	"github.com/loloDawit/go-admin/services/catalog/internal/platformcheck"
 )
 
-// RequestLogger must be registered before Recoverer (so Recoverer sits closer
-// to the handler): RequestLogger logs only after next.ServeHTTP returns, and
-// an unrecovered panic would unwind past that statement, never running it.
-//
-// Routes are registered here, not in main, so the spec §6 startup contract
-// (liveness never touches the database; readiness reports failure safely) has
-// a router_test.go pin that runs without a database.
+// RequestLogger must be registered before Recoverer: it logs only after next.ServeHTTP returns, which a panic would unwind past.
+// Routes live here, not in main, so router_test.go can pin the spec §6 startup contract without a database.
 func newRouter(logger *slog.Logger, handler *platformcheck.Handler, ready *readiness.Handler) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(requestid.Middleware)
