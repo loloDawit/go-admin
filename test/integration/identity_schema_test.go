@@ -4,21 +4,43 @@ package integration_test
 
 import (
 	"context"
+	"os"
 	"slices"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
+	"gopkg.in/yaml.v3"
 )
 
-// The literal eight stands in for permission.All(), which Task 6 introduces;
-// this test cannot import that package before it exists.
+// openAPIDoc reaches components.schemas.Permission.enum; yaml.v3 ignores any
+// key with no matching struct field, so the rest of identity.yaml is not
+// modeled here.
+type openAPIDoc struct {
+	Components struct {
+		Schemas struct {
+			Permission struct {
+				Enum []string `yaml:"enum"`
+			} `yaml:"Permission"`
+		} `yaml:"schemas"`
+	} `yaml:"components"`
+}
+
+// wantPermissions reads the published contract (identity.yaml) rather than
+// importing services/identity/internal/permission: that package is internal
+// to services/identity and Go's internal-package rule forbids this package,
+// rooted outside that tree, from importing it. Reading the YAML also checks
+// the more relevant direction: identity.yaml is what Catalog and Orders
+// generate constants from in M3/M4, not permission.All() itself.
 func wantPermissions() []string {
-	return []string{
-		"view_staff", "edit_staff",
-		"view_roles", "edit_roles",
-		"view_products", "edit_products",
-		"view_orders", "edit_orders",
+	data, err := os.ReadFile("../../services/identity/openapi/identity.yaml")
+	if err != nil {
+		panic(err)
 	}
+	var doc openAPIDoc
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		panic(err)
+	}
+	return doc.Components.Schemas.Permission.Enum
 }
 
 func TestSeededPermissionsMatchConstants(t *testing.T) {

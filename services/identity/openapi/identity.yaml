@@ -45,3 +45,19 @@ components:
             properties:
               code: { type: string }
               message: { type: string }
+  schemas:
+    Permission:
+      description: >
+        The canonical permission vocabulary. Identity owns this list; Catalog
+        and Orders generate typed constants from it rather than hand-writing
+        permission strings.
+      type: string
+      enum:
+        - view_staff
+        - edit_staff
+        - view_roles
+        - edit_roles
+        - view_products
+        - edit_products
+        - view_orders
+        - edit_orders
