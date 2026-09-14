@@ -37,7 +37,7 @@ test: test-unit test-integration ## Run everything
 test-unit: ## Unit tests, no stack required
 	go test $(GO_PKGS) ./test/arch/... -count=1
 
-test-integration: up ## Integration tests against the running stack
+test-integration: seed ## Integration tests against the running stack
 	# test/integration carries //go:build integration; drop -tags integration
 	# and go test matches no packages here at all (a hard failure, not a
 	# silent pass) — but the same mistake against a wider path like ./test/...
