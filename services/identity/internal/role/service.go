@@ -37,17 +37,28 @@ func (s *Service) Update(ctx context.Context, id int64, in UpdateRole) (Role, er
 		if err := validatePermissions(*in.Permissions); err != nil {
 			return Role{}, err
 		}
-		if err := s.guardLastAdmin(ctx, id, *in.Permissions); err != nil {
-			return Role{}, err
-		}
 	}
 
-	updated, err := s.repo.Update(ctx, id, in)
-	if err != nil {
-		if errors.Is(err, ErrNotFound) || errors.Is(err, ErrNameTaken) {
-			return Role{}, err
+	var updated Role
+	err := s.repo.RunInTx(ctx, func(tx Repository) error {
+		if in.Permissions != nil {
+			if err := guardLastAdmin(ctx, tx, id, *in.Permissions); err != nil {
+				return err
+			}
 		}
-		return Role{}, errs.Wrap(errs.OpUpdateRole, err)
+
+		var err error
+		updated, err = tx.Update(ctx, id, in)
+		if err != nil {
+			if errors.Is(err, ErrNotFound) || errors.Is(err, ErrNameTaken) {
+				return err
+			}
+			return errs.Wrap(errs.OpUpdateRole, err)
+		}
+		return nil
+	})
+	if err != nil {
+		return Role{}, err
 	}
 	return updated, nil
 }
@@ -83,8 +94,8 @@ func (s *Service) List(ctx context.Context) ([]Role, error) {
 
 // guardLastAdmin refuses removing edit_staff from id when no active staff
 // would hold it through any other role afterward.
-func (s *Service) guardLastAdmin(ctx context.Context, id int64, newPermissions []string) error {
-	hasEditStaffNow, err := s.repo.HasEditStaffPermission(ctx, id)
+func guardLastAdmin(ctx context.Context, repo Repository, id int64, newPermissions []string) error {
+	hasEditStaffNow, err := repo.HasEditStaffPermission(ctx, id)
 	if err != nil {
 		return errs.Wrap(errs.OpCheckRoleEditStaff, err)
 	}
@@ -92,7 +103,7 @@ func (s *Service) guardLastAdmin(ctx context.Context, id int64, newPermissions [
 		return nil
 	}
 
-	others, err := s.repo.CountActiveStaffWithEditStaffOutsideRole(ctx, id)
+	others, err := repo.LockActiveStaffWithEditStaffOutsideRole(ctx, id)
 	if err != nil {
 		return errs.Wrap(errs.OpCountActiveAdminsOutside, err)
 	}

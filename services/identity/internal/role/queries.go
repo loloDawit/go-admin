@@ -39,3 +39,11 @@ const countActiveStaffWithEditStaffOutsideRoleQuery = `SELECT COUNT(*) FROM staf
 JOIN role_permissions rp ON rp.role_id = s.role_id
 JOIN permissions p ON p.id = rp.permission_id
 WHERE p.name = $2 AND s.is_active AND s.role_id <> $1`
+
+// FOR UPDATE OF s locks the candidate staff rows for the transaction, so a
+// concurrent demotion cannot slip between this count and the write it guards.
+const lockActiveStaffWithEditStaffQuery = `SELECT s.role_id FROM staff s
+JOIN role_permissions rp ON rp.role_id = s.role_id
+JOIN permissions p ON p.id = rp.permission_id
+WHERE p.name = $1 AND s.is_active
+FOR UPDATE OF s`

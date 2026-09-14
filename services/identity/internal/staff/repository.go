@@ -20,4 +20,14 @@ type Repository interface {
 
 	// CountOtherActiveStaffWithEditStaff counts active staff other than excludeID who hold edit_staff.
 	CountOtherActiveStaffWithEditStaff(ctx context.Context, excludeID int64) (int, error)
+
+	// LockActiveEditStaffExcluding locks the active edit_staff holders for the
+	// caller's transaction and counts those other than excludeID.
+	LockActiveEditStaffExcluding(ctx context.Context, excludeID int64) (int, error)
+
+	// RevokeSessions closes out a staff member's live session rows.
+	RevokeSessions(ctx context.Context, staffID int64) error
+
+	// RunInTx runs fn against a repository bound to a single transaction.
+	RunInTx(ctx context.Context, fn func(Repository) error) error
 }

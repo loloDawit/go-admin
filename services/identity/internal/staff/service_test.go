@@ -21,6 +21,7 @@ type fakeRepository struct {
 	nextID      int64
 	byID        map[int64]record
 	editStaffOf map[int64]bool
+	revokedFor  []int64
 }
 
 type record struct {
@@ -120,6 +121,19 @@ func (f *fakeRepository) SetPasswordHash(_ context.Context, id int64, hash strin
 
 func (f *fakeRepository) HasEditStaffPermission(_ context.Context, roleID int64) (bool, error) {
 	return f.editStaffOf[roleID], nil
+}
+
+func (f *fakeRepository) LockActiveEditStaffExcluding(ctx context.Context, excludeID int64) (int, error) {
+	return f.CountOtherActiveStaffWithEditStaff(ctx, excludeID)
+}
+
+func (f *fakeRepository) RevokeSessions(_ context.Context, staffID int64) error {
+	f.revokedFor = append(f.revokedFor, staffID)
+	return nil
+}
+
+func (f *fakeRepository) RunInTx(ctx context.Context, fn func(staff.Repository) error) error {
+	return fn(f)
 }
 
 func (f *fakeRepository) CountOtherActiveStaffWithEditStaff(_ context.Context, excludeID int64) (int, error) {
@@ -317,4 +331,28 @@ func TestChangePasswordClearsMustChangePassword(t *testing.T) {
 	if got.MustChangePassword {
 		t.Fatal("want must_change_password cleared after a successful change")
 	}
+}
+
+func TestDeactivationRevokesLiveSessions(t *testing.T) {
+	svc, repo := newTestService()
+	ctx := context.Background()
+
+	created, _, err := svc.Create(ctx, staff.CreateStaff{Email: "revoke@example.com", FirstName: "R", LastName: "S", RoleID: 1})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	// A second admin, so the last-admin guard does not refuse the deactivation.
+	if _, _, err := svc.Create(ctx, staff.CreateStaff{Email: "other@example.com", FirstName: "O", LastName: "T", RoleID: 1}); err != nil {
+		t.Fatalf("create second: %v", err)
+	}
+
+	if _, err := svc.Deactivate(ctx, created.ID); err != nil {
+		t.Fatalf("deactivate: %v", err)
+	}
+	for _, id := range repo.revokedFor {
+		if id == created.ID {
+			return
+		}
+	}
+	t.Fatalf("deactivation left live sessions: revoked %v, want %d", repo.revokedFor, created.ID)
 }

@@ -97,6 +97,14 @@ func (f *fakeRepository) HasEditStaffPermission(_ context.Context, roleID int64)
 	return slices.Contains(rl.Permissions, string(permission.EditStaff)), nil
 }
 
+func (f *fakeRepository) LockActiveStaffWithEditStaffOutsideRole(ctx context.Context, roleID int64) (int, error) {
+	return f.CountActiveStaffWithEditStaffOutsideRole(ctx, roleID)
+}
+
+func (f *fakeRepository) RunInTx(ctx context.Context, fn func(role.Repository) error) error {
+	return fn(f)
+}
+
 func (f *fakeRepository) CountActiveStaffWithEditStaffOutsideRole(_ context.Context, _ int64) (int, error) {
 	return f.others, nil
 }

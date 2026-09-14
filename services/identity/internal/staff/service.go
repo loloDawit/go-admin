@@ -46,18 +46,32 @@ func (s *Service) Create(ctx context.Context, in CreateStaff) (Staff, string, er
 
 // Update applies a partial change, guarded against emptying edit_staff when it touches RoleID or IsActive.
 func (s *Service) Update(ctx context.Context, id int64, in UpdateStaff) (Staff, error) {
-	if in.RoleID != nil || in.IsActive != nil {
-		if err := s.guardLastAdmin(ctx, id, in.RoleID, in.IsActive); err != nil {
-			return Staff{}, err
+	var updated Staff
+	err := s.repo.RunInTx(ctx, func(tx Repository) error {
+		if in.RoleID != nil || in.IsActive != nil {
+			if err := guardLastAdmin(ctx, tx, id, in.RoleID, in.IsActive); err != nil {
+				return err
+			}
 		}
-	}
 
-	updated, err := s.repo.Update(ctx, id, in)
-	if err != nil {
-		if errors.Is(err, ErrNotFound) || errors.Is(err, ErrEmailTaken) {
-			return Staff{}, err
+		var err error
+		updated, err = tx.Update(ctx, id, in)
+		if err != nil {
+			if errors.Is(err, ErrNotFound) || errors.Is(err, ErrEmailTaken) {
+				return err
+			}
+			return errs.Wrap(errs.OpUpdateStaff, err)
 		}
-		return Staff{}, errs.Wrap(errs.OpUpdateStaff, err)
+
+		if in.IsActive != nil && !*in.IsActive {
+			if err := tx.RevokeSessions(ctx, id); err != nil {
+				return errs.Wrap(errs.OpRevokeStaffSessions, err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return Staff{}, err
 	}
 	return updated, nil
 }
@@ -112,8 +126,8 @@ func (s *Service) ChangePassword(ctx context.Context, id int64, currentPassword,
 }
 
 // guardLastAdmin refuses a change that would leave no active staff member holding edit_staff, checked by permission, not role name.
-func (s *Service) guardLastAdmin(ctx context.Context, id int64, newRoleID *int64, newActive *bool) error {
-	current, err := s.repo.GetByID(ctx, id)
+func guardLastAdmin(ctx context.Context, repo Repository, id int64, newRoleID *int64, newActive *bool) error {
+	current, err := repo.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return ErrNotFound
@@ -124,7 +138,7 @@ func (s *Service) guardLastAdmin(ctx context.Context, id int64, newRoleID *int64
 		return nil
 	}
 
-	currentlyHasEditStaff, err := s.repo.HasEditStaffPermission(ctx, current.RoleID)
+	currentlyHasEditStaff, err := repo.HasEditStaffPermission(ctx, current.RoleID)
 	if err != nil {
 		return errs.Wrap(errs.OpCheckAdminRole, err)
 	}
@@ -134,7 +148,7 @@ func (s *Service) guardLastAdmin(ctx context.Context, id int64, newRoleID *int64
 
 	losingEditStaff := newActive != nil && !*newActive
 	if newRoleID != nil {
-		stillHasEditStaff, err := s.repo.HasEditStaffPermission(ctx, *newRoleID)
+		stillHasEditStaff, err := repo.HasEditStaffPermission(ctx, *newRoleID)
 		if err != nil {
 			return errs.Wrap(errs.OpCheckAdminRole, err)
 		}
@@ -144,7 +158,7 @@ func (s *Service) guardLastAdmin(ctx context.Context, id int64, newRoleID *int64
 		return nil
 	}
 
-	others, err := s.repo.CountOtherActiveStaffWithEditStaff(ctx, id)
+	others, err := repo.LockActiveEditStaffExcluding(ctx, id)
 	if err != nil {
 		return errs.Wrap(errs.OpCountActiveAdmins, err)
 	}

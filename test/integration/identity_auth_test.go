@@ -8,6 +8,8 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/cookiejar"
 	"os"
@@ -16,6 +18,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type meResponse struct {
@@ -260,4 +263,144 @@ func TestValidateResolvesAnActiveStaffMember(t *testing.T) {
 	if got := validateStatus(t, token); got != http.StatusOK {
 		t.Fatalf("want 200, got %d", got)
 	}
+}
+
+// Two transactions try to demote the last two edit_staff holders at once.
+// Without FOR UPDATE both read that another admin remains and both proceed,
+// leaving zero accounts able to manage staff.
+func TestConcurrentDemotionsCannotBothSucceed(t *testing.T) {
+	ctx := context.Background()
+	pool, err := pgxpool.New(ctx, dsn(t, "identity_user", "dev_only_identity", "identity_db"))
+	if err != nil {
+		t.Fatalf("pool: %v", err)
+	}
+	// Registered before any other cleanup so it runs last: t.Cleanup is LIFO and
+	// runs after deferred calls, so `defer pool.Close()` would shut the pool
+	// before the restores below could use it.
+	t.Cleanup(pool.Close)
+
+	// Park every currently active staff member so exactly the two seeded below
+	// hold edit_staff, then restore precisely those rows. Restoring by a broader
+	// predicate would reactivate accounts another test had deliberately
+	// deactivated, and leaving any parked breaks every later login.
+	var parked []int64
+	rows, err := pool.Query(ctx, `UPDATE staff SET is_active = false WHERE is_active RETURNING id`)
+	if err != nil {
+		t.Fatalf("park existing: %v", err)
+	}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			t.Fatalf("scan parked: %v", err)
+		}
+		parked = append(parked, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		t.Fatalf("park existing: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `UPDATE staff SET is_active = true WHERE id = ANY($1)`, parked)
+	})
+
+	ids := make([]int64, 2)
+	for i := range ids {
+		email := fmt.Sprintf("race-%d-%d@example.com", time.Now().UnixNano(), i)
+		if err := pool.QueryRow(ctx, `
+			INSERT INTO staff (email, first_name, last_name, password_hash, role_id, is_active)
+			SELECT $1, 'Race', 'Case', 'x', r.id, true FROM roles r WHERE r.name = 'admin'
+			RETURNING id`, email).Scan(&ids[i]); err != nil {
+			t.Fatalf("seed admin %d: %v", i, err)
+		}
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `DELETE FROM staff WHERE id = ANY($1)`, ids)
+	})
+
+	// An explicit handoff, not a wall-clock race: B does not begin until A holds
+	// its lock, so an unlocked build interleaves every run rather than rarely.
+	aHoldsLock := make(chan struct{})
+	bStarting := make(chan struct{})
+	results := make(chan error, len(ids))
+
+	go func() {
+		results <- demoteGuarded(ctx, pool, ids[0], func() {
+			close(aHoldsLock)
+			<-bStarting
+			time.Sleep(300 * time.Millisecond)
+		})
+	}()
+	go func() {
+		<-aHoldsLock
+		close(bStarting)
+		results <- demoteGuarded(ctx, pool, ids[1], func() {})
+	}()
+
+	succeeded := 0
+	for range ids {
+		if err := <-results; err == nil {
+			succeeded++
+		}
+	}
+	if succeeded != 1 {
+		t.Fatalf("want exactly 1 demotion to succeed, got %d — the count was read outside the lock", succeeded)
+	}
+
+	var remaining int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM staff s
+		JOIN role_permissions rp ON rp.role_id = s.role_id
+		JOIN permissions p ON p.id = rp.permission_id
+		WHERE p.name = 'edit_staff' AND s.is_active`).Scan(&remaining); err != nil {
+		t.Fatalf("count remaining: %v", err)
+	}
+	if remaining == 0 {
+		t.Fatal("no active staff can manage staff: the system locked itself out")
+	}
+}
+
+var errWouldBeLastAdmin = errors.New("would remove the last edit_staff holder")
+
+// demoteGuarded mirrors staff.Service.Update's guarded path: lock the current
+// edit_staff holders, count the others, then write inside the same transaction.
+func demoteGuarded(ctx context.Context, pool *pgxpool.Pool, id int64, afterLock func()) error {
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	rows, err := tx.Query(ctx, `SELECT s.id FROM staff s
+		JOIN role_permissions rp ON rp.role_id = s.role_id
+		JOIN permissions p ON p.id = rp.permission_id
+		WHERE p.name = 'edit_staff' AND s.is_active
+		FOR UPDATE OF s`)
+	if err != nil {
+		return err
+	}
+	others := 0
+	for rows.Next() {
+		var other int64
+		if err := rows.Scan(&other); err != nil {
+			rows.Close()
+			return err
+		}
+		if other != id {
+			others++
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	afterLock()
+	if others == 0 {
+		return errWouldBeLastAdmin
+	}
+
+	if _, err := tx.Exec(ctx, `UPDATE staff SET is_active = false WHERE id = $1`, id); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }

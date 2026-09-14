@@ -41,3 +41,13 @@ const countOtherActiveStaffWithEditStaffQuery = `SELECT COUNT(*) FROM staff s
 JOIN role_permissions rp ON rp.role_id = s.role_id
 JOIN permissions p ON p.id = rp.permission_id
 WHERE p.name = $2 AND s.is_active AND s.id <> $1`
+
+// FOR UPDATE OF s locks the candidate rows for the transaction's duration, so
+// two concurrent demotions cannot each read that another admin remains.
+const lockActiveEditStaffQuery = `SELECT s.id FROM staff s
+JOIN role_permissions rp ON rp.role_id = s.role_id
+JOIN permissions p ON p.id = rp.permission_id
+WHERE p.name = $1 AND s.is_active
+FOR UPDATE OF s`
+
+const revokeSessionsForStaffStmt = `UPDATE sessions SET revoked_at = now() WHERE staff_id = $1 AND revoked_at IS NULL`

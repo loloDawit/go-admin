@@ -97,11 +97,12 @@ const (
 	OpRevokeSession        = "revoke session"
 	OpGenerateSessionToken = "generate session token"
 
-	OpReadBcryptCost    = "read BCRYPT_COST"
-	OpConnectDatabase   = "connect to the database"
-	OpCountAdminRole    = "count the admin role"
-	OpHashOwnerPassword = "hash the owner password"
-	OpInsertOwner       = "insert the owner"
+	OpReadBcryptCost      = "read BCRYPT_COST"
+	OpConnectDatabase     = "connect to the database"
+	OpCountAdminRole      = "count the admin role"
+	OpHashOwnerPassword   = "hash the owner password"
+	OpInsertOwner         = "insert the owner"
+	OpRevokeStaffSessions = "revoke the staff member's sessions"
 
 	OpGenerateStaffPassword = "generate staff password"
 	OpHashStaffPassword     = "hash staff password"

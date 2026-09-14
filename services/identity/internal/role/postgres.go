@@ -16,6 +16,47 @@ type execer interface {
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 }
 
+// RunInTx gives fn a repository bound to one transaction, so a guard's read
+// and the write it protects cannot be interleaved with another caller's.
+func (r *PostgresRepository) RunInTx(ctx context.Context, fn func(Repository) error) error {
+	if r.pool == nil {
+		return fn(r)
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	if err := fn(&PostgresRepository{tx: tx}); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// LockActiveStaffWithEditStaffOutsideRole locks the active edit_staff holders
+// and counts those outside roleID. Postgres refuses FOR UPDATE alongside an
+// aggregate, so the rows are locked and counted here instead.
+func (r *PostgresRepository) LockActiveStaffWithEditStaffOutsideRole(ctx context.Context, roleID int64) (int, error) {
+	rows, err := r.q().Query(ctx, lockActiveStaffWithEditStaffQuery, string(permission.EditStaff))
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+
+	others := 0
+	for rows.Next() {
+		var otherRoleID int64
+		if err := rows.Scan(&otherRoleID); err != nil {
+			return 0, err
+		}
+		if otherRoleID != roleID {
+			others++
+		}
+	}
+	return others, rows.Err()
+}
+
 // insertRolePermissions asserts what it wrote: a name matching no row inserts nothing and raises no SQL error on its own.
 func insertRolePermissions(ctx context.Context, e execer, roleID int64, names []string) error {
 	unique := uniqueStrings(names)
@@ -47,12 +88,28 @@ func uniqueStrings(in []string) []string {
 const uniqueViolationCode = "23505"
 const foreignKeyViolationCode = "23503"
 
+// querier is what *pgxpool.Pool and pgx.Tx both satisfy.
+type querier interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}
+
 type PostgresRepository struct {
 	pool *pgxpool.Pool
+	tx   pgx.Tx
 }
 
 func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
 	return &PostgresRepository{pool: pool}
+}
+
+// q returns whichever of the pool or an open transaction this repository is bound to.
+func (r *PostgresRepository) q() querier {
+	if r.tx != nil {
+		return r.tx
+	}
+	return r.pool
 }
 
 // queryRower is what *pgxpool.Pool and pgx.Tx both satisfy, so
