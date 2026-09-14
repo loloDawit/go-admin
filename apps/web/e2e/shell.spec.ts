@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
+// Owner's own id after a clean `make seed` is always 1: the seed command creates exactly one row.
 const ROUTES = [
-  '/login',
   '/',
   '/orders',
   '/orders/o-5105',
@@ -11,6 +11,7 @@ const ROUTES = [
   '/customers',
   '/customers/c-3',
   '/staff',
+  '/staff/1',
   '/roles',
   '/permissions',
   '/profile',
@@ -67,8 +68,24 @@ test('order status dialog opens and closes', async ({ page }) => {
   await expect(dialog).toBeHidden()
 })
 
-test('login rejects empty details', async ({ page }) => {
-  await page.goto('/login')
-  await page.getByRole('button', { name: 'Sign in' }).click()
-  await expect(page.getByText('Enter the email you sign in with.')).toBeVisible()
+// The identity screens now require a real session; these two exercise the signed-out state, which
+// the "authenticated" project's shared storageState would otherwise mask.
+test.describe('signed out', () => {
+  test.use({ storageState: { cookies: [], origins: [] } })
+
+  test('renders /login', async ({ page }) => {
+    await page.goto('/login')
+    await expect(page.locator('h1')).toBeVisible()
+  })
+
+  test('an unauthenticated visit to a shell route redirects to /login', async ({ page }) => {
+    await page.goto('/staff')
+    await expect(page).toHaveURL(/\/login$/)
+  })
+
+  test('login rejects empty details', async ({ page }) => {
+    await page.goto('/login')
+    await page.getByRole('button', { name: 'Sign in' }).click()
+    await expect(page.getByText('Enter the email you sign in with.')).toBeVisible()
+  })
 })
