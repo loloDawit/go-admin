@@ -52,7 +52,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true
-    setStatus((current) => (current === 'loading' ? current : 'loading'))
     identity
       .getMe()
       .then((auth) => {
@@ -106,6 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return user?.permissions.includes(permission) ?? false
       },
       reloadBootstrap() {
+        setStatus('loading')
         setAttempt((value) => value + 1)
       },
     }),

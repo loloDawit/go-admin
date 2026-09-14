@@ -24,7 +24,7 @@ export function Profile() {
         />
       </Section>
 
-      <Section title="Password" description="Changing it signs you out of other devices.">
+      <Section title="Password" description="Choose a new password for this account.">
         <Button variant="secondary" onClick={() => navigate('/change-password')}>
           Change password
         </Button>

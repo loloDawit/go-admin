@@ -102,10 +102,8 @@ export function Staff() {
       />
 
       {step === 'password' && (
-        // A page-level panel, not a dialog: a <dialog>'s cancel event can still close it after
-        // enough Escape presses (preventDefault only blocks the first one per user gesture), and
-        // this password cannot be shown again once dismissed. Placed above the table so it is
-        // never scrolled out of view.
+        // Not a <dialog>: preventDefault on cancel holds only until user activation is consumed,
+        // and this password cannot be shown again. Above the table so it is never scrolled out of view.
         <Section title="Account created">
           <Alert tone="warning" title="Shown once, never retrievable again">
             {email} can sign in with the password below. Copy it now — it cannot be displayed a
