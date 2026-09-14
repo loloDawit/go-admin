@@ -65,6 +65,25 @@ var (
 	// ErrCurrentPasswordIncorrect is returned by staff.ChangePassword when
 	// the supplied current password does not match the stored hash.
 	ErrCurrentPasswordIncorrect = errors.New("current password is incorrect")
+
+	// ErrForbidden is returned by authz.Require when a verified principal
+	// does not carry the permission a route requires.
+	ErrForbidden = errors.New("caller lacks the required permission")
+
+	// ErrRoleNameTaken is returned when a role name collides with an
+	// existing row's unique constraint.
+	ErrRoleNameTaken = errors.New("role name is already in use")
+
+	// ErrRoleInUse is returned when a role cannot be deleted because at
+	// least one staff row still references it.
+	ErrRoleInUse = errors.New("role is assigned to staff and cannot be deleted")
+
+	// ErrUnknownPermission is returned when a role request names a
+	// permission outside permission.All().
+	ErrUnknownPermission = errors.New("unknown permission")
+
+	// ErrPermissionRowMismatch means a name valid per permission.All() matched no row in permissions: a deployment inconsistency, not a client mistake.
+	ErrPermissionRowMismatch = errors.New("a permission name matched no row in permissions")
 )
 
 // Operations name the step that failed. Wrap puts one of these ahead of the
@@ -92,6 +111,14 @@ const (
 	OpChangeStaffPassword   = "change staff password"
 	OpCheckAdminRole        = "check edit_staff permission"
 	OpCountActiveAdmins     = "count other active edit_staff holders"
+
+	OpCreateRole               = "create role"
+	OpUpdateRole               = "update role"
+	OpDeleteRole               = "delete role"
+	OpListRoles                = "list roles"
+	OpLookupRoleByID           = "look up role by id"
+	OpCheckRoleEditStaff       = "check role edit_staff permission"
+	OpCountActiveAdminsOutside = "count active edit_staff holders outside role"
 )
 
 // Wrap names the step that failed ahead of the underlying error, so a log

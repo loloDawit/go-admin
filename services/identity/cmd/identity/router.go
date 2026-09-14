@@ -11,8 +11,12 @@ import (
 	"github.com/loloDawit/go-admin/platform/principal"
 	"github.com/loloDawit/go-admin/platform/readiness"
 	"github.com/loloDawit/go-admin/platform/requestid"
+	"github.com/loloDawit/go-admin/services/identity/internal/authz"
+	"github.com/loloDawit/go-admin/services/identity/internal/permission"
 	"github.com/loloDawit/go-admin/services/identity/internal/platformcheck"
+	"github.com/loloDawit/go-admin/services/identity/internal/role"
 	"github.com/loloDawit/go-admin/services/identity/internal/session"
+	"github.com/loloDawit/go-admin/services/identity/internal/staff"
 )
 
 // RequestLogger must be registered before Recoverer (so Recoverer sits closer
@@ -27,6 +31,9 @@ func newRouter(
 	handler *platformcheck.Handler,
 	ready *readiness.Handler,
 	sessionHandler *session.Handler,
+	staffHandler *staff.Handler,
+	roleHandler *role.Handler,
+	permissionHandler *permission.Handler,
 	principalKey []byte,
 	writeErr func(context.Context, http.ResponseWriter, error),
 ) *chi.Mux {
@@ -42,15 +49,29 @@ func newRouter(
 	r.Post("/api/v1/login", sessionHandler.Login)
 	r.Post("/internal/sessions/validate", sessionHandler.Validate)
 
-	// /logout and /me are the only routes this task wires under the
-	// principal middleware group; Task 10 adds staff/role routes and moves
-	// every authenticated route here alongside them.
+	// RequirePasswordChanged sits ahead of every route below, authz-guarded ones included.
 	r.Group(func(r chi.Router) {
 		r.Use(principal.Middleware(principalKey, func(w http.ResponseWriter, r *http.Request, err error) {
 			writeErr(r.Context(), w, err)
 		}))
+		r.Use(staff.RequirePasswordChanged(writeErr))
+
 		r.Post("/api/v1/logout", sessionHandler.Logout)
 		r.Get("/api/v1/me", sessionHandler.Me)
+		r.Post("/api/v1/me/password", staffHandler.ChangePassword)
+
+		r.With(authz.Require(permission.ViewStaff, writeErr)).Get("/api/v1/staff", staffHandler.List)
+		r.With(authz.Require(permission.EditStaff, writeErr)).Post("/api/v1/staff", staffHandler.Create)
+		r.With(authz.Require(permission.ViewStaff, writeErr)).Get("/api/v1/staff/{id}", staffHandler.Get)
+		r.With(authz.Require(permission.EditStaff, writeErr)).Patch("/api/v1/staff/{id}", staffHandler.Update)
+		r.With(authz.Require(permission.EditStaff, writeErr)).Post("/api/v1/staff/{id}/deactivate", staffHandler.Deactivate)
+
+		r.With(authz.Require(permission.ViewRoles, writeErr)).Get("/api/v1/roles", roleHandler.List)
+		r.With(authz.Require(permission.EditRoles, writeErr)).Post("/api/v1/roles", roleHandler.Create)
+		r.With(authz.Require(permission.ViewRoles, writeErr)).Get("/api/v1/roles/{id}", roleHandler.Get)
+		r.With(authz.Require(permission.EditRoles, writeErr)).Patch("/api/v1/roles/{id}", roleHandler.Update)
+		r.With(authz.Require(permission.EditRoles, writeErr)).Delete("/api/v1/roles/{id}", roleHandler.Delete)
+		r.With(authz.Require(permission.ViewRoles, writeErr)).Get("/api/v1/permissions", permissionHandler.List)
 	})
 
 	return r

@@ -51,6 +51,21 @@ func (h *Writer) Write(ctx context.Context, w http.ResponseWriter, err error) {
 		httpx.WriteError(w, http.StatusConflict, "email_taken", "that email is already in use")
 	case errors.Is(err, errs.ErrLastAdmin):
 		httpx.WriteError(w, http.StatusConflict, "last_admin", "cannot remove the last active admin")
+	case errors.Is(err, errs.ErrForbidden):
+		httpx.WriteError(w, http.StatusForbidden, "forbidden", "you do not have permission to perform this action")
+	case errors.Is(err, errs.ErrRoleNameTaken):
+		httpx.WriteError(w, http.StatusConflict, "name_taken", "that role name is already in use")
+	case errors.Is(err, errs.ErrRoleInUse):
+		httpx.WriteError(w, http.StatusConflict, "role_in_use", "role is assigned to staff and cannot be deleted")
+	case errors.Is(err, errs.ErrUnknownPermission):
+		httpx.WriteError(w, http.StatusUnprocessableEntity, "validation_failed", "unknown permission")
+	case errors.Is(err, errs.ErrPermissionRowMismatch):
+		// A valid permission name matching no permissions row is a deployment defect, not a client mistake; log the cause, tell the client nothing.
+		h.logger.ErrorContext(ctx, "permission row mismatch",
+			slog.String("request_id", requestid.FromContext(ctx)),
+			slog.String("error", err.Error()),
+		)
+		httpx.WriteError(w, http.StatusInternalServerError, "internal", "something went wrong")
 	case errors.Is(err, errs.ErrNotFound):
 		httpx.WriteError(w, http.StatusNotFound, "not_found", "no matching record was found")
 	case errors.Is(err, errs.ErrEmptyPassword):

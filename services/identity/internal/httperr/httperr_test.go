@@ -110,6 +110,77 @@ func TestWriteMapsEmptyPasswordTo422(t *testing.T) {
 	}
 }
 
+func TestWriteMapsForbiddenTo403(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, errs.ErrForbidden)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status: want 403, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Code != "forbidden" {
+		t.Errorf("code: want forbidden, got %q", body.Code)
+	}
+}
+
+func TestWriteMapsRoleNameTakenTo409(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, errs.ErrRoleNameTaken)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status: want 409, got %d", rec.Code)
+	}
+}
+
+func TestWriteMapsRoleInUseTo409(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, errs.ErrRoleInUse)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status: want 409, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Code != "role_in_use" {
+		t.Errorf("code: want role_in_use, got %q", body.Code)
+	}
+}
+
+func TestWriteMapsUnknownPermissionTo422(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, errs.ErrUnknownPermission)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status: want 422, got %d", rec.Code)
+	}
+}
+
+func TestWriteMapsPermissionRowMismatchTo500NotClientDetail(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, errs.ErrPermissionRowMismatch)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status: want 500, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Code != "internal" {
+		t.Errorf("code: want internal, got %q", body.Code)
+	}
+}
+
 func TestWriteMapsDirtySchemaTo503(t *testing.T) {
 	logger, _ := observability.NewCaptured()
 	rec := httptest.NewRecorder()

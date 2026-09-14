@@ -1,0 +1,202 @@
+package role
+
+import (
+	"context"
+	"errors"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/loloDawit/go-admin/services/identity/internal/permission"
+)
+
+// execer is what *pgxpool.Pool and pgx.Tx both satisfy.
+type execer interface {
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}
+
+// insertRolePermissions asserts what it wrote: a name matching no row inserts nothing and raises no SQL error on its own.
+func insertRolePermissions(ctx context.Context, e execer, roleID int64, names []string) error {
+	unique := uniqueStrings(names)
+	if len(unique) == 0 {
+		return nil
+	}
+	tag, err := e.Exec(ctx, insertRolePermissionsStmt, roleID, unique)
+	if err != nil {
+		return err
+	}
+	if int(tag.RowsAffected()) != len(unique) {
+		return ErrPermissionRowMismatch
+	}
+	return nil
+}
+
+func uniqueStrings(in []string) []string {
+	seen := make(map[string]bool, len(in))
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		if !seen[s] {
+			seen[s] = true
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+const uniqueViolationCode = "23505"
+const foreignKeyViolationCode = "23503"
+
+type PostgresRepository struct {
+	pool *pgxpool.Pool
+}
+
+func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
+	return &PostgresRepository{pool: pool}
+}
+
+// queryRower is what *pgxpool.Pool and pgx.Tx both satisfy, so
+// getRoleWithPermissions can run inside or outside a transaction.
+type queryRower interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+func getRoleWithPermissions(ctx context.Context, q queryRower, id int64) (Role, error) {
+	var rl Role
+	err := q.QueryRow(ctx, roleWithPermissionsQuery, id).Scan(&rl.ID, &rl.Name, &rl.Permissions)
+	if isNoRows(err) {
+		return Role{}, ErrNotFound
+	}
+	if err != nil {
+		return Role{}, err
+	}
+	return rl, nil
+}
+
+func (r *PostgresRepository) Create(ctx context.Context, in CreateRole) (Role, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return Role{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	var id int64
+	if err := tx.QueryRow(ctx, createRoleStmt, in.Name).Scan(&id); err != nil {
+		if isUniqueViolation(err) {
+			return Role{}, ErrNameTaken
+		}
+		return Role{}, err
+	}
+	if err := insertRolePermissions(ctx, tx, id, in.Permissions); err != nil {
+		return Role{}, err
+	}
+
+	created, err := getRoleWithPermissions(ctx, tx, id)
+	if err != nil {
+		return Role{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Role{}, err
+	}
+	return created, nil
+}
+
+func (r *PostgresRepository) Update(ctx context.Context, id int64, in UpdateRole) (Role, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return Role{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	var updatedID int64
+	err = tx.QueryRow(ctx, updateRoleNameStmt, id, in.Name).Scan(&updatedID)
+	if isNoRows(err) {
+		return Role{}, ErrNotFound
+	}
+	if isUniqueViolation(err) {
+		return Role{}, ErrNameTaken
+	}
+	if err != nil {
+		return Role{}, err
+	}
+
+	if in.Permissions != nil {
+		if _, err := tx.Exec(ctx, deleteRolePermissionsStmt, id); err != nil {
+			return Role{}, err
+		}
+		if err := insertRolePermissions(ctx, tx, id, *in.Permissions); err != nil {
+			return Role{}, err
+		}
+	}
+
+	updated, err := getRoleWithPermissions(ctx, tx, id)
+	if err != nil {
+		return Role{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Role{}, err
+	}
+	return updated, nil
+}
+
+func (r *PostgresRepository) Delete(ctx context.Context, id int64) error {
+	tag, err := r.pool.Exec(ctx, deleteRoleStmt, id)
+	if isForeignKeyViolation(err) {
+		return ErrInUse
+	}
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (r *PostgresRepository) GetByID(ctx context.Context, id int64) (Role, error) {
+	return getRoleWithPermissions(ctx, r.pool, id)
+}
+
+func (r *PostgresRepository) List(ctx context.Context) ([]Role, error) {
+	rows, err := r.pool.Query(ctx, listRolesWithPermissionsQuery)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	list := []Role{}
+	for rows.Next() {
+		var rl Role
+		if err := rows.Scan(&rl.ID, &rl.Name, &rl.Permissions); err != nil {
+			return nil, err
+		}
+		list = append(list, rl)
+	}
+	return list, rows.Err()
+}
+
+func (r *PostgresRepository) HasEditStaffPermission(ctx context.Context, roleID int64) (bool, error) {
+	var has bool
+	err := r.pool.QueryRow(ctx, hasEditStaffPermissionQuery, roleID, string(permission.EditStaff)).Scan(&has)
+	return has, err
+}
+
+func (r *PostgresRepository) CountActiveStaffWithEditStaffOutsideRole(ctx context.Context, roleID int64) (int, error) {
+	var count int
+	err := r.pool.QueryRow(ctx, countActiveStaffWithEditStaffOutsideRoleQuery, roleID, string(permission.EditStaff)).Scan(&count)
+	return count, err
+}
+
+func isNoRows(err error) bool {
+	return errors.Is(err, pgx.ErrNoRows)
+}
+
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == uniqueViolationCode
+}
+
+func isForeignKeyViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == foreignKeyViolationCode
+}

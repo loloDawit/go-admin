@@ -16,8 +16,11 @@ import (
 	"github.com/loloDawit/go-admin/platform/principal"
 	"github.com/loloDawit/go-admin/platform/readiness"
 	"github.com/loloDawit/go-admin/services/identity/internal/httperr"
+	"github.com/loloDawit/go-admin/services/identity/internal/permission"
 	"github.com/loloDawit/go-admin/services/identity/internal/platformcheck"
+	"github.com/loloDawit/go-admin/services/identity/internal/role"
 	"github.com/loloDawit/go-admin/services/identity/internal/session"
+	"github.com/loloDawit/go-admin/services/identity/internal/staff"
 )
 
 // testPrincipalKey is the HMAC key newRouter's principal.Middleware group
@@ -25,6 +28,13 @@ import (
 // signs a principal with the same key to exercise that group through the
 // router.
 var testPrincipalKey = []byte("0123456789012345678901234567890123456789")
+
+// newTestAuthzHandlers builds handlers over nil repositories: none of the routes these router-level tests exercise reach one.
+func newTestAuthzHandlers(errWriter func(context.Context, http.ResponseWriter, error)) (*staff.Handler, *role.Handler, *permission.Handler) {
+	staffHandler := staff.NewHandler(staff.NewService(nil, session.NewHasher(4)), 1<<20, errWriter)
+	roleHandler := role.NewHandler(role.NewService(nil), 1<<20, errWriter)
+	return staffHandler, roleHandler, permission.NewHandler()
+}
 
 // emptySessionRepository matches no staff and no session; the routes these
 // tests exercise (/healthz, /readyz, /_platform, /boom) never call it.
@@ -153,7 +163,8 @@ func newRouterWithLogin(t *testing.T) (*chi.Mux, *memorySessionRepository) {
 	platformHandler := platformcheck.NewHandler(platformSvc, "identity", errWriter.Write)
 	ready := readiness.NewHandler(platformSvc.Probe, errWriter.Write)
 
-	r := newRouter(logger, platformHandler, ready, sessionHandler, testPrincipalKey, errWriter.Write)
+	staffHandler, roleHandler, permissionHandler := newTestAuthzHandlers(errWriter.Write)
+	r := newRouter(logger, platformHandler, ready, sessionHandler, staffHandler, roleHandler, permissionHandler, testPrincipalKey, errWriter.Write)
 	return r, repo
 }
 
@@ -263,6 +274,49 @@ func TestMeRouteWithASignedPrincipalReturnsTheCaller(t *testing.T) {
 	}
 }
 
+// TestPermissionsRouteEnforcesViewRoles exercises authz.Require through the real router: 401, 403, then 200.
+func TestPermissionsRouteEnforcesViewRoles(t *testing.T) {
+	r, _ := newRouterWithLogin(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/permissions", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("without a principal: want 401, got %d", rec.Code)
+	}
+
+	withoutViewRoles := principal.Principal{StaffID: "1", IssuedAt: time.Now(), ExpiresAt: time.Now().Add(time.Minute)}
+	header, sig, err := principal.Sign(withoutViewRoles, testPrincipalKey)
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/permissions", nil)
+	req.Header.Set(principal.HeaderPrincipal, header)
+	req.Header.Set(principal.HeaderSignature, sig)
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("without view_roles: want 403, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	withViewRoles := principal.Principal{
+		StaffID: "1", Permissions: []string{"view_roles"},
+		IssuedAt: time.Now(), ExpiresAt: time.Now().Add(time.Minute),
+	}
+	header, sig, err = principal.Sign(withViewRoles, testPrincipalKey)
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/permissions", nil)
+	req.Header.Set(principal.HeaderPrincipal, header)
+	req.Header.Set(principal.HeaderSignature, sig)
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("with view_roles: want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestValidateRouteIsRegisteredAndTakesTheTokenInTheBody(t *testing.T) {
 	r, _ := newRouterWithLogin(t)
 
@@ -328,7 +382,8 @@ func TestPanickingHandlerStillProducesALogLineWithStatus500(t *testing.T) {
 	ready := readiness.NewHandler(svc.Probe, errWriter.Write)
 
 	sessionHandler := newTestSessionHandler(t, errWriter.Write)
-	r := newRouter(logger, handler, ready, sessionHandler, testPrincipalKey, errWriter.Write)
+	staffHandler, roleHandler, permissionHandler := newTestAuthzHandlers(errWriter.Write)
+	r := newRouter(logger, handler, ready, sessionHandler, staffHandler, roleHandler, permissionHandler, testPrincipalKey, errWriter.Write)
 	r.Get("/boom", func(http.ResponseWriter, *http.Request) {
 		panic("kaboom")
 	})
@@ -367,7 +422,8 @@ func TestStartupContractHealthzSkipsTheDatabaseAndReadyzReportsFailureSafely(t *
 	ready := readiness.NewHandler(svc.Probe, errWriter.Write)
 
 	sessionHandler := newTestSessionHandler(t, errWriter.Write)
-	r := newRouter(logger, handler, ready, sessionHandler, testPrincipalKey, errWriter.Write)
+	staffHandler, roleHandler, permissionHandler := newTestAuthzHandlers(errWriter.Write)
+	r := newRouter(logger, handler, ready, sessionHandler, staffHandler, roleHandler, permissionHandler, testPrincipalKey, errWriter.Write)
 
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))

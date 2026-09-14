@@ -17,8 +17,11 @@ import (
 	"github.com/loloDawit/go-admin/platform/readiness"
 	"github.com/loloDawit/go-admin/services/identity/internal/config"
 	"github.com/loloDawit/go-admin/services/identity/internal/httperr"
+	"github.com/loloDawit/go-admin/services/identity/internal/permission"
 	"github.com/loloDawit/go-admin/services/identity/internal/platformcheck"
+	"github.com/loloDawit/go-admin/services/identity/internal/role"
 	"github.com/loloDawit/go-admin/services/identity/internal/session"
+	"github.com/loloDawit/go-admin/services/identity/internal/staff"
 )
 
 func main() {
@@ -64,7 +67,15 @@ func main() {
 	}
 	sessionHandler := session.NewHandler(sessionSvc, cfg.CookieSecure, cfg.SessionTTL, cfg.MaxRequestBodyBytes, errWriter.Write)
 
-	r := newRouter(logger, handler, ready, sessionHandler, cfg.PrincipalKey, errWriter.Write)
+	staffSvc := staff.NewService(staff.NewPostgresRepository(pool), session.NewHasher(cfg.BcryptCost))
+	staffHandler := staff.NewHandler(staffSvc, cfg.MaxRequestBodyBytes, errWriter.Write)
+
+	roleSvc := role.NewService(role.NewPostgresRepository(pool))
+	roleHandler := role.NewHandler(roleSvc, cfg.MaxRequestBodyBytes, errWriter.Write)
+
+	permissionHandler := permission.NewHandler()
+
+	r := newRouter(logger, handler, ready, sessionHandler, staffHandler, roleHandler, permissionHandler, cfg.PrincipalKey, errWriter.Write)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
