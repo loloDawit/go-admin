@@ -11,6 +11,7 @@ import (
 	"github.com/loloDawit/go-admin/platform/httpx"
 	"github.com/loloDawit/go-admin/platform/requestid"
 	"github.com/loloDawit/go-admin/services/catalog/internal/platformcheck"
+	"github.com/loloDawit/go-admin/services/catalog/internal/product"
 )
 
 // Writer's logger is injected, not read off the slog default, so log lines are attributed to this service.
@@ -25,6 +26,20 @@ func New(logger *slog.Logger) *Writer {
 // Write takes ctx so the logged error carries the same request_id as the request line RequestLogger emits.
 func (h *Writer) Write(ctx context.Context, w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, httpx.ErrMalformedBody):
+		httpx.WriteError(w, http.StatusBadRequest, "malformed_body", "the request body is invalid")
+	case errors.Is(err, product.ErrProductNotFound):
+		httpx.WriteError(w, http.StatusNotFound, "not_found", "no matching product was found")
+	case errors.Is(err, product.ErrSkuTaken):
+		httpx.WriteError(w, http.StatusConflict, "sku_taken", "that sku is already in use")
+	case errors.Is(err, product.ErrProductArchived):
+		httpx.WriteError(w, http.StatusConflict, "product_archived", "an archived product cannot be edited")
+	case errors.Is(err, product.ErrInvalidPrice):
+		httpx.WriteError(w, http.StatusUnprocessableEntity, "validation_failed", "price must not be negative")
+	case errors.Is(err, product.ErrInvalidSort):
+		httpx.WriteError(w, http.StatusUnprocessableEntity, "validation_failed", "sort is not supported")
+	case errors.Is(err, product.ErrEmptySearchQuery):
+		httpx.WriteError(w, http.StatusUnprocessableEntity, "validation_failed", "q must not be empty")
 	case errors.Is(err, platformcheck.ErrDirtySchema):
 		httpx.WriteError(w, http.StatusServiceUnavailable, "schema_dirty", "the service is not ready")
 	case errors.Is(err, platformcheck.ErrNoMigrations):
