@@ -11,9 +11,13 @@ import (
 	"github.com/loloDawit/go-admin/platform/observability"
 	"github.com/loloDawit/go-admin/platform/readiness"
 	"github.com/loloDawit/go-admin/services/catalog/internal/httperr"
+	"github.com/loloDawit/go-admin/services/catalog/internal/image"
 	"github.com/loloDawit/go-admin/services/catalog/internal/platformcheck"
 	"github.com/loloDawit/go-admin/services/catalog/internal/product"
 )
+
+// testPrincipalKey is the HMAC key newRouter's principal.Middleware group verifies against.
+var testPrincipalKey = []byte("0123456789012345678901234567890123456789")
 
 // nilProductRepository lets tests build a real *product.Handler without a
 // database; every route this file exercises never calls it.
@@ -22,6 +26,16 @@ type nilProductRepository struct{ product.Repository }
 func newTestProductHandler() *product.Handler {
 	svc := product.NewService(nilProductRepository{}, 100, "GBP", 100)
 	return product.NewHandler(svc, 1<<20, func(context.Context, http.ResponseWriter, error) {})
+}
+
+// nilImageRepository and nilImageStore let tests build a real *image.Handler
+// without a database or object store; no route these tests exercise calls either.
+type nilImageRepository struct{ image.Repository }
+type nilImageStore struct{ image.Store }
+
+func newTestImageHandler() *image.Handler {
+	svc := image.NewService(nilImageRepository{}, nilImageStore{}, 1<<20)
+	return image.NewHandler(svc, 1<<20, func(context.Context, http.ResponseWriter, error) {})
 }
 
 // alwaysFailRepo counts calls so a test can assert a route never touched it.
@@ -41,7 +55,7 @@ func TestPanickingHandlerStillProducesALogLineWithStatus500(t *testing.T) {
 	handler := platformcheck.NewHandler(svc, "catalog", errWriter.Write)
 	ready := readiness.NewHandler(svc.Probe, errWriter.Write)
 
-	r := newRouter(logger, handler, ready, newTestProductHandler())
+	r := newRouter(logger, handler, ready, newTestProductHandler(), newTestImageHandler(), testPrincipalKey, errWriter.Write)
 	r.Get("/boom", func(http.ResponseWriter, *http.Request) {
 		panic("kaboom")
 	})
@@ -77,7 +91,7 @@ func TestStartupContractHealthzSkipsTheDatabaseAndReadyzReportsFailureSafely(t *
 	handler := platformcheck.NewHandler(svc, "catalog", errWriter.Write)
 	ready := readiness.NewHandler(svc.Probe, errWriter.Write)
 
-	r := newRouter(logger, handler, ready, newTestProductHandler())
+	r := newRouter(logger, handler, ready, newTestProductHandler(), newTestImageHandler(), testPrincipalKey, errWriter.Write)
 
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
@@ -109,7 +123,7 @@ func TestResolveRouteIsRegisteredOutsideAnyAuthenticatedGroup(t *testing.T) {
 	handler := platformcheck.NewHandler(svc, "catalog", errWriter.Write)
 	ready := readiness.NewHandler(svc.Probe, errWriter.Write)
 
-	r := newRouter(logger, handler, ready, newTestProductHandler())
+	r := newRouter(logger, handler, ready, newTestProductHandler(), newTestImageHandler(), testPrincipalKey, errWriter.Write)
 
 	req := httptest.NewRequest(http.MethodPost, "/internal/products/resolve", strings.NewReader(`{"ids":["not-a-number"]}`))
 	rec := httptest.NewRecorder()

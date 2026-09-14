@@ -30,6 +30,9 @@ var (
 	ErrProductArchived = errors.New("product is archived")
 	ErrInvalidPrice    = errors.New("price must not be negative")
 
+	ErrUnauthenticated = errors.New("no principal was presented")
+	ErrForbidden       = errors.New("caller lacks the required permission")
+
 	// ErrInvalidSort: the sort key named no column in the allowlist.
 	ErrInvalidSort = errors.New("sort is not supported")
 
