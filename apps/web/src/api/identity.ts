@@ -1,5 +1,4 @@
 import { respond } from './client'
-import type { Scenario } from './client'
 
 export type StaffStatus = 'active' | 'invited' | 'suspended'
 
@@ -94,16 +93,16 @@ const PERMISSIONS: Permission[] = [
   { key: 'orders.write', description: 'Advance and cancel orders', roles: ['Owner', 'Fulfilment'] },
 ]
 
-export function listStaff(scenario: Scenario): Promise<StaffMember[]> {
-  return respond(scenario, STAFF, [])
+export function listStaff(): Promise<StaffMember[]> {
+  return respond(STAFF, [])
 }
 
-export function listRoles(scenario: Scenario): Promise<Role[]> {
-  return respond(scenario, ROLES, [])
+export function listRoles(): Promise<Role[]> {
+  return respond(ROLES, [])
 }
 
-export function listPermissions(scenario: Scenario): Promise<Permission[]> {
-  return respond(scenario, PERMISSIONS, [])
+export function listPermissions(): Promise<Permission[]> {
+  return respond(PERMISSIONS, [])
 }
 
 export const staffStatusLabels: Record<StaffStatus, string> = {

@@ -1,5 +1,4 @@
 import { respond } from './client'
-import type { Scenario } from './client'
 
 export type Customer = {
   id: string
@@ -50,14 +49,10 @@ const CUSTOMERS: Customer[] = [
   },
 ]
 
-export function listCustomers(scenario: Scenario): Promise<Customer[]> {
-  return respond(scenario, CUSTOMERS, [])
+export function listCustomers(): Promise<Customer[]> {
+  return respond(CUSTOMERS, [])
 }
 
-export function getCustomer(scenario: Scenario, id: string): Promise<Customer | undefined> {
-  return respond(
-    scenario,
-    CUSTOMERS.find((customer) => customer.id === id),
-    undefined,
-  )
+export function getCustomer(id: string): Promise<Customer | undefined> {
+  return respond(CUSTOMERS.find((customer) => customer.id === id))
 }

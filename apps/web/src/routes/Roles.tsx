@@ -3,7 +3,6 @@ import type { Column } from '../ui'
 import { listRoles } from '../api/identity'
 import type { Role } from '../api/identity'
 import { useResource } from '../api/useResource'
-import { useScenario } from '../app/useScenario'
 
 const columns: Column<Role>[] = [
   { key: 'name', header: 'Role', cell: (role) => role.name },
@@ -17,8 +16,7 @@ const columns: Column<Role>[] = [
 ]
 
 export function Roles() {
-  const scenario = useScenario()
-  const roles = useResource(() => listRoles(scenario), [scenario])
+  const roles = useResource('roles', listRoles)
 
   return (
     <PageStack>

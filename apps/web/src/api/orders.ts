@@ -1,5 +1,4 @@
 import { respond } from './client'
-import type { Scenario } from './client'
 
 export type OrderStatus = 'pending' | 'paid' | 'packed' | 'shipped' | 'cancelled' | 'refunded'
 
@@ -126,16 +125,12 @@ const ORDERS: Order[] = [
   },
 ]
 
-export function listOrders(scenario: Scenario): Promise<Order[]> {
-  return respond(scenario, ORDERS, [])
+export function listOrders(): Promise<Order[]> {
+  return respond(ORDERS, [])
 }
 
-export function getOrder(scenario: Scenario, id: string): Promise<Order | undefined> {
-  return respond(
-    scenario,
-    ORDERS.find((order) => order.id === id),
-    undefined,
-  )
+export function getOrder(id: string): Promise<Order | undefined> {
+  return respond(ORDERS.find((order) => order.id === id))
 }
 
 export const orderStatusLabels: Record<OrderStatus, string> = {

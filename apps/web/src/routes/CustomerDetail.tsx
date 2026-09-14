@@ -6,7 +6,6 @@ import { listOrders, orderStatusLabels } from '../api/orders'
 import type { Order } from '../api/orders'
 import { formatDate, formatDateTime, formatMoney } from '../api/format'
 import { useResource } from '../api/useResource'
-import { useScenario } from '../app/useScenario'
 import { orderStatusTones } from '../app/statusTones'
 
 const columns: Column<Order>[] = [
@@ -27,10 +26,9 @@ const columns: Column<Order>[] = [
 ]
 
 export function CustomerDetail() {
-  const scenario = useScenario()
   const { customerId = '' } = useParams()
-  const customer = useResource(() => getCustomer(scenario, customerId), [scenario, customerId])
-  const orders = useResource(() => listOrders(scenario), [scenario])
+  const customer = useResource(`customer:${customerId}`, () => getCustomer(customerId))
+  const orders = useResource('orders', listOrders)
 
   if (customer.status === 'loading') {
     return <StateBlock title="Loading customer" description="Fetching their order history." />

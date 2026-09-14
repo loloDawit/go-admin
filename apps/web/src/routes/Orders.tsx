@@ -5,7 +5,6 @@ import { listOrders, orderStatusLabels } from '../api/orders'
 import type { Order } from '../api/orders'
 import { formatDateTime, formatMoney } from '../api/format'
 import { useResource } from '../api/useResource'
-import { useScenario } from '../app/useScenario'
 import { orderStatusTones } from '../app/statusTones'
 
 const columns: Column<Order>[] = [
@@ -28,8 +27,7 @@ const columns: Column<Order>[] = [
 ]
 
 export function Orders() {
-  const scenario = useScenario()
-  const orders = useResource(() => listOrders(scenario), [scenario])
+  const orders = useResource('orders', listOrders)
 
   return (
     <PageStack>

@@ -13,31 +13,40 @@ type State<T> = Omit<Resource<T>, 'reload'>
 
 const LOADING: State<never> = { status: 'loading', data: undefined, error: undefined }
 
-export function useResource<T>(load: () => Promise<T>, deps: unknown[]): Resource<T> {
+function toApiError(cause: unknown): ApiError {
+  return isApiError(cause) ? cause : { code: 'unknown', message: 'Something went wrong.' }
+}
+
+export function useResource<T>(key: string, load: () => Promise<T>): Resource<T> {
   const [attempt, setAttempt] = useState(0)
-  const [state, setState] = useState<State<T>>(LOADING)
+  const [settled, setSettled] = useState<{ key: string; attempt: number; state: State<T> }>()
   const latest = useRef(load)
-  latest.current = load
+
+  useEffect(() => {
+    latest.current = load
+  })
 
   useEffect(() => {
     let active = true
-    setState(LOADING)
     latest
       .current()
       .then((data) => {
-        if (active) setState({ status: 'ready', data, error: undefined })
+        if (active) setSettled({ key, attempt, state: { status: 'ready', data, error: undefined } })
       })
       .catch((cause: unknown) => {
         if (!active) return
-        const error: ApiError = isApiError(cause)
-          ? cause
-          : { code: 'unknown', message: 'Something went wrong.' }
-        setState({ status: 'error', data: undefined, error })
+        setSettled({
+          key,
+          attempt,
+          state: { status: 'error', data: undefined, error: toApiError(cause) },
+        })
       })
     return () => {
       active = false
     }
-  }, [attempt, ...deps])
+  }, [key, attempt])
+
+  const state = settled?.key === key && settled.attempt === attempt ? settled.state : LOADING
 
   return { ...state, reload: () => setAttempt((value) => value + 1) }
 }

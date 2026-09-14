@@ -5,7 +5,6 @@ import { listCustomers } from '../api/customers'
 import type { Customer } from '../api/customers'
 import { formatDate, formatMoney } from '../api/format'
 import { useResource } from '../api/useResource'
-import { useScenario } from '../app/useScenario'
 
 const columns: Column<Customer>[] = [
   {
@@ -26,8 +25,7 @@ const columns: Column<Customer>[] = [
 ]
 
 export function Customers() {
-  const scenario = useScenario()
-  const customers = useResource(() => listCustomers(scenario), [scenario])
+  const customers = useResource('customers', listCustomers)
 
   return (
     <PageStack>

@@ -19,7 +19,6 @@ import { getOrder, orderStatusLabels } from '../api/orders'
 import type { OrderLine, OrderStatus } from '../api/orders'
 import { formatDateTime, formatMoney } from '../api/format'
 import { useResource } from '../api/useResource'
-import { useScenario } from '../app/useScenario'
 import { orderStatusTones } from '../app/statusTones'
 import styles from './OrderDetail.module.css'
 
@@ -44,9 +43,8 @@ const lineColumns: Column<OrderLine>[] = [
 const NEXT_STATUSES: OrderStatus[] = ['paid', 'packed', 'shipped', 'cancelled', 'refunded']
 
 export function OrderDetail() {
-  const scenario = useScenario()
   const { orderId = '' } = useParams()
-  const order = useResource(() => getOrder(scenario, orderId), [scenario, orderId])
+  const order = useResource(`order:${orderId}`, () => getOrder(orderId))
   const [advanceOpen, setAdvanceOpen] = useState(false)
   const [saved, setSaved] = useState(false)
 

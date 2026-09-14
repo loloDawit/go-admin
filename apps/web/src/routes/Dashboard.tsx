@@ -7,7 +7,6 @@ import { listProducts } from '../api/catalog'
 import type { Product } from '../api/catalog'
 import { formatDateTime, formatMoney } from '../api/format'
 import { useResource } from '../api/useResource'
-import { useScenario } from '../app/useScenario'
 import { orderStatusTones } from '../app/statusTones'
 import styles from './Dashboard.module.css'
 
@@ -45,9 +44,8 @@ const lowStockColumns: Column<Product>[] = [
 ]
 
 export function Dashboard() {
-  const scenario = useScenario()
-  const orders = useResource(() => listOrders(scenario), [scenario])
-  const products = useResource(() => listProducts(scenario), [scenario])
+  const orders = useResource('orders', listOrders)
+  const products = useResource('products', listProducts)
 
   const openOrders = (orders.data ?? []).filter(
     (order) => order.status === 'pending' || order.status === 'paid' || order.status === 'packed',

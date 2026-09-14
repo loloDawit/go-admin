@@ -1,5 +1,4 @@
 import { respond } from './client'
-import type { Scenario } from './client'
 
 export type ProductStatus = 'active' | 'draft' | 'discontinued'
 
@@ -84,16 +83,12 @@ const PRODUCTS: Product[] = [
   },
 ]
 
-export function listProducts(scenario: Scenario): Promise<Product[]> {
-  return respond(scenario, PRODUCTS, [])
+export function listProducts(): Promise<Product[]> {
+  return respond(PRODUCTS, [])
 }
 
-export function getProduct(scenario: Scenario, id: string): Promise<Product | undefined> {
-  return respond(
-    scenario,
-    PRODUCTS.find((product) => product.id === id),
-    undefined,
-  )
+export function getProduct(id: string): Promise<Product | undefined> {
+  return respond(PRODUCTS.find((product) => product.id === id))
 }
 
 export const productStatusLabels: Record<ProductStatus, string> = {

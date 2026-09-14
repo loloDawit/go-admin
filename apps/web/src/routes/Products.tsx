@@ -5,7 +5,6 @@ import { listProducts, productStatusLabels } from '../api/catalog'
 import type { Product } from '../api/catalog'
 import { formatDate, formatMoney } from '../api/format'
 import { useResource } from '../api/useResource'
-import { useScenario } from '../app/useScenario'
 import { productStatusTones } from '../app/statusTones'
 
 const columns: Column<Product>[] = [
@@ -41,9 +40,8 @@ const columns: Column<Product>[] = [
 ]
 
 export function Products() {
-  const scenario = useScenario()
   const navigate = useNavigate()
-  const products = useResource(() => listProducts(scenario), [scenario])
+  const products = useResource('products', listProducts)
 
   return (
     <PageStack>

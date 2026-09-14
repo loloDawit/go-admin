@@ -3,7 +3,6 @@ import type { Column } from '../ui'
 import { listPermissions } from '../api/identity'
 import type { Permission } from '../api/identity'
 import { useResource } from '../api/useResource'
-import { useScenario } from '../app/useScenario'
 
 const columns: Column<Permission>[] = [
   { key: 'key', header: 'Permission', cell: (permission) => permission.key },
@@ -12,8 +11,7 @@ const columns: Column<Permission>[] = [
 ]
 
 export function Permissions() {
-  const scenario = useScenario()
-  const permissions = useResource(() => listPermissions(scenario), [scenario])
+  const permissions = useResource('permissions', listPermissions)
 
   return (
     <PageStack>

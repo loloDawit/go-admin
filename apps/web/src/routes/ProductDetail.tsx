@@ -11,14 +11,12 @@ import {
 import { getProduct, productStatusLabels } from '../api/catalog'
 import { formatDate, formatMoney } from '../api/format'
 import { useResource } from '../api/useResource'
-import { useScenario } from '../app/useScenario'
 import { productStatusTones } from '../app/statusTones'
 
 export function ProductDetail() {
-  const scenario = useScenario()
   const navigate = useNavigate()
   const { productId = '' } = useParams()
-  const product = useResource(() => getProduct(scenario, productId), [scenario, productId])
+  const product = useResource(`product:${productId}`, () => getProduct(productId))
 
   if (product.status === 'loading') {
     return <StateBlock title="Loading product" description="Fetching the catalog entry." />

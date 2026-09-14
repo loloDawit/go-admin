@@ -14,7 +14,6 @@ import { listStaff, staffStatusLabels } from '../api/identity'
 import type { StaffMember } from '../api/identity'
 import { formatDateTime } from '../api/format'
 import { useResource } from '../api/useResource'
-import { useScenario } from '../app/useScenario'
 import { staffStatusTones } from '../app/statusTones'
 
 const columns: Column<StaffMember>[] = [
@@ -34,8 +33,7 @@ const columns: Column<StaffMember>[] = [
 ]
 
 export function Staff() {
-  const scenario = useScenario()
-  const staff = useResource(() => listStaff(scenario), [scenario])
+  const staff = useResource('staff', listStaff)
   const [inviteOpen, setInviteOpen] = useState(false)
 
   return (
