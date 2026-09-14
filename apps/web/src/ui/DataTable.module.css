@@ -1,0 +1,83 @@
+.scroll {
+  overflow-x: auto;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-md);
+}
+
+.table th {
+  text-align: left;
+  font-weight: var(--weight-medium);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wide);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface-sunken);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.table th:first-child,
+.table td:first-child {
+  width: 100%;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.row:hover td {
+  background: var(--color-surface-sunken);
+}
+
+.numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.stateCell {
+  padding: 0;
+}
+
+.skeleton {
+  display: block;
+  max-width: 11rem;
+  height: 0.75rem;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-sunken),
+    var(--color-border),
+    var(--color-surface-sunken)
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.caption {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-subtle);
+}

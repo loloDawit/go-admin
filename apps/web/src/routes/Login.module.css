@@ -1,0 +1,46 @@
+.page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: var(--space-5);
+  background: var(--color-canvas);
+}
+
+.panel {
+  width: min(23rem, 100%);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.brandName {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+}
+
+.brandContext {
+  font-size: var(--text-md);
+  color: var(--color-text-muted);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.footnote {
+  font-size: var(--text-sm);
+  color: var(--color-text-subtle);
+}
