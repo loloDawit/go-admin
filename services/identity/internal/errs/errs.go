@@ -51,6 +51,20 @@ var (
 	ErrNoMigrations        = errors.New("no migrations applied")
 	ErrDirtySchema         = errors.New("schema is in a dirty state")
 	ErrDatabaseUnavailable = errors.New("database is unavailable")
+
+	// ErrEmailTaken is returned when a staff email collides with an existing
+	// row's unique constraint.
+	ErrEmailTaken = errors.New("email is already in use")
+
+	// ErrLastAdmin is returned when a change would leave no active staff
+	// member holding edit_staff: deactivating the last such member, or
+	// reassigning their role or active flag away from that permission. The
+	// check is by permission, not by a role literally named "admin".
+	ErrLastAdmin = errors.New("cannot remove the last active admin")
+
+	// ErrCurrentPasswordIncorrect is returned by staff.ChangePassword when
+	// the supplied current password does not match the stored hash.
+	ErrCurrentPasswordIncorrect = errors.New("current password is incorrect")
 )
 
 // Operations name the step that failed. Wrap puts one of these ahead of the
@@ -69,6 +83,15 @@ const (
 	OpCountAdminRole    = "count the admin role"
 	OpHashOwnerPassword = "hash the owner password"
 	OpInsertOwner       = "insert the owner"
+
+	OpGenerateStaffPassword = "generate staff password"
+	OpHashStaffPassword     = "hash staff password"
+	OpCreateStaff           = "create staff"
+	OpUpdateStaff           = "update staff"
+	OpListStaff             = "list staff"
+	OpChangeStaffPassword   = "change staff password"
+	OpCheckAdminRole        = "check edit_staff permission"
+	OpCountActiveAdmins     = "count other active edit_staff holders"
 )
 
 // Wrap names the step that failed ahead of the underlying error, so a log

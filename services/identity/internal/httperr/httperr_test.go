@@ -12,6 +12,7 @@ import (
 	"github.com/loloDawit/go-admin/platform/observability"
 	"github.com/loloDawit/go-admin/platform/principal"
 	"github.com/loloDawit/go-admin/platform/requestid"
+	"github.com/loloDawit/go-admin/services/identity/internal/errs"
 	"github.com/loloDawit/go-admin/services/identity/internal/httperr"
 	"github.com/loloDawit/go-admin/services/identity/internal/platformcheck"
 	"github.com/loloDawit/go-admin/services/identity/internal/session"
@@ -87,6 +88,25 @@ func TestWriteMapsMalformedBodyTo400(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status: want 400, got %d", rec.Code)
+	}
+}
+
+// TestWriteMapsEmptyPasswordTo422 pins that a client validation mistake
+// (an empty new password) surfaces as 422, never as an unmapped 500.
+func TestWriteMapsEmptyPasswordTo422(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, errs.ErrEmptyPassword)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status: want 422, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.Code != "validation_failed" {
+		t.Errorf("code: want validation_failed, got %q", body.Code)
 	}
 }
 

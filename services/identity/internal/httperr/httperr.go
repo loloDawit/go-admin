@@ -12,6 +12,7 @@ import (
 	"github.com/loloDawit/go-admin/platform/httpx"
 	"github.com/loloDawit/go-admin/platform/principal"
 	"github.com/loloDawit/go-admin/platform/requestid"
+	"github.com/loloDawit/go-admin/services/identity/internal/errs"
 	"github.com/loloDawit/go-admin/services/identity/internal/platformcheck"
 	"github.com/loloDawit/go-admin/services/identity/internal/session"
 )
@@ -44,6 +45,16 @@ func (h *Writer) Write(ctx context.Context, w http.ResponseWriter, err error) {
 		httpx.WriteError(w, http.StatusUnauthorized, "unauthenticated", "sign in to continue")
 	case errors.Is(err, httpx.ErrMalformedBody):
 		httpx.WriteError(w, http.StatusBadRequest, "malformed_body", "the request body is invalid")
+	case errors.Is(err, errs.ErrCurrentPasswordIncorrect):
+		httpx.WriteError(w, http.StatusUnauthorized, "invalid_credentials", "current password is incorrect")
+	case errors.Is(err, errs.ErrEmailTaken):
+		httpx.WriteError(w, http.StatusConflict, "email_taken", "that email is already in use")
+	case errors.Is(err, errs.ErrLastAdmin):
+		httpx.WriteError(w, http.StatusConflict, "last_admin", "cannot remove the last active admin")
+	case errors.Is(err, errs.ErrNotFound):
+		httpx.WriteError(w, http.StatusNotFound, "not_found", "no matching record was found")
+	case errors.Is(err, errs.ErrEmptyPassword):
+		httpx.WriteError(w, http.StatusUnprocessableEntity, "validation_failed", "password must not be empty")
 	case errors.Is(err, platformcheck.ErrDirtySchema):
 		httpx.WriteError(w, http.StatusServiceUnavailable, "schema_dirty", "the service is not ready")
 	case errors.Is(err, platformcheck.ErrNoMigrations):
