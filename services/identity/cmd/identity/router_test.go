@@ -2,18 +2,311 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/loloDawit/go-admin/platform/observability"
+	"github.com/loloDawit/go-admin/platform/principal"
 	"github.com/loloDawit/go-admin/platform/readiness"
 	"github.com/loloDawit/go-admin/services/identity/internal/httperr"
 	"github.com/loloDawit/go-admin/services/identity/internal/platformcheck"
+	"github.com/loloDawit/go-admin/services/identity/internal/session"
 )
+
+// testPrincipalKey is the HMAC key newRouter's principal.Middleware group
+// verifies against; TestMeRouteWithASignedPrincipalReturnsTheCaller below
+// signs a principal with the same key to exercise that group through the
+// router.
+var testPrincipalKey = []byte("0123456789012345678901234567890123456789")
+
+// emptySessionRepository matches no staff and no session; the routes these
+// tests exercise (/healthz, /readyz, /_platform, /boom) never call it.
+type emptySessionRepository struct{}
+
+func (emptySessionRepository) AuthByEmail(context.Context, string) (session.StaffAuth, error) {
+	return session.StaffAuth{}, session.ErrNotFound
+}
+
+func (emptySessionRepository) AuthByTokenHash(context.Context, []byte) (session.StaffAuth, error) {
+	return session.StaffAuth{}, session.ErrNotFound
+}
+
+func (emptySessionRepository) AuthByID(context.Context, int64) (session.StaffAuth, error) {
+	return session.StaffAuth{}, session.ErrNotFound
+}
+
+func (emptySessionRepository) CreateSession(context.Context, int64, []byte, time.Time) error {
+	return nil
+}
+
+func (emptySessionRepository) RevokeSession(context.Context, []byte) error {
+	return nil
+}
+
+func newTestSessionHandler(t *testing.T, writeErr func(context.Context, http.ResponseWriter, error)) *session.Handler {
+	t.Helper()
+	svc, err := session.NewService(emptySessionRepository{}, session.NewHasher(4), time.Hour)
+	if err != nil {
+		t.Fatalf("session.NewService: %v", err)
+	}
+	return session.NewHandler(svc, false, time.Hour, 1<<20, writeErr)
+}
+
+// memorySessionRepository is an in-memory Repository backing the router-level
+// login/me/logout tests below: they exercise real routing and the principal
+// middleware group, not a database.
+type memorySessionRepository struct {
+	byEmail  map[string]session.StaffAuth
+	sessions map[string]memorySession
+}
+
+type memorySession struct {
+	staffID   int64
+	expiresAt time.Time
+	revoked   bool
+}
+
+func newMemorySessionRepository() *memorySessionRepository {
+	return &memorySessionRepository{
+		byEmail:  make(map[string]session.StaffAuth),
+		sessions: make(map[string]memorySession),
+	}
+}
+
+func (r *memorySessionRepository) AuthByEmail(_ context.Context, email string) (session.StaffAuth, error) {
+	auth, ok := r.byEmail[email]
+	if !ok {
+		return session.StaffAuth{}, session.ErrNotFound
+	}
+	return auth, nil
+}
+
+func (r *memorySessionRepository) AuthByTokenHash(_ context.Context, tokenHash []byte) (session.StaffAuth, error) {
+	sess, ok := r.sessions[string(tokenHash)]
+	if !ok || sess.revoked || time.Now().After(sess.expiresAt) {
+		return session.StaffAuth{}, session.ErrNotFound
+	}
+	for _, auth := range r.byEmail {
+		if auth.ID == sess.staffID {
+			return auth, nil
+		}
+	}
+	return session.StaffAuth{}, session.ErrNotFound
+}
+
+func (r *memorySessionRepository) AuthByID(_ context.Context, id int64) (session.StaffAuth, error) {
+	for _, auth := range r.byEmail {
+		if auth.ID == id {
+			return auth, nil
+		}
+	}
+	return session.StaffAuth{}, session.ErrNotFound
+}
+
+func (r *memorySessionRepository) CreateSession(_ context.Context, staffID int64, tokenHash []byte, expiresAt time.Time) error {
+	r.sessions[string(tokenHash)] = memorySession{staffID: staffID, expiresAt: expiresAt}
+	return nil
+}
+
+func (r *memorySessionRepository) RevokeSession(_ context.Context, tokenHash []byte) error {
+	sess, ok := r.sessions[string(tokenHash)]
+	if !ok {
+		return nil
+	}
+	sess.revoked = true
+	r.sessions[string(tokenHash)] = sess
+	return nil
+}
+
+func newRouterWithLogin(t *testing.T) (*chi.Mux, *memorySessionRepository) {
+	t.Helper()
+	logger, _ := observability.NewCaptured()
+	errWriter := httperr.New(logger)
+
+	repo := newMemorySessionRepository()
+	hash, err := session.NewHasher(4).Hash("correct-horse-battery-staple")
+	if err != nil {
+		t.Fatalf("hash: %v", err)
+	}
+	repo.byEmail["owner@example.com"] = session.StaffAuth{
+		ID:           1,
+		Email:        "owner@example.com",
+		PasswordHash: hash,
+		IsActive:     true,
+		Permissions:  []string{"edit_staff"},
+	}
+
+	svc, err := session.NewService(repo, session.NewHasher(4), time.Hour)
+	if err != nil {
+		t.Fatalf("session.NewService: %v", err)
+	}
+	sessionHandler := session.NewHandler(svc, false, time.Hour, 1<<20, errWriter.Write)
+
+	platformSvc := platformcheck.NewService(&alwaysFailRepo{})
+	platformHandler := platformcheck.NewHandler(platformSvc, "identity", errWriter.Write)
+	ready := readiness.NewHandler(platformSvc.Probe, errWriter.Write)
+
+	r := newRouter(logger, platformHandler, ready, sessionHandler, testPrincipalKey, errWriter.Write)
+	return r, repo
+}
+
+// TestLoginRouteSetsACookieThatLogoutRevokes drives login, then logout with a
+// signed principal (as the gateway would forward it), then confirms the
+// logged-out token no longer validates — logout is a no-op unless it actually
+// revokes the session it is handed.
+func TestLoginRouteSetsACookieThatLogoutRevokes(t *testing.T) {
+	r, _ := newRouterWithLogin(t)
+
+	loginReq := httptest.NewRequest(http.MethodPost, "/api/v1/login",
+		strings.NewReader(`{"email":"owner@example.com","password":"correct-horse-battery-staple"}`))
+	loginRec := httptest.NewRecorder()
+	r.ServeHTTP(loginRec, loginReq)
+
+	if loginRec.Code != http.StatusOK {
+		t.Fatalf("login status: want 200, got %d: %s", loginRec.Code, loginRec.Body.String())
+	}
+	cookies := loginRec.Result().Cookies()
+	if len(cookies) != 1 {
+		t.Fatalf("want one cookie from login, got %d", len(cookies))
+	}
+
+	p := principal.Principal{
+		StaffID:   "1",
+		IssuedAt:  time.Now(),
+		ExpiresAt: time.Now().Add(time.Minute),
+	}
+	header, sig, err := principal.Sign(p, testPrincipalKey)
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+
+	logoutReq := httptest.NewRequest(http.MethodPost, "/api/v1/logout", nil)
+	logoutReq.AddCookie(cookies[0])
+	logoutReq.Header.Set(principal.HeaderPrincipal, header)
+	logoutReq.Header.Set(principal.HeaderSignature, sig)
+	logoutRec := httptest.NewRecorder()
+	r.ServeHTTP(logoutRec, logoutReq)
+	if logoutRec.Code != http.StatusNoContent {
+		t.Fatalf("logout status: want 204, got %d: %s", logoutRec.Code, logoutRec.Body.String())
+	}
+
+	validateReq := httptest.NewRequest(http.MethodPost, "/internal/sessions/validate",
+		strings.NewReader(`{"token":"`+cookies[0].Value+`"}`))
+	validateRec := httptest.NewRecorder()
+	r.ServeHTTP(validateRec, validateReq)
+	if validateRec.Code != http.StatusUnauthorized {
+		t.Fatalf("validate after logout: want 401, got %d: %s", validateRec.Code, validateRec.Body.String())
+	}
+}
+
+// TestMeRouteRejectsAnUnsignedRequest pins that GET /api/v1/me sits behind
+// principal.Middleware: without a gateway in front of it (a later task) to
+// sign the principal, a request carrying only the session cookie — no
+// X-Principal/X-Principal-Signature — is correctly refused.
+func TestMeRouteRejectsAnUnsignedRequest(t *testing.T) {
+	r, _ := newRouterWithLogin(t)
+
+	loginReq := httptest.NewRequest(http.MethodPost, "/api/v1/login",
+		strings.NewReader(`{"email":"owner@example.com","password":"correct-horse-battery-staple"}`))
+	loginRec := httptest.NewRecorder()
+	r.ServeHTTP(loginRec, loginReq)
+	cookies := loginRec.Result().Cookies()
+
+	meReq := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
+	meReq.AddCookie(cookies[0])
+	meRec := httptest.NewRecorder()
+	r.ServeHTTP(meRec, meReq)
+	if meRec.Code != http.StatusUnauthorized {
+		t.Fatalf("me without a signed principal: want 401, got %d", meRec.Code)
+	}
+}
+
+// TestMeRouteWithASignedPrincipalReturnsTheCaller exercises the router's
+// principal middleware group end to end: a principal signed with the same
+// key newRouter verifies against reaches Handler.Me, which reads the caller's
+// current record back out of the repository.
+func TestMeRouteWithASignedPrincipalReturnsTheCaller(t *testing.T) {
+	r, _ := newRouterWithLogin(t)
+
+	p := principal.Principal{
+		StaffID:   "1",
+		IssuedAt:  time.Now(),
+		ExpiresAt: time.Now().Add(time.Minute),
+	}
+	header, sig, err := principal.Sign(p, testPrincipalKey)
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+
+	meReq := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
+	meReq.Header.Set(principal.HeaderPrincipal, header)
+	meReq.Header.Set(principal.HeaderSignature, sig)
+	meRec := httptest.NewRecorder()
+	r.ServeHTTP(meRec, meReq)
+
+	if meRec.Code != http.StatusOK {
+		t.Fatalf("me status: want 200, got %d: %s", meRec.Code, meRec.Body.String())
+	}
+	var resp session.AuthResponse
+	if err := json.NewDecoder(meRec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Email != "owner@example.com" {
+		t.Errorf("email: want %q, got %q", "owner@example.com", resp.Email)
+	}
+}
+
+func TestValidateRouteIsRegisteredAndTakesTheTokenInTheBody(t *testing.T) {
+	r, _ := newRouterWithLogin(t)
+
+	loginReq := httptest.NewRequest(http.MethodPost, "/api/v1/login",
+		strings.NewReader(`{"email":"owner@example.com","password":"correct-horse-battery-staple"}`))
+	loginRec := httptest.NewRecorder()
+	r.ServeHTTP(loginRec, loginReq)
+	token := loginRec.Result().Cookies()[0].Value
+
+	validateReq := httptest.NewRequest(http.MethodPost, "/internal/sessions/validate",
+		strings.NewReader(`{"token":"`+token+`"}`))
+	validateRec := httptest.NewRecorder()
+	r.ServeHTTP(validateRec, validateReq)
+
+	if validateRec.Code != http.StatusOK {
+		t.Fatalf("validate status: want 200, got %d: %s", validateRec.Code, validateRec.Body.String())
+	}
+}
+
+// TestLoginRouteRejectsWrongPasswordWithByteIdenticalResponses asserts the
+// two response bodies are byte-identical, not just the same status code: a
+// response that varied its message or field order between a known and an
+// unknown email would still enumerate the account despite matching statuses.
+func TestLoginRouteRejectsWrongPasswordWithByteIdenticalResponses(t *testing.T) {
+	r, _ := newRouterWithLogin(t)
+
+	bodies := []string{
+		`{"email":"owner@example.com","password":"wrong"}`,
+		`{"email":"nobody@example.com","password":"wrong"}`,
+	}
+	var responses []string
+	for _, body := range bodies {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/login", strings.NewReader(body))
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("body %s: want 401, got %d", body, rec.Code)
+		}
+		responses = append(responses, rec.Body.String())
+	}
+	if responses[0] != responses[1] {
+		t.Fatalf("responses differ, enumerating the account:\nknown email:   %q\nunknown email: %q", responses[0], responses[1])
+	}
+}
 
 // alwaysFailRepo simulates a database that is unreachable: every call fails
 // with a driver-shaped error, and calls are counted so a test can assert a
@@ -34,7 +327,8 @@ func TestPanickingHandlerStillProducesALogLineWithStatus500(t *testing.T) {
 	handler := platformcheck.NewHandler(svc, "identity", errWriter.Write)
 	ready := readiness.NewHandler(svc.Probe, errWriter.Write)
 
-	r := newRouter(logger, handler, ready)
+	sessionHandler := newTestSessionHandler(t, errWriter.Write)
+	r := newRouter(logger, handler, ready, sessionHandler, testPrincipalKey, errWriter.Write)
 	r.Get("/boom", func(http.ResponseWriter, *http.Request) {
 		panic("kaboom")
 	})
@@ -72,7 +366,8 @@ func TestStartupContractHealthzSkipsTheDatabaseAndReadyzReportsFailureSafely(t *
 	handler := platformcheck.NewHandler(svc, "identity", errWriter.Write)
 	ready := readiness.NewHandler(svc.Probe, errWriter.Write)
 
-	r := newRouter(logger, handler, ready)
+	sessionHandler := newTestSessionHandler(t, errWriter.Write)
+	r := newRouter(logger, handler, ready, sessionHandler, testPrincipalKey, errWriter.Write)
 
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))

@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ func setValidAuthEnv(t *testing.T) {
 	t.Setenv("SESSION_TTL", "24h")
 	t.Setenv("COOKIE_SECURE", "false")
 	t.Setenv("PRINCIPAL_SIGNING_KEY", validSigningKey)
+	t.Setenv("MAX_REQUEST_BODY_BYTES", "1048576")
 }
 
 func TestLoadRejectsAMissingDatabaseURL(t *testing.T) {
@@ -51,6 +53,101 @@ func TestLoadRejectsAShortSigningKey(t *testing.T) {
 
 	if _, err := config.Load(); err == nil {
 		t.Fatal("a 31-byte signing key must be rejected")
+	}
+}
+
+// A missing BCRYPT_COST must say so by name, not surface strconv's parse
+// error for an empty string ("invalid syntax"), which gives an operator no
+// way to tell the variable is simply absent.
+func TestLoadReportsAMissingBcryptCostByName(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://u:p@localhost:5433/identity_db")
+	setValidAuthEnv(t)
+	t.Setenv("BCRYPT_COST", "")
+
+	_, err := config.Load()
+	if err == nil {
+		t.Fatal("a missing BCRYPT_COST must be fatal at startup")
+	}
+	if !strings.Contains(err.Error(), "BCRYPT_COST") {
+		t.Fatalf("error must name the missing variable: %v", err)
+	}
+	if strings.Contains(err.Error(), "strconv") {
+		t.Fatalf("error leaked the parser's internals instead of naming the missing variable: %v", err)
+	}
+}
+
+func TestLoadReportsAMissingSessionTTLByName(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://u:p@localhost:5433/identity_db")
+	setValidAuthEnv(t)
+	t.Setenv("SESSION_TTL", "")
+
+	_, err := config.Load()
+	if err == nil {
+		t.Fatal("a missing SESSION_TTL must be fatal at startup")
+	}
+	if !strings.Contains(err.Error(), "SESSION_TTL") {
+		t.Fatalf("error must name the missing variable: %v", err)
+	}
+	if strings.Contains(err.Error(), "time:") {
+		t.Fatalf("error leaked the parser's internals instead of naming the missing variable: %v", err)
+	}
+}
+
+func TestLoadReportsAMissingCookieSecureByName(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://u:p@localhost:5433/identity_db")
+	setValidAuthEnv(t)
+	t.Setenv("COOKIE_SECURE", "")
+
+	_, err := config.Load()
+	if err == nil {
+		t.Fatal("a missing COOKIE_SECURE must be fatal at startup")
+	}
+	if !strings.Contains(err.Error(), "COOKIE_SECURE") {
+		t.Fatalf("error must name the missing variable: %v", err)
+	}
+	if strings.Contains(err.Error(), "strconv") {
+		t.Fatalf("error leaked the parser's internals instead of naming the missing variable: %v", err)
+	}
+}
+
+func TestLoadReportsAMissingMaxRequestBodyBytesByName(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://u:p@localhost:5433/identity_db")
+	setValidAuthEnv(t)
+	t.Setenv("MAX_REQUEST_BODY_BYTES", "")
+
+	_, err := config.Load()
+	if err == nil {
+		t.Fatal("a missing MAX_REQUEST_BODY_BYTES must be fatal at startup")
+	}
+	if !strings.Contains(err.Error(), "MAX_REQUEST_BODY_BYTES") {
+		t.Fatalf("error must name the missing variable: %v", err)
+	}
+	if strings.Contains(err.Error(), "strconv") {
+		t.Fatalf("error leaked the parser's internals instead of naming the missing variable: %v", err)
+	}
+}
+
+func TestLoadRejectsANonPositiveMaxRequestBodyBytes(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://u:p@localhost:5433/identity_db")
+	setValidAuthEnv(t)
+	t.Setenv("MAX_REQUEST_BODY_BYTES", "0")
+
+	if _, err := config.Load(); err == nil {
+		t.Fatal("a non-positive MAX_REQUEST_BODY_BYTES must be rejected")
+	}
+}
+
+func TestLoadAcceptsAValidMaxRequestBodyBytes(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://u:p@localhost:5433/identity_db")
+	setValidAuthEnv(t)
+	t.Setenv("MAX_REQUEST_BODY_BYTES", "2097152")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("want success, got %v", err)
+	}
+	if cfg.MaxRequestBodyBytes != 2097152 {
+		t.Errorf("max request body bytes: want 2097152, got %d", cfg.MaxRequestBodyBytes)
 	}
 }
 

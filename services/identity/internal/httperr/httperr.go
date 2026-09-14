@@ -10,8 +10,10 @@ import (
 	"net/http"
 
 	"github.com/loloDawit/go-admin/platform/httpx"
+	"github.com/loloDawit/go-admin/platform/principal"
 	"github.com/loloDawit/go-admin/platform/requestid"
 	"github.com/loloDawit/go-admin/services/identity/internal/platformcheck"
+	"github.com/loloDawit/go-admin/services/identity/internal/session"
 )
 
 // Writer holds the logger an unmapped error's cause is written to. It is
@@ -32,6 +34,16 @@ func New(logger *slog.Logger) *Writer {
 // when correlating errors to requests matters most.
 func (h *Writer) Write(ctx context.Context, w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, session.ErrInvalidCredentials):
+		httpx.WriteError(w, http.StatusUnauthorized, "invalid_credentials", "email or password is incorrect")
+	case errors.Is(err, session.ErrUnauthenticated):
+		httpx.WriteError(w, http.StatusUnauthorized, "unauthenticated", "sign in to continue")
+	case errors.Is(err, session.ErrPasswordChangeRequired):
+		httpx.WriteError(w, http.StatusForbidden, "password_change_required", "a password change is required before continuing")
+	case errors.Is(err, principal.ErrMissing), errors.Is(err, principal.ErrBadSignature), errors.Is(err, principal.ErrExpired):
+		httpx.WriteError(w, http.StatusUnauthorized, "unauthenticated", "sign in to continue")
+	case errors.Is(err, httpx.ErrMalformedBody):
+		httpx.WriteError(w, http.StatusBadRequest, "malformed_body", "the request body is invalid")
 	case errors.Is(err, platformcheck.ErrDirtySchema):
 		httpx.WriteError(w, http.StatusServiceUnavailable, "schema_dirty", "the service is not ready")
 	case errors.Is(err, platformcheck.ErrNoMigrations):

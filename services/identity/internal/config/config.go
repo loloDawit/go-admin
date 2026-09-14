@@ -18,13 +18,14 @@ const serviceName = "identity"
 const DefaultPort = "8081"
 
 type Config struct {
-	ServiceName  string
-	Port         string
-	DatabaseURL  string
-	BcryptCost   int
-	SessionTTL   time.Duration
-	CookieSecure bool
-	PrincipalKey []byte
+	ServiceName         string
+	Port                string
+	DatabaseURL         string
+	BcryptCost          int
+	SessionTTL          time.Duration
+	CookieSecure        bool
+	PrincipalKey        []byte
+	MaxRequestBodyBytes int64
 }
 
 // Any error here is fatal: a misconfigured service must fail at startup, not at
@@ -39,25 +40,47 @@ func Load() (*Config, error) {
 		return nil, errors.New("DATABASE_URL is required")
 	}
 
-	cost, err := strconv.Atoi(os.Getenv("BCRYPT_COST"))
+	costRaw, err := requireEnv("BCRYPT_COST")
+	if err != nil {
+		return nil, err
+	}
+	cost, err := strconv.Atoi(costRaw)
 	if err != nil {
 		return nil, fmt.Errorf("BCRYPT_COST: %w", err)
 	}
 	cfg.BcryptCost = cost
 
-	ttl, err := time.ParseDuration(os.Getenv("SESSION_TTL"))
+	ttlRaw, err := requireEnv("SESSION_TTL")
+	if err != nil {
+		return nil, err
+	}
+	ttl, err := time.ParseDuration(ttlRaw)
 	if err != nil {
 		return nil, fmt.Errorf("SESSION_TTL: %w", err)
 	}
 	cfg.SessionTTL = ttl
 
-	secure, err := strconv.ParseBool(os.Getenv("COOKIE_SECURE"))
+	secureRaw, err := requireEnv("COOKIE_SECURE")
+	if err != nil {
+		return nil, err
+	}
+	secure, err := strconv.ParseBool(secureRaw)
 	if err != nil {
 		return nil, fmt.Errorf("COOKIE_SECURE: %w", err)
 	}
 	cfg.CookieSecure = secure
 
 	cfg.PrincipalKey = []byte(os.Getenv("PRINCIPAL_SIGNING_KEY"))
+
+	maxBodyRaw, err := requireEnv("MAX_REQUEST_BODY_BYTES")
+	if err != nil {
+		return nil, err
+	}
+	maxBody, err := strconv.ParseInt(maxBodyRaw, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("MAX_REQUEST_BODY_BYTES: %w", err)
+	}
+	cfg.MaxRequestBodyBytes = maxBody
 
 	if err := cfg.validate(); err != nil {
 		return nil, err
@@ -75,7 +98,21 @@ func (c *Config) validate() error {
 	if c.SessionTTL <= 0 {
 		return errors.New("SESSION_TTL must be positive")
 	}
+	if c.MaxRequestBodyBytes <= 0 {
+		return errors.New("MAX_REQUEST_BODY_BYTES must be positive")
+	}
 	return nil
+}
+
+// requireEnv names the missing variable in its error rather than letting a
+// downstream parser (strconv, time.ParseDuration) report on an empty string,
+// which reads as a parse failure and hides that the variable is simply unset.
+func requireEnv(key string) (string, error) {
+	v := os.Getenv(key)
+	if v == "" {
+		return "", fmt.Errorf("%s is required", key)
+	}
+	return v, nil
 }
 
 func withDefault(key, fallback string) string {

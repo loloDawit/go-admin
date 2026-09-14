@@ -1,17 +1,14 @@
-// Package session will hold login, token issuance, and session handlers
-// (Task 5). This file contributes only password hashing.
 package session
 
 import (
-	"errors"
-
 	"golang.org/x/crypto/bcrypt"
+
+	"github.com/loloDawit/go-admin/services/identity/internal/errs"
 )
 
-// ErrEmptyPassword is returned when Hash is called with an empty string.
-// bcrypt itself accepts an empty password; rejecting it here keeps a blank
-// password from ever reaching a stored hash.
-var ErrEmptyPassword = errors.New("password must not be empty")
+// ErrEmptyPassword re-exports the identity service's registered sentinel
+// (see internal/errs) under this package's existing name.
+var ErrEmptyPassword = errs.ErrEmptyPassword
 
 // Hasher wraps bcrypt with a fixed cost. The cost is configuration
 // (BCRYPT_COST), never a literal in code.

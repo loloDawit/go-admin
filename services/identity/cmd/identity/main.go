@@ -18,6 +18,7 @@ import (
 	"github.com/loloDawit/go-admin/services/identity/internal/config"
 	"github.com/loloDawit/go-admin/services/identity/internal/httperr"
 	"github.com/loloDawit/go-admin/services/identity/internal/platformcheck"
+	"github.com/loloDawit/go-admin/services/identity/internal/session"
 )
 
 func main() {
@@ -56,7 +57,14 @@ func main() {
 	handler := platformcheck.NewHandler(svc, cfg.ServiceName, errWriter.Write)
 	ready := readiness.NewHandler(svc.Probe, errWriter.Write)
 
-	r := newRouter(logger, handler, ready)
+	sessionSvc, err := session.NewService(session.NewPostgresRepository(pool), session.NewHasher(cfg.BcryptCost), cfg.SessionTTL)
+	if err != nil {
+		logger.Error("session service", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	sessionHandler := session.NewHandler(sessionSvc, cfg.CookieSecure, cfg.SessionTTL, cfg.MaxRequestBodyBytes, errWriter.Write)
+
+	r := newRouter(logger, handler, ready, sessionHandler, cfg.PrincipalKey, errWriter.Write)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

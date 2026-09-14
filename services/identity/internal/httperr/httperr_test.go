@@ -10,10 +10,85 @@ import (
 
 	"github.com/loloDawit/go-admin/platform/httpx"
 	"github.com/loloDawit/go-admin/platform/observability"
+	"github.com/loloDawit/go-admin/platform/principal"
 	"github.com/loloDawit/go-admin/platform/requestid"
 	"github.com/loloDawit/go-admin/services/identity/internal/httperr"
 	"github.com/loloDawit/go-admin/services/identity/internal/platformcheck"
+	"github.com/loloDawit/go-admin/services/identity/internal/session"
 )
+
+func TestWriteMapsInvalidCredentialsTo401AndDoesNotDistinguishReasons(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, session.ErrInvalidCredentials)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status: want 401, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Code != "invalid_credentials" {
+		t.Errorf("code: want invalid_credentials, got %q", body.Code)
+	}
+}
+
+func TestWriteMapsUnauthenticatedTo401(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, session.ErrUnauthenticated)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status: want 401, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Code != "unauthenticated" {
+		t.Errorf("code: want unauthenticated, got %q", body.Code)
+	}
+}
+
+func TestWriteMapsPasswordChangeRequiredTo403(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, session.ErrPasswordChangeRequired)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status: want 403, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Code != "password_change_required" {
+		t.Errorf("code: want password_change_required, got %q", body.Code)
+	}
+}
+
+func TestWriteMapsAnUnverifiablePrincipalTo401(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+
+	for _, cause := range []error{principal.ErrMissing, principal.ErrBadSignature, principal.ErrExpired} {
+		rec := httptest.NewRecorder()
+		httperr.New(logger).Write(t.Context(), rec, cause)
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("%v: status: want 401, got %d", cause, rec.Code)
+		}
+	}
+}
+
+func TestWriteMapsMalformedBodyTo400(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, httpx.ErrMalformedBody)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status: want 400, got %d", rec.Code)
+	}
+}
 
 func TestWriteMapsDirtySchemaTo503(t *testing.T) {
 	logger, _ := observability.NewCaptured()
