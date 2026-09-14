@@ -1,4 +1,7 @@
-// Package errs is the identity service's one error registry: every sentinel httperr maps, and every operation string a wrap names.
+// Package errs is the identity service's one error registry: every operation
+// string a wrap names lives here. Most sentinels below are mapped by
+// httperr to a client-facing status; the ones marked startup-only are not,
+// since they can only ever occur before the server starts serving requests.
 package errs
 
 import (
@@ -6,7 +9,7 @@ import (
 	"fmt"
 )
 
-// Sentinels. httperr maps these to a status code; nothing else decides one.
+// Sentinels. Where httperr maps one to a status code, nothing else decides one.
 var (
 	// ErrInvalidCredentials covers an unknown email, wrong password, or deactivated account under one sentinel, so a caller cannot enumerate accounts.
 	ErrInvalidCredentials = errors.New("email or password is incorrect")
@@ -21,11 +24,12 @@ var (
 	// ErrEmptyPassword: bcrypt itself accepts an empty password, so this rejects it before a blank password reaches a stored hash.
 	ErrEmptyPassword = errors.New("password must not be empty")
 
+	// Startup-only: raised before the server accepts any request, so httperr has no case for these.
 	ErrMissingDatabaseURL   = errors.New("DATABASE_URL is required")
 	ErrMissingOwnerEmail    = errors.New("OWNER_EMAIL is required")
 	ErrMissingOwnerPassword = errors.New("OWNER_PASSWORD is required")
 
-	// ErrNoAdminRole means migrations have not run: 000002 seeds the role.
+	// ErrNoAdminRole means migrations have not run: 000002 seeds the role. Startup-only, like the three above.
 	ErrNoAdminRole = errors.New("no admin role exists")
 
 	// httperr maps all three to 503: each means not ready, never a request fault.
@@ -34,6 +38,9 @@ var (
 	ErrDatabaseUnavailable = errors.New("database is unavailable")
 
 	ErrEmailTaken = errors.New("email is already in use")
+
+	// ErrRoleNotFound: a staff create or update named a roleId no role row satisfies.
+	ErrRoleNotFound = errors.New("role does not exist")
 
 	// ErrLastAdmin: the check is by edit_staff permission, not by a role literally named "admin".
 	ErrLastAdmin = errors.New("cannot remove the last active admin")

@@ -154,6 +154,26 @@ func TestWriteMapsRoleInUseTo409(t *testing.T) {
 	}
 }
 
+// TestWriteMapsRoleNotFoundTo422 pins that a bad roleId on staff create/update
+// (a foreign key violation, translated by staff/postgres.go) is a client
+// mistake, never an unmapped 500.
+func TestWriteMapsRoleNotFoundTo422(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, errs.ErrRoleNotFound)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status: want 422, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Code != "validation_failed" {
+		t.Errorf("code: want validation_failed, got %q", body.Code)
+	}
+}
+
 func TestWriteMapsUnknownPermissionTo422(t *testing.T) {
 	logger, _ := observability.NewCaptured()
 	rec := httptest.NewRecorder()

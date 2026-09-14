@@ -14,8 +14,7 @@ var publicRoutes = map[string]bool{
 	"POST /api/v1/login":               true,
 	"GET /healthz":                     true,
 	"GET /readyz":                      true,
-	"GET /_platform":                   true,
-	"POST /internal/sessions/validate": true, // network-isolated, not gateway-routed
+	"POST /internal/sessions/validate": true, // called by the gateway to resolve a cookie; the caller cannot itself hold a session
 }
 
 var routeParam = regexp.MustCompile(`\{[^}]+\}`)
@@ -35,8 +34,8 @@ func TestEveryRouteIsAuthenticatedOrDeclaredPublic(t *testing.T) {
 		rec := httptest.NewRecorder()
 		r.ServeHTTP(rec, req)
 
-		if rec.Code == http.StatusOK {
-			t.Errorf("%s answered 200 with no principal: not declared public and not actually protected", key)
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("%s answered %d with no principal, want 401: not declared public and not actually protected", key, rec.Code)
 		}
 		return nil
 	})

@@ -14,6 +14,9 @@ import (
 // uniqueViolationCode is Postgres's SQLSTATE for a unique-constraint conflict.
 const uniqueViolationCode = "23505"
 
+// foreignKeyViolationCode is Postgres's SQLSTATE for a reference to a row that does not exist.
+const foreignKeyViolationCode = "23503"
+
 // querier is what *pgxpool.Pool and pgx.Tx both satisfy.
 type querier interface {
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
@@ -50,6 +53,9 @@ func (r *PostgresRepository) RunInTx(ctx context.Context, fn func(Repository) er
 
 // Postgres refuses FOR UPDATE alongside an aggregate, so the rows are locked and counted here instead of in SQL.
 func (r *PostgresRepository) LockActiveEditStaffExcluding(ctx context.Context, excludeID int64) (int, error) {
+	if _, err := r.q.Exec(ctx, lockAdminGuardStmt); err != nil {
+		return 0, err
+	}
 	rows, err := r.q.Query(ctx, lockActiveEditStaffQuery, string(permission.EditStaff))
 	if err != nil {
 		return 0, err
@@ -81,6 +87,9 @@ func (r *PostgresRepository) Create(ctx context.Context, in CreateStaff, passwor
 	if isUniqueViolation(err) {
 		return Staff{}, ErrEmailTaken
 	}
+	if isForeignKeyViolation(err) {
+		return Staff{}, ErrRoleNotFound
+	}
 	if err != nil {
 		return Staff{}, err
 	}
@@ -93,6 +102,9 @@ func (r *PostgresRepository) Update(ctx context.Context, id int64, in UpdateStaf
 	err := scanStaff(row, &st)
 	if isUniqueViolation(err) {
 		return Staff{}, ErrEmailTaken
+	}
+	if isForeignKeyViolation(err) {
+		return Staff{}, ErrRoleNotFound
 	}
 	if isNoRows(err) {
 		return Staff{}, ErrNotFound
@@ -154,12 +166,6 @@ func (r *PostgresRepository) HasEditStaffPermission(ctx context.Context, roleID 
 	return has, err
 }
 
-func (r *PostgresRepository) CountOtherActiveStaffWithEditStaff(ctx context.Context, excludeID int64) (int, error) {
-	var count int
-	err := r.q.QueryRow(ctx, countOtherActiveStaffWithEditStaffQuery, excludeID, string(permission.EditStaff)).Scan(&count)
-	return count, err
-}
-
 // row is what pgx.Row and pgxpool.Row both satisfy; scanStaff is shared by
 // Create and Update, whose statements return the same column list.
 type row interface {
@@ -177,4 +183,9 @@ func isNoRows(err error) bool {
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == uniqueViolationCode
+}
+
+func isForeignKeyViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == foreignKeyViolationCode
 }

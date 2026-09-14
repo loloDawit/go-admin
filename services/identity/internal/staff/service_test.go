@@ -20,6 +20,7 @@ type fakeRepository struct {
 	nextID      int64
 	byID        map[int64]record
 	editStaffOf map[int64]bool
+	knownRoles  map[int64]bool
 	revokedFor  []int64
 }
 
@@ -29,12 +30,23 @@ type record struct {
 }
 
 func newFakeRepository() *fakeRepository {
-	return &fakeRepository{byID: make(map[int64]record), editStaffOf: map[int64]bool{1: true}}
+	return &fakeRepository{
+		byID:        make(map[int64]record),
+		editStaffOf: map[int64]bool{1: true},
+		// 1 and 2 are the roles the existing tests assign staff to without
+		// calling addRole; a fresh role must be registered to exist.
+		knownRoles: map[int64]bool{1: true, 2: true},
+	}
 }
 
 // addRole keys the guard on the permission alone, not the role's name.
 func (f *fakeRepository) addRole(id int64) {
 	f.editStaffOf[id] = true
+	f.knownRoles[id] = true
+}
+
+func (f *fakeRepository) roleExists(id int64) bool {
+	return f.knownRoles[id]
 }
 
 func (f *fakeRepository) Create(_ context.Context, in staff.CreateStaff, passwordHash string) (staff.Staff, error) {
@@ -42,6 +54,9 @@ func (f *fakeRepository) Create(_ context.Context, in staff.CreateStaff, passwor
 		if r.Email == in.Email {
 			return staff.Staff{}, staff.ErrEmailTaken
 		}
+	}
+	if !f.roleExists(in.RoleID) {
+		return staff.Staff{}, staff.ErrRoleNotFound
 	}
 	f.nextID++
 	st := staff.Staff{
@@ -72,6 +87,9 @@ func (f *fakeRepository) Update(_ context.Context, id int64, in staff.UpdateStaf
 		r.LastName = *in.LastName
 	}
 	if in.RoleID != nil {
+		if !f.roleExists(*in.RoleID) {
+			return staff.Staff{}, staff.ErrRoleNotFound
+		}
 		r.RoleID = *in.RoleID
 	}
 	if in.IsActive != nil {
@@ -120,8 +138,14 @@ func (f *fakeRepository) HasEditStaffPermission(_ context.Context, roleID int64)
 	return f.editStaffOf[roleID], nil
 }
 
-func (f *fakeRepository) LockActiveEditStaffExcluding(ctx context.Context, excludeID int64) (int, error) {
-	return f.CountOtherActiveStaffWithEditStaff(ctx, excludeID)
+func (f *fakeRepository) LockActiveEditStaffExcluding(_ context.Context, excludeID int64) (int, error) {
+	count := 0
+	for id, r := range f.byID {
+		if id != excludeID && r.IsActive && f.editStaffOf[r.RoleID] {
+			count++
+		}
+	}
+	return count, nil
 }
 
 func (f *fakeRepository) RevokeSessions(_ context.Context, staffID int64) error {
@@ -131,16 +155,6 @@ func (f *fakeRepository) RevokeSessions(_ context.Context, staffID int64) error 
 
 func (f *fakeRepository) RunInTx(ctx context.Context, fn func(staff.Repository) error) error {
 	return fn(f)
-}
-
-func (f *fakeRepository) CountOtherActiveStaffWithEditStaff(_ context.Context, excludeID int64) (int, error) {
-	count := 0
-	for id, r := range f.byID {
-		if id != excludeID && r.IsActive && f.editStaffOf[r.RoleID] {
-			count++
-		}
-	}
-	return count, nil
 }
 
 func newTestService() (*staff.Service, *fakeRepository) {
@@ -190,6 +204,16 @@ func TestCreateRejectsADuplicateEmail(t *testing.T) {
 	}
 	if _, _, err := svc.Create(ctx, in); !errors.Is(err, staff.ErrEmailTaken) {
 		t.Fatalf("want ErrEmailTaken, got %v", err)
+	}
+}
+
+func TestCreateWithANonexistentRoleIDIsAClientMistakeNotAWrappedError(t *testing.T) {
+	svc, _ := newTestService()
+	ctx := context.Background()
+
+	_, _, err := svc.Create(ctx, staff.CreateStaff{Email: "a@example.com", FirstName: "A", LastName: "B", RoleID: 999})
+	if !errors.Is(err, staff.ErrRoleNotFound) {
+		t.Fatalf("want ErrRoleNotFound, got %v", err)
 	}
 }
 

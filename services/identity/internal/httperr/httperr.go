@@ -42,6 +42,8 @@ func (h *Writer) Write(ctx context.Context, w http.ResponseWriter, err error) {
 		httpx.WriteError(w, http.StatusUnauthorized, "invalid_credentials", "current password is incorrect")
 	case errors.Is(err, errs.ErrEmailTaken):
 		httpx.WriteError(w, http.StatusConflict, "email_taken", "that email is already in use")
+	case errors.Is(err, errs.ErrRoleNotFound):
+		httpx.WriteError(w, http.StatusUnprocessableEntity, "validation_failed", "roleId does not refer to an existing role")
 	case errors.Is(err, errs.ErrLastAdmin):
 		httpx.WriteError(w, http.StatusConflict, "last_admin", "cannot remove the last active admin")
 	case errors.Is(err, errs.ErrForbidden):

@@ -37,11 +37,6 @@ const hasEditStaffPermissionQuery = `SELECT EXISTS(
     WHERE rp.role_id = $1 AND p.name = $2
 )`
 
-const countOtherActiveStaffWithEditStaffQuery = `SELECT COUNT(*) FROM staff s
-JOIN role_permissions rp ON rp.role_id = s.role_id
-JOIN permissions p ON p.id = rp.permission_id
-WHERE p.name = $2 AND s.is_active AND s.id <> $1`
-
 // FOR UPDATE OF s locks the candidate rows for the transaction's duration, so
 // two concurrent demotions cannot each read that another admin remains.
 const lockActiveEditStaffQuery = `SELECT s.id FROM staff s
@@ -51,3 +46,9 @@ WHERE p.name = $1 AND s.is_active
 FOR UPDATE OF s`
 
 const revokeSessionsForStaffStmt = `UPDATE sessions SET revoked_at = now() WHERE staff_id = $1 AND revoked_at IS NULL`
+
+// Both admin guards take this lock before counting. Row locks are not enough:
+// the staff guard writes staff rows while the role guard writes
+// role_permissions, so neither blocks the other and two concurrent demotions
+// can each see an admin the other is removing.
+const lockAdminGuardStmt = `SELECT pg_advisory_xact_lock(4_812_001)`

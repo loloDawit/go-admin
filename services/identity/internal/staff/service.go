@@ -36,8 +36,8 @@ func (s *Service) Create(ctx context.Context, in CreateStaff) (Staff, string, er
 
 	created, err := s.repo.Create(ctx, in, hash)
 	if err != nil {
-		if errors.Is(err, ErrEmailTaken) {
-			return Staff{}, "", ErrEmailTaken
+		if errors.Is(err, ErrEmailTaken) || errors.Is(err, ErrRoleNotFound) {
+			return Staff{}, "", err
 		}
 		return Staff{}, "", errs.Wrap(errs.OpCreateStaff, err)
 	}
@@ -57,7 +57,7 @@ func (s *Service) Update(ctx context.Context, id int64, in UpdateStaff) (Staff, 
 		var err error
 		updated, err = tx.Update(ctx, id, in)
 		if err != nil {
-			if errors.Is(err, ErrNotFound) || errors.Is(err, ErrEmailTaken) {
+			if errors.Is(err, ErrNotFound) || errors.Is(err, ErrEmailTaken) || errors.Is(err, ErrRoleNotFound) {
 				return err
 			}
 			return errs.Wrap(errs.OpUpdateStaff, err)

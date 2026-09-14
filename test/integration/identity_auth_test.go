@@ -8,12 +8,12 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/cookiejar"
 	"os"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -258,8 +258,11 @@ func TestValidateResolvesAnActiveStaffMember(t *testing.T) {
 	}
 }
 
-// Without FOR UPDATE, two transactions demoting the last two edit_staff holders at once would both read that another admin remains.
-func TestConcurrentDemotionsCannotBothSucceed(t *testing.T) {
+// This drives the real /api/v1/staff/{id}/deactivate route, not a copy of its
+// SQL: a manual FOR UPDATE on the same rows, held across both requests, is
+// what forces the interleaving — the production query's own lock (or its
+// absence) decides whether one request or both get through.
+func TestConcurrentDeactivationsCannotBothLeaveNoActiveAdmin(t *testing.T) {
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, dsn(t, "identity_user", "dev_only_identity", "identity_db"))
 	if err != nil {
@@ -304,33 +307,56 @@ func TestConcurrentDemotionsCannotBothSucceed(t *testing.T) {
 		_, _ = pool.Exec(context.Background(), `DELETE FROM staff WHERE id = ANY($1)`, ids)
 	})
 
-	// An explicit handoff, not a wall-clock race: B does not begin until A holds
-	// its lock, so an unlocked build interleaves every run rather than rarely.
-	aHoldsLock := make(chan struct{})
-	bStarting := make(chan struct{})
-	results := make(chan error, len(ids))
+	// Each of the two accounts calls the route on the other, exactly the
+	// shape production traffic takes: an authenticated admin deactivating a
+	// colleague, never the caller acting on themselves.
+	tokenA := sessionTokenFor(ctx, t, pool, ids[0])
+	tokenB := sessionTokenFor(ctx, t, pool, ids[1])
 
+	// Held across both requests: if the production query still takes
+	// FOR UPDATE OF s, both block here and Postgres serializes them one at a
+	// time on release; if that clause is gone, neither waits on this lock at
+	// all and both proceed the instant they are fired.
+	lockTx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin lock tx: %v", err)
+	}
+	if _, err := lockTx.Exec(ctx, `SELECT id FROM staff WHERE id = ANY($1) FOR UPDATE`, ids); err != nil {
+		t.Fatalf("lock target rows: %v", err)
+	}
+
+	var wg sync.WaitGroup
+	results := make(chan int, len(ids))
+	wg.Add(2)
 	go func() {
-		results <- demoteGuarded(ctx, pool, ids[0], func() {
-			close(aHoldsLock)
-			<-bStarting
-			time.Sleep(300 * time.Millisecond)
-		})
+		defer wg.Done()
+		results <- deactivateWithToken(t, tokenA, ids[1])
 	}()
 	go func() {
-		<-aHoldsLock
-		close(bStarting)
-		results <- demoteGuarded(ctx, pool, ids[1], func() {})
+		defer wg.Done()
+		results <- deactivateWithToken(t, tokenB, ids[0])
 	}()
+
+	time.Sleep(300 * time.Millisecond)
+	if err := lockTx.Rollback(ctx); err != nil {
+		t.Fatalf("release lock: %v", err)
+	}
+	wg.Wait()
+	close(results)
 
 	succeeded := 0
-	for range ids {
-		if err := <-results; err == nil {
+	for status := range results {
+		switch status {
+		case http.StatusOK:
 			succeeded++
+		case http.StatusConflict:
+			// the guarded loser: expected.
+		default:
+			t.Errorf("deactivate: want 200 or 409, got %d", status)
 		}
 	}
 	if succeeded != 1 {
-		t.Fatalf("want exactly 1 demotion to succeed, got %d — the count was read outside the lock", succeeded)
+		t.Fatalf("want exactly 1 deactivation to succeed, got %d — the count was read outside the lock", succeeded)
 	}
 
 	var remaining int
@@ -346,47 +372,32 @@ func TestConcurrentDemotionsCannotBothSucceed(t *testing.T) {
 	}
 }
 
-var errWouldBeLastAdmin = errors.New("would remove the last edit_staff holder")
+// sessionTokenFor seeds a live session row for an already-existing staff ID,
+// the same way seedSessionFor does for a freshly inserted one.
+func sessionTokenFor(ctx context.Context, t *testing.T, pool *pgxpool.Pool, staffID int64) string {
+	t.Helper()
+	token := fmt.Sprintf("race-session-%d-%d", staffID, time.Now().UnixNano())
+	sum := sha256.Sum256([]byte(token))
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO sessions (token_hash, staff_id, expires_at)
+		VALUES ($1, $2, $3)`, sum[:], staffID, time.Now().Add(time.Hour)); err != nil {
+		t.Fatalf("seed session for staff %d: %v", staffID, err)
+	}
+	return token
+}
 
-// demoteGuarded mirrors staff.Service.Update's guarded path: lock the current
-// edit_staff holders, count the others, then write inside the same transaction.
-func demoteGuarded(ctx context.Context, pool *pgxpool.Pool, id int64, afterLock func()) error {
-	tx, err := pool.Begin(ctx)
+func deactivateWithToken(t *testing.T, token string, targetID int64) int {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodPost,
+		fmt.Sprintf("%s/api/v1/staff/%d/deactivate", gatewayURL(), targetID), nil)
 	if err != nil {
-		return err
+		t.Fatalf("build request: %v", err)
 	}
-	defer tx.Rollback(ctx)
-
-	rows, err := tx.Query(ctx, `SELECT s.id FROM staff s
-		JOIN role_permissions rp ON rp.role_id = s.role_id
-		JOIN permissions p ON p.id = rp.permission_id
-		WHERE p.name = 'edit_staff' AND s.is_active
-		FOR UPDATE OF s`)
+	req.AddCookie(&http.Cookie{Name: "session", Value: token})
+	resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
 	if err != nil {
-		return err
+		t.Fatalf("deactivate: %v", err)
 	}
-	others := 0
-	for rows.Next() {
-		var other int64
-		if err := rows.Scan(&other); err != nil {
-			rows.Close()
-			return err
-		}
-		if other != id {
-			others++
-		}
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return err
-	}
-	afterLock()
-	if others == 0 {
-		return errWouldBeLastAdmin
-	}
-
-	if _, err := tx.Exec(ctx, `UPDATE staff SET is_active = false WHERE id = $1`, id); err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
+	defer resp.Body.Close()
+	return resp.StatusCode
 }

@@ -21,12 +21,22 @@ func (s *Service) Create(ctx context.Context, in CreateRole) (Role, error) {
 	if err := validatePermissions(in.Permissions); err != nil {
 		return Role{}, err
 	}
-	created, err := s.repo.Create(ctx, in)
-	if err != nil {
-		if errors.Is(err, ErrNameTaken) {
-			return Role{}, ErrNameTaken
+	// The repository writes the role and its permissions as separate statements
+	// and no longer opens its own transaction; without this they are not atomic.
+	var created Role
+	err := s.repo.RunInTx(ctx, func(tx Repository) error {
+		var err error
+		created, err = tx.Create(ctx, in)
+		if err != nil {
+			if errors.Is(err, ErrNameTaken) {
+				return ErrNameTaken
+			}
+			return errs.Wrap(errs.OpCreateRole, err)
 		}
-		return Role{}, errs.Wrap(errs.OpCreateRole, err)
+		return nil
+	})
+	if err != nil {
+		return Role{}, err
 	}
 	return created, nil
 }

@@ -124,6 +124,62 @@ func TestACacheHitMintsAFreshPrincipalNotAStaleOne(t *testing.T) {
 	}
 }
 
+// A 500 from identity (a database outage, say) must not look like an
+// ordinary logged-out session: it is refused the same way downstream, but
+// the gateway must log it so an outage is visible from the gateway's side.
+func TestAServerErrorFromIdentityIsLoggedNotTreatedAsInvalidSession(t *testing.T) {
+	identity := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer identity.Close()
+
+	logger, captured := observability.NewCaptured()
+	v := auth.NewValidator(
+		http.DefaultClient,
+		identity.URL+"/internal/sessions/validate",
+		[]byte(testKey),
+		time.Minute,
+		auth.NewCache(time.Minute),
+		httperr.New(logger),
+		logger,
+	)
+
+	if _, err := v.Resolve(t.Context(), "tok-1"); err == nil {
+		t.Fatal("want an error resolving a session when identity answers 500")
+	}
+
+	if len(captured.Records()) == 0 {
+		t.Fatal("identity's 500 must produce a gateway log line")
+	}
+}
+
+// A 401 from identity is an ordinary rejected session: it must not be logged
+// as though identity itself had failed.
+func TestAnUnauthorizedFromIdentityIsNotLogged(t *testing.T) {
+	identity := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer identity.Close()
+
+	logger, captured := observability.NewCaptured()
+	v := auth.NewValidator(
+		http.DefaultClient,
+		identity.URL+"/internal/sessions/validate",
+		[]byte(testKey),
+		time.Minute,
+		auth.NewCache(time.Minute),
+		httperr.New(logger),
+		logger,
+	)
+
+	if _, err := v.Resolve(t.Context(), "tok-1"); err == nil {
+		t.Fatal("want an error resolving a rejected session")
+	}
+	if len(captured.Records()) != 0 {
+		t.Fatalf("a plain 401 must not be logged, got %d records", len(captured.Records()))
+	}
+}
+
 func TestTheCacheExpires(t *testing.T) {
 	var calls int32
 	identity := fakeIdentity(t, func() { atomic.AddInt32(&calls, 1) })

@@ -35,11 +35,6 @@ const hasEditStaffPermissionQuery = `SELECT EXISTS(
     WHERE rp.role_id = $1 AND p.name = $2
 )`
 
-const countActiveStaffWithEditStaffOutsideRoleQuery = `SELECT COUNT(*) FROM staff s
-JOIN role_permissions rp ON rp.role_id = s.role_id
-JOIN permissions p ON p.id = rp.permission_id
-WHERE p.name = $2 AND s.is_active AND s.role_id <> $1`
-
 // FOR UPDATE OF s locks the candidate staff rows for the transaction, so a
 // concurrent demotion cannot slip between this count and the write it guards.
 const lockActiveStaffWithEditStaffQuery = `SELECT s.role_id FROM staff s
@@ -47,3 +42,8 @@ JOIN role_permissions rp ON rp.role_id = s.role_id
 JOIN permissions p ON p.id = rp.permission_id
 WHERE p.name = $1 AND s.is_active
 FOR UPDATE OF s`
+
+// The same advisory key the staff guard takes: a role demotion and a staff
+// demotion must serialize, and they write different tables, so row locks alone
+// leave each invisible to the other.
+const lockAdminGuardStmt = `SELECT pg_advisory_xact_lock(4_812_001)`

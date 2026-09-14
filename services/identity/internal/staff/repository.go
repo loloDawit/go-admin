@@ -18,9 +18,6 @@ type Repository interface {
 	// HasEditStaffPermission reports whether roleID currently carries edit_staff, independent of the role's name.
 	HasEditStaffPermission(ctx context.Context, roleID int64) (bool, error)
 
-	// CountOtherActiveStaffWithEditStaff counts active staff other than excludeID who hold edit_staff.
-	CountOtherActiveStaffWithEditStaff(ctx context.Context, excludeID int64) (int, error)
-
 	// LockActiveEditStaffExcluding locks the active edit_staff holders for the
 	// caller's transaction and counts those other than excludeID.
 	LockActiveEditStaffExcluding(ctx context.Context, excludeID int64) (int, error)

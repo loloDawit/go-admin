@@ -16,7 +16,7 @@ type fakeRepository struct {
 	byID          map[int64]role.Role
 	byName        map[string]int64
 	deleteBlocked map[int64]bool
-	// others is CountActiveStaffWithEditStaffOutsideRole's canned answer:
+	// others is LockActiveStaffWithEditStaffOutsideRole's canned answer:
 	// role_test has no staff model of its own to derive it from.
 	others int
 }
@@ -97,16 +97,12 @@ func (f *fakeRepository) HasEditStaffPermission(_ context.Context, roleID int64)
 	return slices.Contains(rl.Permissions, string(permission.EditStaff)), nil
 }
 
-func (f *fakeRepository) LockActiveStaffWithEditStaffOutsideRole(ctx context.Context, roleID int64) (int, error) {
-	return f.CountActiveStaffWithEditStaffOutsideRole(ctx, roleID)
+func (f *fakeRepository) LockActiveStaffWithEditStaffOutsideRole(_ context.Context, _ int64) (int, error) {
+	return f.others, nil
 }
 
 func (f *fakeRepository) RunInTx(ctx context.Context, fn func(role.Repository) error) error {
 	return fn(f)
-}
-
-func (f *fakeRepository) CountActiveStaffWithEditStaffOutsideRole(_ context.Context, _ int64) (int, error) {
-	return f.others, nil
 }
 
 func newTestService() (*role.Service, *fakeRepository) {

@@ -4,9 +4,10 @@ package staff
 import "github.com/loloDawit/go-admin/services/identity/internal/errs"
 
 var (
-	ErrNotFound   = errs.ErrNotFound
-	ErrEmailTaken = errs.ErrEmailTaken
-	ErrLastAdmin  = errs.ErrLastAdmin
+	ErrNotFound     = errs.ErrNotFound
+	ErrEmailTaken   = errs.ErrEmailTaken
+	ErrLastAdmin    = errs.ErrLastAdmin
+	ErrRoleNotFound = errs.ErrRoleNotFound
 )
 
 // Staff never carries a password hash; that stays inside the repository, reachable only through ChangePassword.

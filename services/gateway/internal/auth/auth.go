@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -79,8 +80,9 @@ func (v *Validator) Resolve(ctx context.Context, token string) (principal.Princi
 	}, nil
 }
 
-// A non-200 is ErrSessionInvalid and unlogged: a rejected token is expected.
-// A transport or decode failure is logged: the gateway couldn't ask at all.
+// A 401 is ErrSessionInvalid and unlogged: a rejected token is expected.
+// Any other non-200 is logged: identity failed, and that must not look like
+// an ordinary logout to whoever reads the gateway's logs.
 func (v *Validator) validate(ctx context.Context, token string) (resolved, error) {
 	body, err := json.Marshal(validateRequest{Token: token})
 	if err != nil {
@@ -100,8 +102,13 @@ func (v *Validator) validate(ctx context.Context, token string) (resolved, error
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode == http.StatusUnauthorized {
 		return resolved{}, errs.ErrSessionInvalid
+	}
+	if resp.StatusCode != http.StatusOK {
+		v.logger.ErrorContext(ctx, "identity validate returned an unexpected status",
+			slog.Int("status", resp.StatusCode))
+		return resolved{}, errs.Wrap(errs.OpCallIdentityValidate, fmt.Errorf("unexpected status %d", resp.StatusCode))
 	}
 
 	var out resolved

@@ -49,6 +49,27 @@ func TestWriteMapsNoMigrationsTo503(t *testing.T) {
 	}
 }
 
+func TestUnmappedErrorIsInternalNotUnavailable(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+
+	httperr.New(logger).Write(t.Context(), rec, errors.New("wrong password"))
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status: want 500, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Code != "internal" {
+		t.Errorf("code: want internal, got %q", body.Code)
+	}
+	if strings.Contains(body.Message, "wrong password") {
+		t.Errorf("cause leaked to the client: %q", body.Message)
+	}
+}
+
 // The default branch is where an unmapped, driver-level error would otherwise
 // leak connection details to a client; this pins that it never does.
 func TestWriteNeverLeaksTheCauseOfAnUnmappedError(t *testing.T) {
@@ -58,8 +79,8 @@ func TestWriteNeverLeaksTheCauseOfAnUnmappedError(t *testing.T) {
 	rec := httptest.NewRecorder()
 	httperr.New(logger).Write(t.Context(), rec, cause)
 
-	if rec.Code != 503 {
-		t.Fatalf("status: want 503, got %d", rec.Code)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status: want 500, got %d", rec.Code)
 	}
 	raw := rec.Body.String()
 
@@ -67,8 +88,8 @@ func TestWriteNeverLeaksTheCauseOfAnUnmappedError(t *testing.T) {
 	if err := json.NewDecoder(strings.NewReader(raw)).Decode(&body); err != nil {
 		t.Fatalf("decode body: %v", err)
 	}
-	if body.Code != "database_unavailable" {
-		t.Errorf("code: want database_unavailable, got %q", body.Code)
+	if body.Code != "internal" {
+		t.Errorf("code: want internal, got %q", body.Code)
 	}
 	// Checked against the whole raw response, not just body.Message: a leak
 	// through any future envelope field must be caught too.

@@ -15,10 +15,6 @@ type Repository interface {
 	// edit_staff.
 	HasEditStaffPermission(ctx context.Context, roleID int64) (bool, error)
 
-	// CountActiveStaffWithEditStaffOutsideRole counts active staff who hold
-	// edit_staff through a role other than roleID.
-	CountActiveStaffWithEditStaffOutsideRole(ctx context.Context, roleID int64) (int, error)
-
 	// LockActiveStaffWithEditStaffOutsideRole locks the active edit_staff
 	// holders for the caller's transaction and counts those outside roleID.
 	LockActiveStaffWithEditStaffOutsideRole(ctx context.Context, roleID int64) (int, error)

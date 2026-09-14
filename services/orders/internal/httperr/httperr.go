@@ -37,11 +37,10 @@ func (h *Writer) Write(ctx context.Context, w http.ResponseWriter, err error) {
 		)
 		httpx.WriteError(w, http.StatusServiceUnavailable, "database_unavailable", "the service is not ready")
 	default:
-		// The cause reaches the log; the client gets none of it.
 		h.logger.ErrorContext(ctx, "unmapped error",
 			slog.String("request_id", requestid.FromContext(ctx)),
 			slog.String("error", err.Error()),
 		)
-		httpx.WriteError(w, http.StatusServiceUnavailable, "database_unavailable", "the service is not ready")
+		httpx.WriteError(w, http.StatusInternalServerError, "internal", "something went wrong")
 	}
 }

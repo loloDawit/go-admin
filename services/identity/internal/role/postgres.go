@@ -16,8 +16,9 @@ type execer interface {
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 }
 
-// RunInTx gives fn a repository bound to one transaction, so a guard's read
-// and the write it protects cannot be interleaved with another caller's.
+// RunInTx gives fn a repository bound to one transaction. Every method on
+// that repository must read through r.q, never r.pool: a method that reaches
+// past q runs on its own connection, outside fn's transaction.
 func (r *PostgresRepository) RunInTx(ctx context.Context, fn func(Repository) error) error {
 	if r.pool == nil {
 		return fn(r)
@@ -28,7 +29,7 @@ func (r *PostgresRepository) RunInTx(ctx context.Context, fn func(Repository) er
 	}
 	defer tx.Rollback(ctx)
 
-	if err := fn(&PostgresRepository{tx: tx}); err != nil {
+	if err := fn(&PostgresRepository{q: tx}); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -36,7 +37,10 @@ func (r *PostgresRepository) RunInTx(ctx context.Context, fn func(Repository) er
 
 // Postgres refuses FOR UPDATE alongside an aggregate, so the rows are locked and counted here instead of in SQL.
 func (r *PostgresRepository) LockActiveStaffWithEditStaffOutsideRole(ctx context.Context, roleID int64) (int, error) {
-	rows, err := r.q().Query(ctx, lockActiveStaffWithEditStaffQuery, string(permission.EditStaff))
+	if _, err := r.q.Exec(ctx, lockAdminGuardStmt); err != nil {
+		return 0, err
+	}
+	rows, err := r.q.Query(ctx, lockActiveStaffWithEditStaffQuery, string(permission.EditStaff))
 	if err != nil {
 		return 0, err
 	}
@@ -95,19 +99,11 @@ type querier interface {
 
 type PostgresRepository struct {
 	pool *pgxpool.Pool
-	tx   pgx.Tx
+	q    querier
 }
 
 func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
-	return &PostgresRepository{pool: pool}
-}
-
-// q returns whichever of the pool or an open transaction this repository is bound to.
-func (r *PostgresRepository) q() querier {
-	if r.tx != nil {
-		return r.tx
-	}
-	return r.pool
+	return &PostgresRepository{pool: pool, q: pool}
 }
 
 // queryRower is what *pgxpool.Pool and pgx.Tx both satisfy, so
@@ -129,11 +125,7 @@ func getRoleWithPermissions(ctx context.Context, q queryRower, id int64) (Role, 
 }
 
 func (r *PostgresRepository) Create(ctx context.Context, in CreateRole) (Role, error) {
-	tx, err := r.pool.Begin(ctx)
-	if err != nil {
-		return Role{}, err
-	}
-	defer tx.Rollback(ctx)
+	tx := r.q
 
 	var id int64
 	if err := tx.QueryRow(ctx, createRoleStmt, in.Name).Scan(&id); err != nil {
@@ -150,20 +142,14 @@ func (r *PostgresRepository) Create(ctx context.Context, in CreateRole) (Role, e
 	if err != nil {
 		return Role{}, err
 	}
-	if err := tx.Commit(ctx); err != nil {
-		return Role{}, err
-	}
 	return created, nil
 }
 
 func (r *PostgresRepository) Update(ctx context.Context, id int64, in UpdateRole) (Role, error) {
-	tx, err := r.pool.Begin(ctx)
-	if err != nil {
-		return Role{}, err
-	}
-	defer tx.Rollback(ctx)
+	tx := r.q
 
 	var updatedID int64
+	var err error
 	err = tx.QueryRow(ctx, updateRoleNameStmt, id, in.Name).Scan(&updatedID)
 	if isNoRows(err) {
 		return Role{}, ErrNotFound
@@ -188,14 +174,11 @@ func (r *PostgresRepository) Update(ctx context.Context, id int64, in UpdateRole
 	if err != nil {
 		return Role{}, err
 	}
-	if err := tx.Commit(ctx); err != nil {
-		return Role{}, err
-	}
 	return updated, nil
 }
 
 func (r *PostgresRepository) Delete(ctx context.Context, id int64) error {
-	tag, err := r.pool.Exec(ctx, deleteRoleStmt, id)
+	tag, err := r.q.Exec(ctx, deleteRoleStmt, id)
 	if isForeignKeyViolation(err) {
 		return ErrInUse
 	}
@@ -209,11 +192,11 @@ func (r *PostgresRepository) Delete(ctx context.Context, id int64) error {
 }
 
 func (r *PostgresRepository) GetByID(ctx context.Context, id int64) (Role, error) {
-	return getRoleWithPermissions(ctx, r.pool, id)
+	return getRoleWithPermissions(ctx, r.q, id)
 }
 
 func (r *PostgresRepository) List(ctx context.Context) ([]Role, error) {
-	rows, err := r.pool.Query(ctx, listRolesWithPermissionsQuery)
+	rows, err := r.q.Query(ctx, listRolesWithPermissionsQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -232,14 +215,8 @@ func (r *PostgresRepository) List(ctx context.Context) ([]Role, error) {
 
 func (r *PostgresRepository) HasEditStaffPermission(ctx context.Context, roleID int64) (bool, error) {
 	var has bool
-	err := r.pool.QueryRow(ctx, hasEditStaffPermissionQuery, roleID, string(permission.EditStaff)).Scan(&has)
+	err := r.q.QueryRow(ctx, hasEditStaffPermissionQuery, roleID, string(permission.EditStaff)).Scan(&has)
 	return has, err
-}
-
-func (r *PostgresRepository) CountActiveStaffWithEditStaffOutsideRole(ctx context.Context, roleID int64) (int, error) {
-	var count int
-	err := r.pool.QueryRow(ctx, countActiveStaffWithEditStaffOutsideRoleQuery, roleID, string(permission.EditStaff)).Scan(&count)
-	return count, err
 }
 
 func isNoRows(err error) bool {
