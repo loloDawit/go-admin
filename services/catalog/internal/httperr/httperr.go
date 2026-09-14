@@ -13,8 +13,8 @@ import (
 	"github.com/loloDawit/go-admin/platform/requestid"
 	"github.com/loloDawit/go-admin/services/catalog/internal/errs"
 	"github.com/loloDawit/go-admin/services/catalog/internal/image"
-	"github.com/loloDawit/go-admin/services/catalog/internal/platformcheck"
 	"github.com/loloDawit/go-admin/services/catalog/internal/product"
+	"github.com/loloDawit/go-admin/services/catalog/internal/schemacheck"
 )
 
 // Writer's logger is injected, not read off the slog default, so log lines are attributed to this service.
@@ -57,11 +57,11 @@ func (h *Writer) Write(ctx context.Context, w http.ResponseWriter, err error) {
 		httpx.WriteError(w, http.StatusUnprocessableEntity, "unsupported_image_type", "that image type is not supported")
 	case errors.Is(err, image.ErrImageTooLarge):
 		httpx.WriteError(w, http.StatusRequestEntityTooLarge, "image_too_large", "the image exceeds the maximum upload size")
-	case errors.Is(err, platformcheck.ErrDirtySchema):
+	case errors.Is(err, schemacheck.ErrDirtySchema):
 		httpx.WriteError(w, http.StatusServiceUnavailable, "schema_dirty", "the service is not ready")
-	case errors.Is(err, platformcheck.ErrNoMigrations):
+	case errors.Is(err, schemacheck.ErrNoMigrations):
 		httpx.WriteError(w, http.StatusServiceUnavailable, "schema_not_migrated", "the service is not ready")
-	case errors.Is(err, platformcheck.ErrDatabaseUnavailable):
+	case errors.Is(err, schemacheck.ErrDatabaseUnavailable):
 		// The only place the driver cause reaches the log before the client gets the generic message.
 		h.logger.ErrorContext(ctx, "database unavailable",
 			slog.String("request_id", requestid.FromContext(ctx)),

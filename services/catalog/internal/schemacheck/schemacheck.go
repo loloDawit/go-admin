@@ -1,5 +1,5 @@
-// Package platformcheck is temporary scaffolding proving the gateway -> service -> database path; do not build on it.
-package platformcheck
+// Package schemacheck reports whether this service's schema is migrated and clean; it supplies the readiness probe.
+package schemacheck
 
 import "github.com/loloDawit/go-admin/services/catalog/internal/errs"
 

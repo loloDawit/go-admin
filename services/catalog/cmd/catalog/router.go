@@ -14,7 +14,6 @@ import (
 	"github.com/loloDawit/go-admin/services/catalog/internal/authz"
 	"github.com/loloDawit/go-admin/services/catalog/internal/image"
 	"github.com/loloDawit/go-admin/services/catalog/internal/permission"
-	"github.com/loloDawit/go-admin/services/catalog/internal/platformcheck"
 	"github.com/loloDawit/go-admin/services/catalog/internal/product"
 )
 
@@ -22,7 +21,6 @@ import (
 // Routes live here, not in main, so router_test.go can pin the spec §6 startup contract without a database.
 func newRouter(
 	logger *slog.Logger,
-	handler *platformcheck.Handler,
 	ready *readiness.Handler,
 	productHandler *product.Handler,
 	imageHandler *image.Handler,
@@ -36,7 +34,6 @@ func newRouter(
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 	r.Get("/readyz", ready.Ready)
-	r.Get("/_platform", handler.Platform)
 
 	// Gateway-network-only, no principal: identity's /internal/sessions/validate
 	// is the same shape. The gateway never proxies /internal/*.

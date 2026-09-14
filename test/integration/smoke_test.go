@@ -27,7 +27,7 @@ type platformResponse struct {
 func TestWalkingSkeletonThroughTheGateway(t *testing.T) {
 	client := &http.Client{Timeout: 10 * time.Second}
 
-	for _, service := range []string{"catalog", "orders"} {
+	for _, service := range []string{"orders"} {
 		t.Run(service, func(t *testing.T) {
 			req, err := http.NewRequest(http.MethodGet, gatewayURL()+"/_platform/"+service, nil)
 			if err != nil {
@@ -88,6 +88,29 @@ func TestUnknownServiceReturnsTheStandardEnvelope(t *testing.T) {
 	}
 	if body.Code == "" || body.Message == "" {
 		t.Errorf("want the standard envelope, got %+v", body)
+	}
+}
+
+// A freshly created product reaching the list proves the path: through the
+// gateway, into catalog, to its own database and back.
+func TestCatalogAnswersThroughTheGatewayFromItsOwnDatabase(t *testing.T) {
+	c := loggedInClient(t)
+	created := createProduct(t, c, uniqueSKU(t, "smoke"), "Smoke test desk", "", 1000)
+
+	var page productPage
+	status, env := apiCall(t, c, http.MethodGet, "/api/v1/products", nil, &page)
+	if status != http.StatusOK {
+		t.Fatalf("list: want 200, got %d (%s)", status, env.Code)
+	}
+
+	var found bool
+	for _, p := range page.Items {
+		if p.ID == created.ID {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("product created through the gateway is absent from catalog's own list: %+v", page.Items)
 	}
 }
 
