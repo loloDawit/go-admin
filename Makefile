@@ -1,7 +1,15 @@
 COMPOSE := docker compose -f deploy/compose/docker-compose.yml
 GO_PKGS := ./...
 
-.PHONY: help hooks up down dev logs test test-unit test-integration fmt lint tidy
+# One definition for the stack and for the tests that assert against it.
+# Compose reads these via ${VAR:-default}; the integration suite reads them
+# from the environment and fails if absent rather than defaulting, so the two
+# cannot drift apart silently.
+export OWNER_EMAIL       ?= owner@example.com
+export OWNER_PASSWORD    ?= dev_only_owner_password
+export SESSION_CACHE_TTL ?= 10s
+
+.PHONY: help hooks up down dev logs seed test test-unit test-integration fmt lint tidy
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -11,6 +19,9 @@ up: ## Boot the stack and wait for containers to report ready
 
 down: ## Stop the stack (volumes preserved)
 	$(COMPOSE) down
+
+seed: up ## Create the first owner account (idempotent)
+	$(COMPOSE) --profile seed run --rm identity-seed
 
 dev: up ## Boot the stack and show gateway logs
 	$(COMPOSE) logs -f gateway

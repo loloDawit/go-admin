@@ -38,6 +38,13 @@ var (
 	// keeps a blank password from ever reaching a stored hash.
 	ErrEmptyPassword = errors.New("password must not be empty")
 
+	ErrMissingDatabaseURL   = errors.New("DATABASE_URL is required")
+	ErrMissingOwnerEmail    = errors.New("OWNER_EMAIL is required")
+	ErrMissingOwnerPassword = errors.New("OWNER_PASSWORD is required")
+
+	// ErrNoAdminRole means migrations have not run: 000002 seeds the role.
+	ErrNoAdminRole = errors.New("no admin role exists")
+
 	// ErrNoMigrations, ErrDirtySchema, and ErrDatabaseUnavailable are
 	// platformcheck's sentinels (the M1 walking skeleton's schema-state
 	// probe); httperr maps all three to a 503.
@@ -56,6 +63,12 @@ const (
 	OpCreateSession        = "create session"
 	OpRevokeSession        = "revoke session"
 	OpGenerateSessionToken = "generate session token"
+
+	OpReadBcryptCost    = "read BCRYPT_COST"
+	OpConnectDatabase   = "connect to the database"
+	OpCountAdminRole    = "count the admin role"
+	OpHashOwnerPassword = "hash the owner password"
+	OpInsertOwner       = "insert the owner"
 )
 
 // Wrap names the step that failed ahead of the underlying error, so a log

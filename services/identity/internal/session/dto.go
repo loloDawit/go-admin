@@ -1,5 +1,7 @@
 package session
 
+import "strconv"
+
 // LoginRequest is POST /api/v1/login's body. DisallowUnknownFields (via
 // httpx.DecodeJSON) rejects any other field outright, rather than silently
 // ignoring it.
@@ -10,8 +12,12 @@ type LoginRequest struct {
 
 // AuthResponse is POST /api/v1/login's body: the full Authenticated record
 // Login returns, including email.
+//
+// staffId is a string, matching ValidateResponse and the signed principal: a
+// BIGSERIAL can exceed JavaScript's safe integer range, where a JSON number
+// would silently lose precision.
 type AuthResponse struct {
-	StaffID            int64    `json:"staffId"`
+	StaffID            string   `json:"staffId"`
 	Email              string   `json:"email"`
 	Permissions        []string `json:"permissions"`
 	MustChangePassword bool     `json:"mustChangePassword"`
@@ -19,7 +25,7 @@ type AuthResponse struct {
 
 func newAuthResponse(a Authenticated) AuthResponse {
 	return AuthResponse{
-		StaffID:            a.StaffID,
+		StaffID:            strconv.FormatInt(a.StaffID, 10),
 		Email:              a.Email,
 		Permissions:        a.Permissions,
 		MustChangePassword: a.MustChangePassword,
