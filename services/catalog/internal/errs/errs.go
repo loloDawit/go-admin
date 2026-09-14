@@ -22,6 +22,31 @@ var (
 	ErrInvalidPageSizeMax   = errors.New("PRODUCT_PAGE_SIZE_MAX must be positive")
 	ErrInvalidCurrency      = errors.New("DEFAULT_CURRENCY must be a 3-letter code")
 	ErrShortPrincipalKey    = errors.New("PRINCIPAL_SIGNING_KEY must be at least 32 bytes")
+
+	ErrProductNotFound = errors.New("product not found")
+	ErrSkuTaken        = errors.New("sku is already in use")
+	ErrProductArchived = errors.New("product is archived")
+	ErrInvalidPrice    = errors.New("price must not be negative")
+
+	// ErrInvalidSort: the sort key named no column in the allowlist.
+	ErrInvalidSort = errors.New("sort is not supported")
+
+	ErrEmptySearchQuery = errors.New("q must not be empty")
+)
+
+// Operation strings for Wrap, named here so a log line and its test expectation cannot drift independently.
+const (
+	OpImageStoreConnect = "image store: connect"
+	OpImageStorePut     = "image store: put"
+	OpImageStorePresign = "image store: presign"
+	OpImageStoreDelete  = "image store: delete"
+
+	OpCreateProduct  = "create product"
+	OpUpdateProduct  = "update product"
+	OpArchiveProduct = "archive product"
+	OpGetProduct     = "look up product by id"
+	OpListProducts   = "list products"
+	OpSearchProducts = "search products"
 )
 
 // Wrap names the step that failed, so a log line reads "look up product: connection refused", not a bare driver message.
