@@ -70,9 +70,7 @@ func (c *Captured) Handle(_ context.Context, r slog.Record) error {
 	return nil
 }
 
-// WithAttrs matches slog.Handler: attrs accumulated so far (already nested
-// under any open groups) carry forward to every record logged through the
-// returned handler, mirroring the real JSONHandler.
+// WithAttrs mirrors the real JSONHandler: accumulated attrs carry forward to every record logged through the returned handler.
 func (c *Captured) WithAttrs(attrs []slog.Attr) slog.Handler {
 	if len(attrs) == 0 {
 		return c

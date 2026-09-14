@@ -25,9 +25,7 @@ import (
 )
 
 func main() {
-	// The distroless image has no shell, curl, or wget, so Docker's
-	// HEALTHCHECK runs this binary against itself instead. It must exit before
-	// any of the normal startup below runs a second copy of the process.
+	// Must exit before any normal startup below runs a second copy of the process.
 	healthCheck := flag.Bool("health-check", false, "check this process's own /healthz and exit 0 or 1")
 	flag.Parse()
 

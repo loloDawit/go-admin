@@ -9,9 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// undefinedTable is Postgres SQLSTATE 42P01, returned when schema_migrations
-// itself does not exist yet, as distinct from the table existing with zero
-// rows (pgx.ErrNoRows).
+// undefinedTable is Postgres SQLSTATE 42P01: schema_migrations itself does not exist yet, distinct from an empty table (pgx.ErrNoRows).
 const undefinedTable = "42P01"
 
 type PostgresRepository struct {
@@ -22,10 +20,7 @@ func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
 	return &PostgresRepository{pool: pool}
 }
 
-// schema_migrations is created by golang-migrate. Its absence (SQLSTATE
-// 42P01) means migrations have never run against this database; a present but
-// empty table (pgx.ErrNoRows) means the same thing. Both map to the zero
-// SchemaState, which Service.Check turns into ErrNoMigrations.
+// A missing table (42P01) and a present-but-empty one (pgx.ErrNoRows) both mean migrations have never run; both map to the zero SchemaState.
 func (r *PostgresRepository) SchemaState(ctx context.Context) (SchemaState, error) {
 	var state SchemaState
 

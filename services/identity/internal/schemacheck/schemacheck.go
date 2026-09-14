@@ -1,6 +1,4 @@
-// Package schemacheck reports whether this service's schema is migrated and
-// clean. It supplies the readiness probe; the /_platform route it once served
-// was retired when identity gained real routes.
+// Package schemacheck reports whether this service's schema is migrated and clean; it supplies the readiness probe.
 package schemacheck
 
 import "github.com/loloDawit/go-admin/services/identity/internal/errs"

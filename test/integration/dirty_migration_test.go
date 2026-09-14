@@ -13,18 +13,15 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// dirtyTarget names one service's database role and the host-mapped ports at
-// which its own /healthz, /readyz and /_platform can be reached directly
-// (bypassing the gateway, which does not expose /readyz per service).
+// dirtyTarget's hostURL reaches /healthz, /readyz and /_platform directly,
+// bypassing the gateway, which does not expose /readyz per service.
 type dirtyTarget struct {
-	service  string
-	user     string
-	password string
-	database string
-	hostURL  string
-	// hasPlatform is false for identity: its walking skeleton was retired once
-	// it gained real routes. /readyz carries the same assertion.
-	hasPlatform bool
+	service     string
+	user        string
+	password    string
+	database    string
+	hostURL     string
+	hasPlatform bool // false for identity: it has no /_platform route
 }
 
 func dirtyTargets() []dirtyTarget {
@@ -42,11 +39,8 @@ func hostURL(env, fallback string) string {
 	return fallback
 }
 
-// setDirty opens its own short-lived connection and closes it before
-// returning. It is deliberately self-contained (never a connection held open
-// across a test's assertions) so it is safe to call again from t.Cleanup even
-// after the test body has failed and unwound: there is no shared, possibly
-// already-closed connection to reuse.
+// setDirty opens and closes its own connection so it is safe to call again
+// from t.Cleanup even after the test body has failed and unwound.
 func setDirty(t *testing.T, tgt dirtyTarget, dirty bool) {
 	t.Helper()
 	ctx := context.Background()
@@ -90,16 +84,8 @@ func getEnvelope(t *testing.T, client *http.Client, url string, wantStatus int) 
 	return body
 }
 
-// TestDirtyMigrationFailsReadiness proves spec §12: a half-applied migration
-// (schema_migrations.dirty = true) must fail readiness, not report the
-// service healthy. It marks one service's database dirty, asserts both
-// /readyz (direct) and /_platform (direct and via the gateway) report 503
-// with the standard envelope while /healthz stays 200, then restores the
-// clean state and asserts recovery.
-//
-// t.Cleanup guarantees the restore runs even if an assertion above it fails
-// and aborts the test body early — a failure here must never leave the
-// cluster dirty for every later test or developer.
+// TestDirtyMigrationFailsReadiness proves spec §12: a half-applied migration must fail readiness.
+// t.Cleanup restores the clean state even if an assertion above it fails, so a failure never leaves the cluster dirty.
 func TestDirtyMigrationFailsReadiness(t *testing.T) {
 	client := &http.Client{Timeout: 10 * time.Second}
 

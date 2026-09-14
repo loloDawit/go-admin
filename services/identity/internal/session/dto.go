@@ -2,20 +2,13 @@ package session
 
 import "strconv"
 
-// LoginRequest is POST /api/v1/login's body. DisallowUnknownFields (via
-// httpx.DecodeJSON) rejects any other field outright, rather than silently
-// ignoring it.
+// LoginRequest is POST /api/v1/login's body.
 type LoginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
-// AuthResponse is POST /api/v1/login's body: the full Authenticated record
-// Login returns, including email.
-//
-// staffId is a string, matching ValidateResponse and the signed principal: a
-// BIGSERIAL can exceed JavaScript's safe integer range, where a JSON number
-// would silently lose precision.
+// AuthResponse is POST /api/v1/login's body. staffId is a string: a BIGSERIAL can exceed JavaScript's safe integer range.
 type AuthResponse struct {
 	StaffID            string   `json:"staffId"`
 	Email              string   `json:"email"`
@@ -35,16 +28,12 @@ func newAuthResponse(a Authenticated) AuthResponse {
 // GET /api/v1/me shares AuthResponse's shape with login: both answer with
 // the caller's current record, email included.
 
-// ValidateRequest is POST /internal/sessions/validate's body. The token
-// travels here, in JSON, never as a query string: a query string reaches
-// access logs.
+// ValidateRequest carries the token in JSON, never a query string: a query string reaches access logs.
 type ValidateRequest struct {
 	Token string `json:"token"`
 }
 
-// ValidateResponse is what the gateway (or any internal caller) uses to build
-// its own signed principal; issuedAt/expiresAt are the caller's own to set
-// against its own TTL, not identity's.
+// ValidateResponse carries no issuedAt/expiresAt: those are the caller's own to set against its own TTL.
 type ValidateResponse struct {
 	StaffID            string   `json:"staffId"`
 	Permissions        []string `json:"permissions"`

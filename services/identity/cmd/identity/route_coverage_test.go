@@ -9,25 +9,18 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// publicRoutes is the identity service's entire declared-unauthenticated
-// surface; adding to it is a deliberate, reviewed edit. POST
-// /internal/sessions/validate is network-isolated rather than
-// gateway-routed — the gateway never proxies /internal/*.
+// publicRoutes is the entire declared-unauthenticated surface; adding to it is a deliberate, reviewed edit.
 var publicRoutes = map[string]bool{
 	"POST /api/v1/login":               true,
 	"GET /healthz":                     true,
 	"GET /readyz":                      true,
 	"GET /_platform":                   true,
-	"POST /internal/sessions/validate": true,
+	"POST /internal/sessions/validate": true, // network-isolated, not gateway-routed
 }
 
 var routeParam = regexp.MustCompile(`\{[^}]+\}`)
 
-// TestEveryRouteIsAuthenticatedOrDeclaredPublic walks the live route table
-// and sends each non-public route a request carrying no principal header. A
-// route that answers 200 is neither declared public nor actually protected:
-// a middleware-slice comparison could pass on a route enforcing nothing, so
-// this drives a real request instead.
+// This drives a real request rather than comparing middleware slices, which could pass on a route enforcing nothing.
 func TestEveryRouteIsAuthenticatedOrDeclaredPublic(t *testing.T) {
 	r, _ := newRouterWithLogin(t)
 

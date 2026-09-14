@@ -1,6 +1,4 @@
-// Command seed creates the first owner account. It is the only way an account
-// comes into existence before staff management exists: there is no public
-// registration endpoint, because self-registration granted admin rights.
+// Command seed creates the first owner account: there is no public registration endpoint, because self-registration granted admin rights.
 package main
 
 import (

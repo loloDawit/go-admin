@@ -13,9 +13,7 @@ const (
 
 type ctxKey struct{}
 
-// Middleware verifies the signed principal on every request and rejects the
-// request via onErr on any failure; it never decides a status code itself —
-// that mapping belongs to the caller's HTTP boundary.
+// Middleware never decides a status code itself on a rejection; that mapping belongs to the caller's HTTP boundary.
 func Middleware(key []byte, onErr func(http.ResponseWriter, *http.Request, error)) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

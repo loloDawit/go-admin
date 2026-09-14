@@ -96,9 +96,7 @@ func TestLoginThroughTheGatewayReturnsTheCaller(t *testing.T) {
 	}
 }
 
-// A well-formed payload with an invalid signature must be refused. The gateway
-// also strips client-supplied principal headers before it reads the cookie, so
-// neither half of the forgery survives.
+// The gateway also strips client-supplied principal headers before it reads the cookie, so neither half of the forgery survives.
 func TestAForgedPrincipalIsRejected(t *testing.T) {
 	payload, _ := json.Marshal(map[string]any{
 		"staffId":     "1",
@@ -144,10 +142,7 @@ func TestLogoutRevokesWithinTheCacheBudget(t *testing.T) {
 	}
 }
 
-// seedSessionFor inserts a staff member and one session row directly, so the
-// SQL guards in authByTokenHashQuery are exercised against real Postgres. The
-// session unit tests run against an in-memory fake and pass with those guards
-// deleted.
+// seedSessionFor inserts directly so the SQL guards in authByTokenHashQuery are exercised against real Postgres.
 func seedSessionFor(t *testing.T, active bool, revoked bool, expires time.Time) string {
 	t.Helper()
 	ctx := context.Background()
@@ -236,9 +231,7 @@ func identityURL() string {
 	return "http://localhost:8081"
 }
 
-// validateStatus calls identity's internal endpoint directly, not through the
-// gateway. /api/v1/me also refuses a deactivated caller via Service.Current,
-// so only this path isolates the guard on Validate itself.
+// This calls identity's internal endpoint directly, isolating the guard on Validate itself from Service.Current's own check.
 func validateStatus(t *testing.T, token string) int {
 	t.Helper()
 	body, _ := json.Marshal(map[string]string{"token": token})
@@ -265,24 +258,17 @@ func TestValidateResolvesAnActiveStaffMember(t *testing.T) {
 	}
 }
 
-// Two transactions try to demote the last two edit_staff holders at once.
-// Without FOR UPDATE both read that another admin remains and both proceed,
-// leaving zero accounts able to manage staff.
+// Without FOR UPDATE, two transactions demoting the last two edit_staff holders at once would both read that another admin remains.
 func TestConcurrentDemotionsCannotBothSucceed(t *testing.T) {
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, dsn(t, "identity_user", "dev_only_identity", "identity_db"))
 	if err != nil {
 		t.Fatalf("pool: %v", err)
 	}
-	// Registered before any other cleanup so it runs last: t.Cleanup is LIFO and
-	// runs after deferred calls, so `defer pool.Close()` would shut the pool
-	// before the restores below could use it.
+	// Registered first so it runs last (t.Cleanup is LIFO): a `defer pool.Close()` would shut the pool before the restores below could use it.
 	t.Cleanup(pool.Close)
 
-	// Park every currently active staff member so exactly the two seeded below
-	// hold edit_staff, then restore precisely those rows. Restoring by a broader
-	// predicate would reactivate accounts another test had deliberately
-	// deactivated, and leaving any parked breaks every later login.
+	// Restoring by a broader predicate than these parked IDs would reactivate accounts another test had deliberately deactivated.
 	var parked []int64
 	rows, err := pool.Query(ctx, `UPDATE staff SET is_active = false WHERE is_active RETURNING id`)
 	if err != nil {

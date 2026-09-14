@@ -12,9 +12,7 @@ import (
 // cookieName is shared by Login (sets it) and Logout (reads and clears it).
 const cookieName = "session"
 
-// Handler serves this package's routes. writeErr is injected rather than
-// httperr.Writer imported directly: internal/httperr must import this
-// package for its sentinels, so importing it back here would be a cycle.
+// writeErr is injected, not imported: internal/httperr imports this package for its sentinels, so importing it back would cycle.
 type Handler struct {
 	svc          *Service
 	cookieSecure bool
@@ -52,9 +50,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, newAuthResponse(auth))
 }
 
-// Logout reads the plaintext token from the cookie, not from the signed
-// principal the middleware group verifies: the principal never carries the
-// plaintext token, only what it authorizes.
+// Logout reads the token from the cookie, not the signed principal: the principal never carries the plaintext token.
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie(cookieName)
 	if err != nil {
@@ -79,10 +75,7 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// Me answers with the caller's current record. The signed principal (already
-// verified by the middleware group) carries no email, so this reads the
-// staff row by the principal's StaffID rather than serving purely from the
-// principal.
+// Me reads the staff row by the principal's StaffID: the signed principal carries no email.
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	p, ok := principal.FromContext(r.Context())
 	if !ok {

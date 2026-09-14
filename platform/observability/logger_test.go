@@ -12,13 +12,7 @@ import (
 	"github.com/loloDawit/go-admin/platform/requestid"
 )
 
-// TestNewLoggerAttachesServiceAttribute goes through NewLogger itself, unlike
-// TestServiceAttrSurvivesWith below (which attaches "service" by hand via
-// logger.With and so only tests Captured.WithAttrs). Deleting the
-// .With(slog.String("service", service)) call from NewLogger leaves every
-// service's log lines with no service name, and every other test in this
-// package still passes — only a test that constructs the logger through
-// NewLogger itself can catch that.
+// Unlike TestServiceAttrSurvivesWith below, this constructs the logger through NewLogger itself, not by attaching "service" by hand.
 func TestNewLoggerAttachesServiceAttribute(t *testing.T) {
 	var buf bytes.Buffer
 	logger := observability.NewLogger("catalog", &buf)

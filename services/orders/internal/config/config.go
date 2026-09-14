@@ -7,9 +7,7 @@ import (
 
 const serviceName = "orders"
 
-// DefaultPort is copied by every service derived from this template.
-// serviceName above and DefaultPort are the two values in this file a
-// service-specific rename touches.
+// serviceName and DefaultPort are the two values a service-specific rename touches.
 const DefaultPort = "8083"
 
 type Config struct {

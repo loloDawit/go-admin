@@ -56,9 +56,7 @@ func TestLoadRejectsAShortSigningKey(t *testing.T) {
 	}
 }
 
-// A missing BCRYPT_COST must say so by name, not surface strconv's parse
-// error for an empty string ("invalid syntax"), which gives an operator no
-// way to tell the variable is simply absent.
+// A missing BCRYPT_COST must say so by name, not surface strconv's "invalid syntax" for an empty string.
 func TestLoadReportsAMissingBcryptCostByName(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://u:p@localhost:5433/identity_db")
 	setValidAuthEnv(t)

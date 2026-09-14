@@ -22,9 +22,7 @@ func newTestHandler() (*staff.Handler, *fakeRepository) {
 	return staff.NewHandler(svc, 1<<20, func(context.Context, http.ResponseWriter, error) {}), repo
 }
 
-// withChiURLParam attaches an "id" (or any named) URL param the way chi's
-// router would after matching a pattern like /api/v1/staff/{id}, so a
-// handler under test can call chi.URLParam without a real router in front.
+// withChiURLParam lets a handler under test call chi.URLParam without a real router in front.
 func withChiURLParam(req *http.Request, key, value string) *http.Request {
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add(key, value)
@@ -81,11 +79,7 @@ func TestCreateHandlerReturnsThePasswordOnceInTheResponse(t *testing.T) {
 	}
 }
 
-// TestSelfUpdateCannotChangeRole is the direct descendant of the original
-// application's worst defect: PATCH against the caller's own ID with a
-// roleId field must be rejected outright — the self-update DTO carries no
-// such field, so httpx.DecodeJSON's DisallowUnknownFields rejects the body
-// rather than silently dropping the field.
+// A self-update body carrying roleId must be rejected outright, not silently dropped.
 func TestSelfUpdateCannotChangeRole(t *testing.T) {
 	svc, _ := newTestService()
 	var captured error
@@ -123,10 +117,8 @@ func TestSelfUpdateCannotChangeRole(t *testing.T) {
 	}
 }
 
-// TestAdminUpdateCanChangeAnotherStaffMembersRole exercises the same route
-// with a different caller ID: the admin path (a different principal StaffID
-// than the path ID) does accept roleId, so the guard above is about
-// self-update specifically, not roleId in general.
+// The guard above is about self-update specifically: a different principal
+// StaffID than the path ID does accept roleId.
 func TestAdminUpdateCanChangeAnotherStaffMembersRole(t *testing.T) {
 	svc, _ := newTestService()
 	h := staff.NewHandler(svc, 1<<20, func(context.Context, http.ResponseWriter, error) {})
@@ -155,9 +147,6 @@ func TestAdminUpdateCanChangeAnotherStaffMembersRole(t *testing.T) {
 	}
 }
 
-// TestAdminUpdatePartialBodyLeavesOtherFieldsUnchanged pins the partial-update
-// contract: an admin PATCH supplying only firstName must not blank out or
-// deactivate anything else.
 func TestAdminUpdatePartialBodyLeavesOtherFieldsUnchanged(t *testing.T) {
 	svc, _ := newTestService()
 	h := staff.NewHandler(svc, 1<<20, func(context.Context, http.ResponseWriter, error) {})
@@ -223,9 +212,7 @@ func TestChangePasswordHandlerUsesThePrincipalNotAPathID(t *testing.T) {
 	}
 }
 
-// requirePasswordChangedChain wires principal.Middleware in front of
-// RequirePasswordChanged exactly as the router will (Task 10): the gate
-// reads the principal that middleware verified, never a database.
+// requirePasswordChangedChain mirrors the router's wiring: the gate reads the verified principal, never a database.
 func requirePasswordChangedChain(onErr func(context.Context, http.ResponseWriter, error), next http.Handler) http.Handler {
 	return principal.Middleware(handlerTestKey, func(w http.ResponseWriter, r *http.Request, err error) {
 		onErr(r.Context(), w, err)

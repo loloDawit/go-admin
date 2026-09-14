@@ -13,10 +13,7 @@ import (
 	"github.com/loloDawit/go-admin/services/identity/internal/errs"
 )
 
-// dummyLoginPassword is hashed once at construction and compared against on
-// every login for an email that does not exist, so an unknown address costs
-// the same bcrypt work as a real one. Its value is arbitrary; nothing ever
-// authenticates with it.
+// dummyLoginPassword is compared against on every login for an unknown email, so it costs the same bcrypt work as a real one.
 const dummyLoginPassword = "identity-dummy-password-never-used-for-login"
 
 type Service struct {
@@ -26,9 +23,7 @@ type Service struct {
 	dummyHash string
 }
 
-// NewService hashes dummyLoginPassword once up front: doing it per-login
-// would defeat the point (Login must run a bcrypt compare of equal cost on
-// every call, known email or not).
+// NewService hashes dummyLoginPassword once up front; hashing it per-login would defeat the point.
 func NewService(repo Repository, hasher *Hasher, ttl time.Duration) (*Service, error) {
 	dummyHash, err := hasher.Hash(dummyLoginPassword)
 	if err != nil {
@@ -37,10 +32,7 @@ func NewService(repo Repository, hasher *Hasher, ttl time.Duration) (*Service, e
 	return &Service{repo: repo, hasher: hasher, ttl: ttl, dummyHash: dummyHash}, nil
 }
 
-// Login compares the supplied password with bcrypt even when email matches no
-// account, against a fixed dummy hash of equal cost — otherwise an unknown
-// email returns faster than a wrong password for a real one, and response
-// timing enumerates which addresses have accounts.
+// Login always runs a bcrypt compare, even against a dummy hash for an unknown email: otherwise response timing enumerates accounts.
 func (s *Service) Login(ctx context.Context, email, password string) (string, Authenticated, error) {
 	auth, err := s.repo.AuthByEmail(ctx, email)
 	if err != nil {
@@ -74,10 +66,7 @@ func (s *Service) Login(ctx context.Context, email, password string) (string, Au
 	}, nil
 }
 
-// Validate resolves a plaintext token to the principal the caller is
-// authorized as. It never returns a session-local type: the platform
-// principal.Principal is what platform/principal.Middleware and every
-// downstream permission check already understand.
+// Validate returns platform/principal.Principal, never a session-local type: that is what downstream permission checks understand.
 func (s *Service) Validate(ctx context.Context, token string) (principal.Principal, error) {
 	auth, err := s.repo.AuthByTokenHash(ctx, hashToken(token))
 	if err != nil {
@@ -100,11 +89,7 @@ func (s *Service) Validate(ctx context.Context, token string) (principal.Princip
 	}, nil
 }
 
-// Current returns the caller's own current record for GET /api/v1/me. It
-// takes the principal's string StaffID (platform/principal carries no email,
-// so /me cannot be answered from the signed principal alone) and fails
-// closed for a deactivated account, in case a deactivation lands after the
-// gateway last cached the principal but before this read.
+// Current fails closed for a deactivated account, in case a deactivation lands after the gateway last cached the principal.
 func (s *Service) Current(ctx context.Context, staffID string) (Authenticated, error) {
 	id, err := strconv.ParseInt(staffID, 10, 64)
 	if err != nil {
@@ -139,10 +124,7 @@ func (s *Service) Revoke(ctx context.Context, token string) error {
 	return nil
 }
 
-// newToken generates the plaintext session token and the hash stored in its
-// place. SHA-256, not bcrypt: this runs on the request path and the input
-// already has 256 bits of entropy, so there is nothing for a work factor to
-// protect.
+// newToken uses SHA-256, not bcrypt: the input already has 256 bits of entropy, so there is nothing for a work factor to protect.
 func newToken() (plain string, hash []byte, err error) {
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {

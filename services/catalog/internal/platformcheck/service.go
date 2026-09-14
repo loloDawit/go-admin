@@ -15,11 +15,7 @@ func NewService(repo Repository) *Service {
 
 func (s *Service) Check(ctx context.Context) (SchemaState, error) {
 	state, err := s.repo.SchemaState(ctx)
-	// Repository has exactly one implementation path that returns a non-nil
-	// error: a connection or query failure surfacing from the driver. Wrap it
-	// as ErrDatabaseUnavailable here, the one seam every Repository
-	// implementation (real or test double) passes through, rather than in
-	// the Postgres implementation, which a fake repository bypasses entirely.
+	// Wrapped here, not in the Postgres implementation, since a fake Repository bypasses that.
 	if err != nil {
 		return SchemaState{}, fmt.Errorf("%w: %w", ErrDatabaseUnavailable, err)
 	}

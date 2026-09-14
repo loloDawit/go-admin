@@ -47,10 +47,7 @@ func TestCheckRejectsAnUnmigratedSchema(t *testing.T) {
 	}
 }
 
-// A repository failure is always a connection or query failure surfacing
-// from the driver, never a schema-shape problem: Check must classify it as
-// ErrDatabaseUnavailable while keeping the original cause reachable via %w,
-// so the log (not the client) can still show what the driver said.
+// Check must classify a repository failure as ErrDatabaseUnavailable while keeping the cause reachable via %w for the log.
 func TestCheckPropagatesRepositoryFailure(t *testing.T) {
 	want := errors.New("connection refused")
 	svc := schemacheck.NewService(stubRepo{err: want})

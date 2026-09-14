@@ -14,9 +14,7 @@ type decodeTarget struct {
 	Email string `json:"email"`
 }
 
-// testMaxBytes stands in for a caller's configured limit; its value is
-// arbitrary except for TestDecodeJSONRefusesABodyOverTheCap, which needs a
-// body larger than it.
+// testMaxBytes' value is arbitrary except for TestDecodeJSONRefusesABodyOverTheCap, which needs a body larger than it.
 const testMaxBytes = 1 << 20 // 1 MiB
 
 func TestDecodeJSONRejectsAnUnknownField(t *testing.T) {

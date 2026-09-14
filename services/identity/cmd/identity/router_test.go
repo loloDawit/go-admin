@@ -23,10 +23,7 @@ import (
 	"github.com/loloDawit/go-admin/services/identity/internal/staff"
 )
 
-// testPrincipalKey is the HMAC key newRouter's principal.Middleware group
-// verifies against; TestMeRouteWithASignedPrincipalReturnsTheCaller below
-// signs a principal with the same key to exercise that group through the
-// router.
+// testPrincipalKey is the HMAC key newRouter's principal.Middleware group verifies against.
 var testPrincipalKey = []byte("0123456789012345678901234567890123456789")
 
 // newTestAuthzHandlers builds handlers over nil repositories: none of the routes these router-level tests exercise reach one.
@@ -69,9 +66,7 @@ func newTestSessionHandler(t *testing.T, writeErr func(context.Context, http.Res
 	return session.NewHandler(svc, false, time.Hour, 1<<20, writeErr)
 }
 
-// memorySessionRepository is an in-memory Repository backing the router-level
-// login/me/logout tests below: they exercise real routing and the principal
-// middleware group, not a database.
+// memorySessionRepository backs the router-level tests below, which exercise real routing and middleware, not a database.
 type memorySessionRepository struct {
 	byEmail  map[string]session.StaffAuth
 	sessions map[string]memorySession
@@ -167,10 +162,7 @@ func newRouterWithLogin(t *testing.T) (*chi.Mux, *memorySessionRepository) {
 	return r, repo
 }
 
-// TestLoginRouteSetsACookieThatLogoutRevokes drives login, then logout with a
-// signed principal (as the gateway would forward it), then confirms the
-// logged-out token no longer validates — logout is a no-op unless it actually
-// revokes the session it is handed.
+// This confirms the logged-out token no longer validates: logout is a no-op unless it actually revokes the session.
 func TestLoginRouteSetsACookieThatLogoutRevokes(t *testing.T) {
 	r, _ := newRouterWithLogin(t)
 
@@ -216,10 +208,7 @@ func TestLoginRouteSetsACookieThatLogoutRevokes(t *testing.T) {
 	}
 }
 
-// TestMeRouteRejectsAnUnsignedRequest pins that GET /api/v1/me sits behind
-// principal.Middleware: without a gateway in front of it (a later task) to
-// sign the principal, a request carrying only the session cookie — no
-// X-Principal/X-Principal-Signature — is correctly refused.
+// A request carrying only the session cookie, no X-Principal/X-Principal-Signature, is correctly refused.
 func TestMeRouteRejectsAnUnsignedRequest(t *testing.T) {
 	r, _ := newRouterWithLogin(t)
 
@@ -238,10 +227,6 @@ func TestMeRouteRejectsAnUnsignedRequest(t *testing.T) {
 	}
 }
 
-// TestMeRouteWithASignedPrincipalReturnsTheCaller exercises the router's
-// principal middleware group end to end: a principal signed with the same
-// key newRouter verifies against reaches Handler.Me, which reads the caller's
-// current record back out of the repository.
 func TestMeRouteWithASignedPrincipalReturnsTheCaller(t *testing.T) {
 	r, _ := newRouterWithLogin(t)
 
@@ -335,10 +320,7 @@ func TestValidateRouteIsRegisteredAndTakesTheTokenInTheBody(t *testing.T) {
 	}
 }
 
-// TestLoginRouteRejectsWrongPasswordWithByteIdenticalResponses asserts the
-// two response bodies are byte-identical, not just the same status code: a
-// response that varied its message or field order between a known and an
-// unknown email would still enumerate the account despite matching statuses.
+// The two response bodies must be byte-identical, not just the same status code, or the account is enumerable.
 func TestLoginRouteRejectsWrongPasswordWithByteIdenticalResponses(t *testing.T) {
 	r, _ := newRouterWithLogin(t)
 
@@ -361,9 +343,7 @@ func TestLoginRouteRejectsWrongPasswordWithByteIdenticalResponses(t *testing.T) 
 	}
 }
 
-// alwaysFailRepo simulates a database that is unreachable: every call fails
-// with a driver-shaped error, and calls are counted so a test can assert a
-// route never touched it.
+// alwaysFailRepo counts calls so a test can assert a route never touched it.
 type alwaysFailRepo struct {
 	calls int
 }
@@ -408,9 +388,7 @@ func TestPanickingHandlerStillProducesALogLineWithStatus500(t *testing.T) {
 	}
 }
 
-// This pins spec §6: liveness never touches the database, and readiness
-// reports failure without leaking driver detail, even against a database that
-// is down for the whole life of the request.
+// This pins spec §6: liveness never touches the database, and readiness reports failure without leaking driver detail.
 func TestStartupContractHealthzSkipsTheDatabaseAndReadyzReportsFailureSafely(t *testing.T) {
 	logger, captured := observability.NewCaptured()
 	errWriter := httperr.New(logger)
@@ -442,9 +420,7 @@ func TestStartupContractHealthzSkipsTheDatabaseAndReadyzReportsFailureSafely(t *
 		}
 	}
 
-	// The body must never carry the driver cause, but the log must: a wrap
-	// that only hides the detail (instead of routing it to the log) would
-	// still pass the body assertions above.
+	// A wrap that only hides the detail, instead of routing it to the log, would still pass the body assertions above.
 	var loggedCause bool
 	for _, record := range captured.Records() {
 		record.Attrs(func(a slog.Attr) bool {

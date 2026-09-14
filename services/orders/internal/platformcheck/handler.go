@@ -11,10 +11,7 @@ import (
 type Handler struct {
 	svc         *Service
 	serviceName string
-	// writeErr is injected rather than imported: internal/httperr must import
-	// this package for its sentinels, so importing it back would be a cycle.
-	// It takes ctx so the error line it logs can carry the same request_id
-	// as the request line RequestLogger emits for the same request.
+	// writeErr is injected, not imported: internal/httperr imports this package for its sentinels, so importing it back would cycle.
 	writeErr func(ctx context.Context, w http.ResponseWriter, err error)
 }
 

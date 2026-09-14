@@ -14,9 +14,8 @@ import (
 
 const testCost = 4
 
-// fakeRepository is an in-memory double, mirroring session's fakeRepository:
-// each test builds one directly, so no test depends on another's state and
-// none touches a database.
+// fakeRepository is an in-memory double; each test builds its own so none
+// touches a database or depends on another test's state.
 type fakeRepository struct {
 	nextID      int64
 	byID        map[int64]record
@@ -33,9 +32,7 @@ func newFakeRepository() *fakeRepository {
 	return &fakeRepository{byID: make(map[int64]record), editStaffOf: map[int64]bool{1: true}}
 }
 
-// addRole seeds a role that holds edit_staff regardless of what it is
-// called: this fake keys the guard on the permission alone, exactly as
-// hasEditStaffPermissionQuery does against the real schema.
+// addRole keys the guard on the permission alone, not the role's name.
 func (f *fakeRepository) addRole(id int64) {
 	f.editStaffOf[id] = true
 }
@@ -196,12 +193,7 @@ func TestCreateRejectsADuplicateEmail(t *testing.T) {
 	}
 }
 
-// TestUpdateLeavesRoleUnchangedWithoutARoleIDField pins the service half of
-// the self-update guard: an UpdateStaff with RoleID left nil (exactly what a
-// self-update DTO with no roleId field produces after decoding) never
-// changes the stored role. handler_test.go's TestSelfUpdateCannotChangeRole
-// pins the HTTP half — that a request body carrying roleId is rejected
-// before it ever reaches this method.
+// Pins the service half of the self-update guard; handler_test.go's TestSelfUpdateCannotChangeRole pins the HTTP half.
 func TestUpdateLeavesRoleUnchangedWithoutARoleIDField(t *testing.T) {
 	svc, _ := newTestService()
 	ctx := context.Background()
@@ -210,9 +202,7 @@ func TestUpdateLeavesRoleUnchangedWithoutARoleIDField(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 
-	// A self-update carries only name/email fields; RoleID and IsActive stay
-	// nil, exactly as the HTTP boundary's SelfUpdateStaffRequest would leave
-	// them after decoding a body with no roleId field.
+	// RoleID and IsActive stay nil, as a self-update DTO with no roleId field would leave them.
 	name := "Changed"
 	updated, err := svc.Update(ctx, st.ID, staff.UpdateStaff{FirstName: &name})
 	if err != nil {
@@ -236,9 +226,6 @@ func TestDeactivateRefusesToRemoveTheLastActiveAdmin(t *testing.T) {
 	}
 }
 
-// TestUpdateWithOnlyNameFieldsDoesNotTripTheLastAdminGuard confirms a partial
-// update that touches neither RoleID nor IsActive never triggers the guard,
-// even on the sole admin.
 func TestUpdateWithOnlyNameFieldsDoesNotTripTheLastAdminGuard(t *testing.T) {
 	svc, _ := newTestService()
 	ctx := context.Background()
@@ -257,10 +244,7 @@ func TestUpdateWithOnlyNameFieldsDoesNotTripTheLastAdminGuard(t *testing.T) {
 	}
 }
 
-// TestDeactivateProtectsTheLastEditStaffHolderRegardlessOfRoleName pins the
-// lockout defect: a staff member holding permission.EditStaff through a role
-// not named "admin" (e.g. "manager", role ID 5 here) must still be the last
-// line of defense against deactivating everyone who can manage staff.
+// The guard must key on permission.EditStaff, not a role literally named "admin".
 func TestDeactivateProtectsTheLastEditStaffHolderRegardlessOfRoleName(t *testing.T) {
 	svc, repo := newTestService()
 	ctx := context.Background()

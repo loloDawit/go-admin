@@ -15,9 +15,7 @@ var (
 	ErrExpired      = errors.New("principal: principal has expired")
 )
 
-// Verify checks signature against header before unmarshalling the payload:
-// the payload is attacker-controlled JSON until the signature has verified,
-// so decoding it earlier would be work performed on unauthenticated input.
+// Verify checks the signature before unmarshalling the payload: it is attacker-controlled JSON until then.
 func Verify(header, signature string, key []byte, now time.Time) (Principal, error) {
 	if header == "" || signature == "" {
 		return Principal{}, ErrMissing

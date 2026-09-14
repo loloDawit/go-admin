@@ -199,10 +199,7 @@ func TestValidateRejectsAnExpiredSession(t *testing.T) {
 	}
 }
 
-// TestValidateRejectsADeactivatedAccountWithALiveSession pins the gateway's
-// per-request path: a session created while the staff member was active must
-// stop authenticating the moment the account is deactivated, not wait for
-// the session to separately expire or be revoked.
+// A session created while active must stop authenticating the moment the account is deactivated, not wait to expire or be revoked.
 func TestValidateRejectsADeactivatedAccountWithALiveSession(t *testing.T) {
 	repo := newFakeRepository()
 	auth := seedActiveStaff(t, repo, "owner@example.com", "correct-horse-battery-staple")

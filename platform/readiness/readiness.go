@@ -1,6 +1,4 @@
-// Package readiness owns /readyz. It is deliberately separate from whatever
-// supplies the probe, so retiring a service's schema-check package cannot
-// silently take the route with it.
+// Package readiness owns /readyz separately from whatever supplies the probe, so retiring a schema-check package cannot silently take the route with it.
 package readiness
 
 import "context"

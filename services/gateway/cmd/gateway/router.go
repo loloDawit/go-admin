@@ -11,9 +11,7 @@ import (
 	"github.com/loloDawit/go-admin/services/gateway/internal/auth"
 )
 
-// RequestLogger must be registered before Recoverer (so Recoverer sits closer
-// to the handler): RequestLogger logs only after next.ServeHTTP returns, and
-// an unrecovered panic would unwind past that statement, never running it.
+// RequestLogger must be registered before Recoverer: it logs only after next.ServeHTTP returns, which a panic would unwind past.
 func newRouter(logger *slog.Logger, upstreams http.Handler, validator *auth.Validator) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(requestid.Middleware)

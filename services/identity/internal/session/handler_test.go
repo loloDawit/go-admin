@@ -15,9 +15,7 @@ import (
 
 var handlerTestKey = []byte("a-test-signing-key-at-least-32-bytes-long")
 
-// signedMeRequest builds a GET /api/v1/me request carrying a validly signed
-// principal for staffID, run through principal.Middleware exactly as the
-// router wires it — the same path a gateway-forwarded request takes.
+// signedMeRequest runs through principal.Middleware exactly as the router wires it.
 func signedMeRequest(t *testing.T, h *session.Handler, staffID string) *httptest.ResponseRecorder {
 	t.Helper()
 	p := principal.Principal{

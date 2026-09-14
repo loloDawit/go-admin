@@ -1,10 +1,4 @@
-// Package arch_test enforces import boundaries that Go's own internal/ rule
-// already enforces today, at compile time. That mechanism only protects the
-// current file layout: someone can resolve a future compile error by moving a
-// package out of internal/ (or copying code across a boundary) instead of by
-// respecting the boundary, and the compiler will not object. These tests exist
-// to catch that regression, so do not delete them as "redundant with the
-// compiler" — the compiler check they duplicate is not the check they perform.
+// Package arch_test: not redundant with the compiler's internal/ rule, which only protects the current file layout.
 package arch_test
 
 import (
@@ -21,9 +15,8 @@ import (
 
 const modulePath = "github.com/loloDawit/go-admin"
 
-// httpxImportPath is the package that owns the wire shape for client-facing
-// errors. Spec §9 requires status codes and client messages to originate in
-// exactly one place per service: the service's own internal/httperr package.
+// httpxImportPath: spec §9 requires status codes and client messages to
+// originate in exactly one place per service, the service's own internal/httperr.
 const httpxImportPath = modulePath + "/platform/httpx"
 
 var services = []string{"gateway", "identity", "catalog", "orders"}
@@ -48,17 +41,8 @@ func TestNoServiceImportsAnotherService(t *testing.T) {
 	}
 }
 
-// The filename check below scans file names, not identifiers or arbitrary
-// file content. That is deliberate: platform/observability legitimately
-// defines the identifier statusRecorder, which contains the substring
-// "order" — a content or identifier scan for these words would fail on
-// correct code. A file name containing a domain word is a much stronger
-// signal that domain logic leaked into platform/, so this guard trades
-// recall for zero false positives on the technical vocabulary platform/
-// actually needs. The second check below (permission-vocabulary string
-// literals) is narrower still: it matches a value shape, not a banned word,
-// so it coexists with platform/principal's legitimate `Permissions []string`
-// field and platform/requestid's legitimate use of the word "request".
+// This scans file names, not identifiers or content: platform/observability's
+// statusRecorder identifier contains "order", which a content scan would flag.
 func TestPlatformHoldsNoDomainConcepts(t *testing.T) {
 	root := repoRoot(t)
 	platformDir := filepath.Join(root, "platform")
@@ -88,16 +72,10 @@ func TestPlatformHoldsNoDomainConcepts(t *testing.T) {
 	checkPlatformHoldsNoPermissionVocabularyLiterals(t, root, platformDir)
 }
 
-// permissionVocabularyPattern matches Identity's permission-string shape
-// (e.g. "view_staff", "edit_role"). A string literal under platform/ matching
-// it is Identity's permission vocabulary leaking into technical
-// infrastructure, even when the file name gives no hint (spec §5).
+// permissionVocabularyPattern matches Identity's permission-string shape (e.g. "view_staff"), catching a leak even when the file name gives no hint (spec §5).
 var permissionVocabularyPattern = regexp.MustCompile(`^(view|edit)_[a-z_]+$`)
 
-// checkPlatformHoldsNoPermissionVocabularyLiterals parses every .go file
-// under platform/ (test files included: a fixture value is as much a leak as
-// production code) and fails on any string literal whose value matches
-// permissionVocabularyPattern.
+// Test files are scanned too: a fixture value is as much a leak as production code.
 func checkPlatformHoldsNoPermissionVocabularyLiterals(t *testing.T, root, platformDir string) {
 	t.Helper()
 
@@ -139,15 +117,7 @@ func checkPlatformHoldsNoPermissionVocabularyLiterals(t *testing.T, root, platfo
 	}
 }
 
-// TestClientFacingErrorsOnlyConstructedInHTTPErr is the narrowed AST guard
-// spec §9 requires re-added: it fails when an http-layer package constructs a
-// client-facing error (calls httpx.WriteError) outside the service's own
-// internal/httperr package, which is the one place per service that may
-// decide a status code or a client-visible message.
-//
-// It resolves each file's local name for platform/httpx from its own import
-// block (rather than string-matching "httpx.WriteError") so a file that
-// imports the package under a different local name cannot dodge the check.
+// Resolves each file's local import alias rather than string-matching "httpx.WriteError", so an aliased import cannot dodge the check.
 func TestClientFacingErrorsOnlyConstructedInHTTPErr(t *testing.T) {
 	root := repoRoot(t)
 
@@ -212,9 +182,7 @@ func TestClientFacingErrorsOnlyConstructedInHTTPErr(t *testing.T) {
 	}
 }
 
-// httpxLocalAlias returns the name file uses to refer to platform/httpx
-// (its explicit alias, or the package's default name if imported unaliased),
-// or "" if the file does not import it at all.
+// httpxLocalAlias returns "" if file does not import platform/httpx at all.
 func httpxLocalAlias(file *ast.File) string {
 	for _, imp := range file.Imports {
 		path := strings.Trim(imp.Path.Value, `"`)
@@ -230,11 +198,7 @@ func httpxLocalAlias(file *ast.File) string {
 	return ""
 }
 
-// forEachImport parses only the import block of every .go file under dir (no
-// type-checking, so it works without a database or Docker) and calls check
-// once per import. It fails the test outright if dir is missing or contains
-// no .go files: a silent no-op here would let every guard above pass
-// vacuously if services/ or platform/ were ever renamed.
+// forEachImport parses only the import block, so it works without a database or Docker.
 func forEachImport(t *testing.T, dir string, check func(file, imported string)) {
 	t.Helper()
 

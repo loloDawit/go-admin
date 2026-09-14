@@ -91,9 +91,7 @@ func TestUnknownServiceReturnsTheStandardEnvelope(t *testing.T) {
 	}
 }
 
-// Identity retired its walking skeleton when it gained real routes. A rejected
-// login proves the same path the skeleton proved — through the gateway, into
-// identity, to its own database — using the product API instead of scaffolding.
+// A rejected login still proves the path: through the gateway, into identity, to its own database.
 func TestIdentityAnswersThroughTheGatewayFromItsOwnDatabase(t *testing.T) {
 	client := &http.Client{Timeout: 10 * time.Second}
 

@@ -25,9 +25,7 @@ func dsn(t *testing.T, user, password, database string) string {
 	return "postgres://" + user + ":" + password + "@" + host + ":" + port + "/" + database + "?sslmode=disable"
 }
 
-// assertConnectRefused fails unless err is the SQLSTATE Postgres uses for a
-// revoked CONNECT grant. Matching on message text would depend on
-// lc_messages and upstream wording; the code does not.
+// This matches the SQLSTATE, not message text, which would depend on lc_messages and upstream wording.
 func assertConnectRefused(t *testing.T, err error) {
 	t.Helper()
 	if err == nil {

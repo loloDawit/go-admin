@@ -12,9 +12,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// openAPIDoc reaches components.schemas.Permission.enum; yaml.v3 ignores any
-// key with no matching struct field, so the rest of identity.yaml is not
-// modeled here.
+// openAPIDoc only models components.schemas.Permission.enum: yaml.v3 ignores
+// any key with no matching struct field.
 type openAPIDoc struct {
 	Components struct {
 		Schemas struct {
@@ -25,12 +24,7 @@ type openAPIDoc struct {
 	} `yaml:"components"`
 }
 
-// wantPermissions reads the published contract (identity.yaml) rather than
-// importing services/identity/internal/permission: that package is internal
-// to services/identity and Go's internal-package rule forbids this package,
-// rooted outside that tree, from importing it. Reading the YAML also checks
-// the more relevant direction: identity.yaml is what Catalog and Orders
-// generate constants from in M3/M4, not permission.All() itself.
+// wantPermissions reads identity.yaml: Go's internal-package rule forbids this package from importing services/identity/internal/permission.
 func wantPermissions() []string {
 	data, err := os.ReadFile("../../services/identity/openapi/identity.yaml")
 	if err != nil {

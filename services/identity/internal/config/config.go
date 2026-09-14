@@ -12,9 +12,7 @@ import (
 
 const serviceName = "identity"
 
-// DefaultPort is copied by every service derived from this template.
-// serviceName above and DefaultPort are the two values in this file a
-// service-specific rename touches.
+// serviceName and DefaultPort are the two values a service-specific rename touches.
 const DefaultPort = "8081"
 
 type Config struct {
@@ -104,9 +102,7 @@ func (c *Config) validate() error {
 	return nil
 }
 
-// requireEnv names the missing variable in its error rather than letting a
-// downstream parser (strconv, time.ParseDuration) report on an empty string,
-// which reads as a parse failure and hides that the variable is simply unset.
+// requireEnv names the missing variable, rather than letting an empty string reach a downstream parser and read as a parse failure.
 func requireEnv(key string) (string, error) {
 	v := os.Getenv(key)
 	if v == "" {

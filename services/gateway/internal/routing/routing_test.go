@@ -86,12 +86,8 @@ func TestUnreachableUpstreamReturns502WithoutLeakingTheAddress(t *testing.T) {
 	}
 }
 
-// I2: ReverseProxy only logs a transport error from its own default
-// ErrorHandler; installing a custom one (as routing.New does, to keep the
-// cause out of the response body) means the dial error is recorded nowhere
-// unless routing.New logs it itself. This pins that it does, with enough
-// context (upstream name, request_id) to actually debug the outage from logs
-// alone.
+// routing.New installs a custom ErrorHandler to keep the cause out of the
+// response body, so it must log the dial error itself instead.
 func TestUnreachableUpstreamLogsTheCauseWithUpstreamNameAndRequestID(t *testing.T) {
 	logger, captured := observability.NewCaptured()
 	h, _ := routing.New(logger, map[string]string{"catalog": "http://127.0.0.1:1"}, time.Second)
@@ -122,9 +118,7 @@ func TestUnreachableUpstreamLogsTheCauseWithUpstreamNameAndRequestID(t *testing.
 	}
 }
 
-// A slow upstream must not hang the client past the configured timeout, and the
-// client must get the standard error envelope rather than the connection being
-// left open or any transport detail leaking into the body.
+// A slow upstream must not hang the client past the configured timeout.
 func TestSlowUpstreamTripsTheDeadlineAndReturnsGatewayTimeout(t *testing.T) {
 	const timeout = 50 * time.Millisecond
 
@@ -133,9 +127,7 @@ func TestSlowUpstreamTripsTheDeadlineAndReturnsGatewayTimeout(t *testing.T) {
 		defer close(done)
 		select {
 		case <-r.Context().Done():
-			// Proves the proxy actually canceled the outbound request instead of
-			// the handler completing normally and then the client just being made
-			// to wait for it.
+			// proves the proxy actually canceled the outbound request
 		case <-time.After(2 * time.Second):
 			t.Error("upstream handler was not canceled when the gateway's deadline fired")
 		}
@@ -230,9 +222,8 @@ func TestRejectsAnUnparseableUpstream(t *testing.T) {
 	}
 }
 
-// The upstream echoes X-Request-Id back (as every service's own requestid
-// middleware does); the gateway's requestid.Middleware also sets it before the
-// proxy runs. Only one must survive onto the client response.
+// Both the upstream and the gateway's own requestid.Middleware set the
+// header; only one must survive onto the client response.
 func TestProxiedResponseHasExactlyOneRequestIDHeader(t *testing.T) {
 	var seenByUpstream string
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

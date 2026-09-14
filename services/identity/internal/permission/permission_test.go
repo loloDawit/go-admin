@@ -9,9 +9,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// openAPIDoc reaches components.schemas.Permission.enum; yaml.v3 ignores any
-// key with no matching struct field, so the rest of identity.yaml is not
-// modeled here.
+// openAPIDoc only models components.schemas.Permission.enum: yaml.v3 ignores any key with no matching struct field.
 type openAPIDoc struct {
 	Components struct {
 		Schemas struct {
@@ -22,9 +20,7 @@ type openAPIDoc struct {
 	} `yaml:"components"`
 }
 
-// TestAllMatchesPublishedOpenAPIEnum guards against a permission added to Go
-// but never published: without this, that gap would only surface in M3, when
-// Catalog or Orders generates constants from an OpenAPI spec missing one.
+// Guards against a permission added to Go but never published to the OpenAPI spec.
 func TestAllMatchesPublishedOpenAPIEnum(t *testing.T) {
 	data, err := os.ReadFile("../../openapi/identity.yaml")
 	if err != nil {

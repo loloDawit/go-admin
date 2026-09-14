@@ -21,9 +21,7 @@ func NewPool(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 
 	cfg, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
-		// pgx redacts the password itself, but the error still echoes the
-		// DSN's host and path; neither may reach a client, so the parse
-		// cause is discarded rather than wrapped into the returned error.
+		// The parse error echoes the DSN's host and path, so it is discarded rather than wrapped.
 		return nil, ErrInvalidDSN
 	}
 

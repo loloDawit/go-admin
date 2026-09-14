@@ -14,9 +14,7 @@ import (
 	"github.com/loloDawit/go-admin/services/orders/internal/platformcheck"
 )
 
-// alwaysFailRepo simulates a database that is unreachable: every call fails
-// with a driver-shaped error, and calls are counted so a test can assert a
-// route never touched it.
+// alwaysFailRepo counts calls so a test can assert a route never touched it.
 type alwaysFailRepo struct {
 	calls int
 }
@@ -60,9 +58,7 @@ func TestPanickingHandlerStillProducesALogLineWithStatus500(t *testing.T) {
 	}
 }
 
-// This pins spec §6: liveness never touches the database, and readiness
-// reports failure without leaking driver detail, even against a database that
-// is down for the whole life of the request.
+// This pins spec §6: liveness never touches the database, and readiness reports failure without leaking driver detail.
 func TestStartupContractHealthzSkipsTheDatabaseAndReadyzReportsFailureSafely(t *testing.T) {
 	logger, _ := observability.NewCaptured()
 	errWriter := httperr.New(logger)

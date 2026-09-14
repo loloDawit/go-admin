@@ -48,9 +48,7 @@ func (r *PostgresRepository) RunInTx(ctx context.Context, fn func(Repository) er
 	return tx.Commit(ctx)
 }
 
-// LockActiveEditStaffExcluding locks the active staff rows holding edit_staff
-// and returns how many remain besides excludeID. Postgres refuses FOR UPDATE
-// alongside an aggregate, so the rows are locked and counted here instead.
+// Postgres refuses FOR UPDATE alongside an aggregate, so the rows are locked and counted here instead of in SQL.
 func (r *PostgresRepository) LockActiveEditStaffExcluding(ctx context.Context, excludeID int64) (int, error) {
 	rows, err := r.q.Query(ctx, lockActiveEditStaffQuery, string(permission.EditStaff))
 	if err != nil {

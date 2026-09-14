@@ -264,9 +264,7 @@ func TestWriteNeverLeaksTheCauseOfAnUnmappedError(t *testing.T) {
 	}
 }
 
-// This pins spec §10's request-ID groundwork: an unmapped error's log line
-// must carry the same request_id as the request line RequestLogger emits for
-// the same request, or the two cannot be correlated during an outage.
+// An unmapped error's log line must carry the same request_id as RequestLogger's request line, or the two cannot be correlated.
 func TestWriteLogsTheCauseCorrelatedByRequestID(t *testing.T) {
 	logger, captured := observability.NewCaptured()
 	writer := httperr.New(logger)
