@@ -37,7 +37,6 @@ export function useResource<T>(load: () => Promise<T>, deps: unknown[]): Resourc
     return () => {
       active = false
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attempt, ...deps])
 
   return { ...state, reload: () => setAttempt((value) => value + 1) }

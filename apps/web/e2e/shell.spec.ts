@@ -37,6 +37,9 @@ for (const viewport of VIEWPORTS) {
         })
         await page.goto(route)
         await expect(page.locator('h1')).toBeVisible()
+        if (route !== '/kit') {
+          await expect(page.locator('[aria-busy="true"]')).toHaveCount(0)
+        }
         await page.screenshot({
           path: `screenshots/${viewport.name}${route.replace(/\//g, '_')}.png`,
           fullPage: true,

@@ -1,40 +1,41 @@
 import { Link } from 'react-router-dom'
-import { PageStack, StateBlock } from '../ui'
+import { PageHeader, PageStack } from '../ui'
+
+function Problem({ title, description }: { title: string; description: string }) {
+  return (
+    <PageStack>
+      <PageHeader
+        title={title}
+        description={description}
+        actions={<Link to="/">Back to the dashboard</Link>}
+      />
+    </PageStack>
+  )
+}
 
 export function NotFound() {
   return (
-    <PageStack>
-      <StateBlock
-        title="That page does not exist"
-        description="The link may be out of date. Everything else is still where you left it."
-        action={<Link to="/">Back to the dashboard</Link>}
-      />
-    </PageStack>
+    <Problem
+      title="That page does not exist"
+      description="The link may be out of date. Everything else is still where you left it."
+    />
   )
 }
 
 export function Forbidden() {
   return (
-    <PageStack>
-      <StateBlock
-        tone="error"
-        title="You do not have access to this"
-        description="Your role does not include this permission. An owner can change that on the Roles screen."
-        action={<Link to="/">Back to the dashboard</Link>}
-      />
-    </PageStack>
+    <Problem
+      title="You do not have access to this"
+      description="Your role does not include this permission. An owner can grant it on the Roles screen."
+    />
   )
 }
 
 export function ServerError() {
   return (
-    <PageStack>
-      <StateBlock
-        tone="error"
-        title="Something went wrong on our side"
-        description="The request did not complete. Nothing was changed. Try again in a moment."
-        action={<Link to="/">Back to the dashboard</Link>}
-      />
-    </PageStack>
+    <Problem
+      title="Something went wrong on our side"
+      description="The request did not complete and nothing was changed. Try again in a moment."
+    />
   )
 }

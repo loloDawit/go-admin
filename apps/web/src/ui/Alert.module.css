@@ -3,15 +3,16 @@
   flex-direction: column;
   gap: var(--space-1);
   padding: var(--space-3);
-  border: 1px solid;
-  border-left-width: 3px;
-  border-radius: var(--radius-sm);
+  border-left: 3px solid;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   font-size: var(--text-md);
+  max-width: 52rem;
 }
 
 .title {
   font-weight: var(--weight-semibold);
   line-height: var(--leading-snug);
+  color: var(--color-text);
 }
 
 .body {
