@@ -1,4 +1,4 @@
-package platformcheck
+package schemacheck
 
 import (
 	"errors"

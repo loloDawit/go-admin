@@ -1,0 +1,49 @@
+package order
+
+// nextOrderNumberQuery takes the sequence and the database clock in one
+// round trip, so the two can never be read from different transactions.
+const nextOrderNumberQuery = `SELECT nextval('order_number_seq'), now()`
+
+// orderColumns is the column list every order-header query below returns, in
+// this order; postgres.go's scan calls depend on it.
+const orderColumns = `id, number, customer_id, status, total_minor, currency, placed_at, updated_at`
+
+const insertOrderStmt = `INSERT INTO orders (number, customer_id, total_minor, currency, placed_at)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING ` + orderColumns
+
+const insertOrderItemStmt = `INSERT INTO order_items (order_id, product_id, title_snapshot, unit_price_minor, currency, quantity, line_total_minor)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id`
+
+const insertOrderEventStmt = `INSERT INTO order_events (order_id, from_status, to_status, actor_id, reason)
+VALUES ($1, $2, $3, $4, $5)`
+
+const getOrderByIDQuery = `SELECT ` + orderColumns + ` FROM orders WHERE id = $1`
+
+const listOrderItemsQuery = `SELECT id, product_id, title_snapshot, unit_price_minor, currency, quantity, line_total_minor
+FROM order_items WHERE order_id = $1 ORDER BY id`
+
+// getOrderStatusForUpdateQuery locks the row so the status it reports cannot
+// change under a concurrent transition before updateOrderStatusStmt writes
+// the new one, both within the same transaction.
+const getOrderStatusForUpdateQuery = `SELECT status FROM orders WHERE id = $1 FOR UPDATE`
+
+// updateOrderStatusStmt is a compare-and-set: it writes only if status still
+// matches $2, which is what makes the event this accompanies trustworthy.
+const updateOrderStatusStmt = `UPDATE orders SET status = $3, updated_at = now()
+WHERE id = $1 AND status = $2
+RETURNING ` + orderColumns
+
+// orderFilterClause: a NULL argument means no filter on that field.
+const orderFilterClause = `($1::order_status IS NULL OR status = $1) AND ($2::bigint IS NULL OR customer_id = $2)`
+
+// listOrdersQueryTemplate takes the sort column and direction, both resolved
+// from a fixed allowlist in postgres.go, never from caller input: a column
+// name cannot be a bind parameter.
+const listOrdersQueryTemplate = `SELECT ` + orderColumns + ` FROM orders
+WHERE ` + orderFilterClause + `
+ORDER BY %s %s
+LIMIT $3 OFFSET $4`
+
+const listOrdersCountQuery = `SELECT COUNT(*) FROM orders WHERE ` + orderFilterClause

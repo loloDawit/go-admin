@@ -66,6 +66,17 @@ func (s *Service) Update(ctx context.Context, id int64, in UpdateProduct) (Produ
 	return updated, nil
 }
 
+func (s *Service) Activate(ctx context.Context, id int64) (Product, error) {
+	activated, err := s.repo.Activate(ctx, id)
+	if err != nil {
+		if errors.Is(err, ErrProductNotFound) {
+			return Product{}, err
+		}
+		return Product{}, errs.Wrap(errs.OpActivateProduct, err)
+	}
+	return activated, nil
+}
+
 func (s *Service) Archive(ctx context.Context, id int64) (Product, error) {
 	archived, err := s.repo.Archive(ctx, id)
 	if err != nil {

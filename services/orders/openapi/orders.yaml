@@ -1,9 +1,20 @@
 openapi: 3.1.0
 info:
   title: Orders Service
-  version: 0.1.0
+  version: 1.0.0
   description: >
-    M1 exposes only infrastructure endpoints. Domain endpoints arrive in M2.
+    Customers, orders and their lifecycle transitions. Every /api/v1 route
+    requires a signed principal, forwarded by the gateway after identity
+    resolves the session cookie.
+
+    Identifiers are strings on every surface. They are BIGSERIAL values that
+    can exceed JavaScript's safe integer range, where a JSON number would
+    silently lose precision. Money is totalMinor / unitPriceMinor (an integer
+    count of the currency's smallest unit) plus a currency code. An order
+    number looks like ORD-2026-000034.
+servers:
+  - url: http://localhost:8080
+    description: Through the gateway
 paths:
   /healthz:
     get:
@@ -15,33 +26,378 @@ paths:
       summary: Readiness. Checks database connectivity and clean migration state.
       responses:
         "200": { description: Ready to serve }
-        "503": { description: Not ready, $ref: "#/components/responses/Error" }
-  /_platform:
+        "503": { $ref: "#/components/responses/Error" }
+
+  /api/v1/customers:
     get:
-      summary: >
-        Temporary M1 walking skeleton. Removed in M2. Not a product endpoint.
+      summary: List customers, or look one up by email. Requires view_orders.
+      description: >
+        With no email, a page of customers. With email, the single matching
+        customer, or 404. An unparseable page or pageSize is 400.
+      parameters:
+        - { name: email, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1 }, description: Clamped to the service's configured maximum; the response states the effective size. }
       responses:
         "200":
-          description: Schema state
+          description: A page of customers, or the single customer matching email
           content:
             application/json:
               schema:
-                type: object
-                required: [service, schemaVersion, requestId]
-                properties:
-                  service: { type: string }
-                  schemaVersion: { type: integer }
-                  requestId: { type: string }
-        "503": { description: Not ready, $ref: "#/components/responses/Error" }
+                oneOf:
+                  - { $ref: "#/components/schemas/CustomerPage" }
+                  - { $ref: "#/components/schemas/Customer" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    post:
+      summary: Create a customer. Requires edit_orders.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateCustomerRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Customer" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /api/v1/customers/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      summary: One customer. Requires view_orders.
+      responses:
+        "200":
+          description: The customer
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Customer" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/v1/customers/{id}/lifetime-value:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      summary: A customer's lifetime spend. Requires view_orders.
+      description: >
+        Cancelled and refunded orders are excluded. Refused when the
+        customer's orders span more than one currency: a total summed
+        across currencies is a number that means nothing.
+      responses:
+        "200":
+          description: Lifetime value
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LifetimeValue" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /api/v1/customers/{id}/orders:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      summary: A customer's order history. Requires view_orders.
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1 } }
+      responses:
+        "200":
+          description: A page of the customer's past orders
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrderHistoryPage" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /api/v1/orders:
+    get:
+      summary: List orders. Requires view_orders.
+      parameters:
+        - { name: status, in: query, schema: { $ref: "#/components/schemas/OrderStatus" } }
+        - { name: customerId, in: query, schema: { type: string } }
+        - { name: sort, in: query, schema: { type: string }, description: A column from the server's sort allowlist; an unrecognized value is refused. }
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1 } }
+      responses:
+        "200":
+          description: A page of orders
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrderPage" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+    post:
+      summary: Create an order. Requires edit_orders.
+      description: >
+        Each line is resolved against Catalog at creation time and its title
+        and price are snapshotted onto the order; a later change to the
+        product never changes what was bought. Every line must name an
+        active product and quote one currency.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateOrderRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "499": { description: The client disconnected before Catalog answered, $ref: "#/components/responses/Error" }
+        "502": { $ref: "#/components/responses/Error" }
+        "504": { $ref: "#/components/responses/Error" }
+  /api/v1/orders/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      summary: One order, with its lines. Requires view_orders.
+      responses:
+        "200":
+          description: The order
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/v1/orders/{id}/status:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    post:
+      summary: Transition an order's status. Requires edit_orders.
+      description: >
+        Refuses cancelled and refunded as targets; use /cancel and /refund
+        for those. Refuses any target not reachable from the order's current
+        status per the fixed transition table.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SetStatusRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /api/v1/orders/{id}/cancel:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    post:
+      summary: Cancel an order. Requires edit_orders.
+      description: Reachable from pending, paid, or packed; refused once the order has shipped.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TransitionRequest" }
+      responses:
+        "200":
+          description: Cancelled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /api/v1/orders/{id}/refund:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    post:
+      summary: Refund an order. Requires edit_orders.
+      description: Reachable from paid, packed, shipped or delivered; refused once already cancelled or refunded.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TransitionRequest" }
+      responses:
+        "200":
+          description: Refunded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
 components:
   responses:
     Error:
       description: Standard error envelope
       content:
         application/json:
-          schema:
-            type: object
-            required: [code, message]
-            properties:
-              code: { type: string }
-              message: { type: string }
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum:
+            - unauthenticated
+            - forbidden
+            - not_found
+            - email_taken
+            - mixed_currency_history
+            - product_unavailable
+            - currency_mismatch
+            - invalid_transition
+            - validation_failed
+            - malformed_body
+            - request_cancelled
+            - catalog_timeout
+            - catalog_unavailable
+            - catalog_rejected
+            - internal
+            - schema_dirty
+            - schema_not_migrated
+            - database_unavailable
+        message: { type: string }
+    Permission:
+      description: >
+        The canonical permission vocabulary. Identity owns this list (see
+        services/identity/openapi/identity.yaml#/components/schemas/Permission);
+        Orders generates typed constants from it rather than hand-writing
+        permission strings. Every route on this contract requires view_orders
+        or edit_orders.
+      type: string
+      enum:
+        - view_staff
+        - edit_staff
+        - view_roles
+        - edit_roles
+        - view_products
+        - edit_products
+        - view_orders
+        - edit_orders
+    Customer:
+      type: object
+      required: [id, email, name, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        email: { type: string }
+        name: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CreateCustomerRequest:
+      type: object
+      required: [email, name]
+      properties:
+        email: { type: string }
+        name: { type: string }
+    CustomerPage:
+      type: object
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Customer" }
+        page: { type: integer }
+        pageSize: { type: integer, description: The effective size after clamping, not necessarily what the caller requested. }
+        total: { type: integer }
+    LifetimeValue:
+      type: object
+      required: [lifetimeValueMinor, currency]
+      properties:
+        lifetimeValueMinor: { type: integer }
+        currency: { type: string }
+    OrderSummary:
+      type: object
+      required: [id, number, status, totalMinor, currency, placedAt]
+      properties:
+        id: { type: string }
+        number: { type: string }
+        status: { $ref: "#/components/schemas/OrderStatus" }
+        totalMinor: { type: integer }
+        currency: { type: string }
+        placedAt: { type: string, format: date-time }
+    OrderHistoryPage:
+      type: object
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/OrderSummary" }
+        page: { type: integer }
+        pageSize: { type: integer }
+        total: { type: integer }
+    OrderStatus:
+      type: string
+      description: >
+        pending -> paid -> packed -> shipped -> delivered is the forward
+        path. cancelled is reachable from pending, paid, or packed; refunded
+        from paid, packed, shipped or delivered. Neither moves again once reached.
+      enum: [pending, paid, packed, shipped, delivered, cancelled, refunded]
+    OrderItem:
+      type: object
+      required: [productId, titleSnapshot, unitPriceMinor, currency, quantity, lineTotalMinor]
+      properties:
+        productId: { type: string }
+        titleSnapshot: { type: string, description: The product's title at purchase time; unaffected by a later rename. }
+        unitPriceMinor: { type: integer, description: The price paid; unaffected by a later price change. }
+        currency: { type: string }
+        quantity: { type: integer, minimum: 1 }
+        lineTotalMinor: { type: integer }
+    Order:
+      type: object
+      required: [id, number, customerId, status, totalMinor, currency, placedAt, items]
+      properties:
+        id: { type: string }
+        number: { type: string, description: "Looks like ORD-2026-000034." }
+        customerId: { type: string }
+        status: { $ref: "#/components/schemas/OrderStatus" }
+        totalMinor: { type: integer }
+        currency: { type: string }
+        placedAt: { type: string, format: date-time }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/OrderItem" }
+    CreateOrderItemRequest:
+      type: object
+      required: [productId, quantity]
+      properties:
+        productId: { type: string }
+        quantity: { type: integer, minimum: 1 }
+    CreateOrderRequest:
+      type: object
+      required: [customerId, items]
+      properties:
+        customerId: { type: string }
+        items:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/CreateOrderItemRequest" }
+    SetStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status: { $ref: "#/components/schemas/OrderStatus" }
+    TransitionRequest:
+      type: object
+      properties:
+        reason: { type: string }

@@ -1,24 +1,24 @@
-package platformcheck_test
+package schemacheck_test
 
 import (
 	"context"
 	"errors"
 	"testing"
 
-	"github.com/loloDawit/go-admin/services/orders/internal/platformcheck"
+	"github.com/loloDawit/go-admin/services/orders/internal/schemacheck"
 )
 
 type stubRepo struct {
-	state platformcheck.SchemaState
+	state schemacheck.SchemaState
 	err   error
 }
 
-func (s stubRepo) SchemaState(context.Context) (platformcheck.SchemaState, error) {
+func (s stubRepo) SchemaState(context.Context) (schemacheck.SchemaState, error) {
 	return s.state, s.err
 }
 
 func TestCheckAcceptsACleanAppliedSchema(t *testing.T) {
-	svc := platformcheck.NewService(stubRepo{state: platformcheck.SchemaState{Version: 3, Dirty: false}})
+	svc := schemacheck.NewService(stubRepo{state: schemacheck.SchemaState{Version: 3, Dirty: false}})
 
 	state, err := svc.Check(context.Background())
 	if err != nil {
@@ -32,17 +32,17 @@ func TestCheckAcceptsACleanAppliedSchema(t *testing.T) {
 // A dirty row means a migration failed partway and the schema is in an unknown
 // state. A non-zero version alone is not success.
 func TestCheckRejectsADirtySchema(t *testing.T) {
-	svc := platformcheck.NewService(stubRepo{state: platformcheck.SchemaState{Version: 3, Dirty: true}})
+	svc := schemacheck.NewService(stubRepo{state: schemacheck.SchemaState{Version: 3, Dirty: true}})
 
-	if _, err := svc.Check(context.Background()); !errors.Is(err, platformcheck.ErrDirtySchema) {
+	if _, err := svc.Check(context.Background()); !errors.Is(err, schemacheck.ErrDirtySchema) {
 		t.Fatalf("want ErrDirtySchema, got %v", err)
 	}
 }
 
 func TestCheckRejectsAnUnmigratedSchema(t *testing.T) {
-	svc := platformcheck.NewService(stubRepo{state: platformcheck.SchemaState{Version: 0}})
+	svc := schemacheck.NewService(stubRepo{state: schemacheck.SchemaState{Version: 0}})
 
-	if _, err := svc.Check(context.Background()); !errors.Is(err, platformcheck.ErrNoMigrations) {
+	if _, err := svc.Check(context.Background()); !errors.Is(err, schemacheck.ErrNoMigrations) {
 		t.Fatalf("want ErrNoMigrations, got %v", err)
 	}
 }
@@ -50,10 +50,10 @@ func TestCheckRejectsAnUnmigratedSchema(t *testing.T) {
 // Check must classify a repository failure as ErrDatabaseUnavailable while keeping the cause reachable via %w for the log.
 func TestCheckPropagatesRepositoryFailure(t *testing.T) {
 	want := errors.New("connection refused")
-	svc := platformcheck.NewService(stubRepo{err: want})
+	svc := schemacheck.NewService(stubRepo{err: want})
 
 	_, err := svc.Check(context.Background())
-	if !errors.Is(err, platformcheck.ErrDatabaseUnavailable) {
+	if !errors.Is(err, schemacheck.ErrDatabaseUnavailable) {
 		t.Fatalf("want ErrDatabaseUnavailable, got %v", err)
 	}
 	if !errors.Is(err, want) {

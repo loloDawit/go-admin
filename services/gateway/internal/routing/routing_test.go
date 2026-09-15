@@ -17,8 +17,8 @@ import (
 func TestRoutesToTheNamedUpstream(t *testing.T) {
 	logger, _ := observability.NewCaptured()
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/_platform" {
-			t.Errorf("upstream path: want /_platform, got %q", r.URL.Path)
+		if r.URL.Path != "/api/v1/orders" {
+			t.Errorf("upstream path: want /api/v1/orders (preserved), got %q", r.URL.Path)
 		}
 		httpx.WriteJSON(w, http.StatusOK, map[string]string{"service": "orders"})
 	}))
@@ -30,7 +30,7 @@ func TestRoutesToTheNamedUpstream(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/_platform/orders", nil))
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/orders", nil))
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status: want 200, got %d", rec.Code)
@@ -42,30 +42,13 @@ func TestRoutesToTheNamedUpstream(t *testing.T) {
 	}
 }
 
-func TestUnknownServiceReturnsTheStandardEnvelope(t *testing.T) {
-	logger, _ := observability.NewCaptured()
-	h, _ := routing.New(logger, map[string]string{"orders": "http://127.0.0.1:1"}, time.Second)
-
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/_platform/nosuchservice", nil))
-
-	if rec.Code != http.StatusNotFound {
-		t.Fatalf("status: want 404, got %d", rec.Code)
-	}
-	var body httpx.ErrorBody
-	json.NewDecoder(rec.Body).Decode(&body)
-	if body.Code == "" {
-		t.Error("an unknown route must still return the standard envelope")
-	}
-}
-
 // An upstream that is down must not leak its address to the client.
 func TestUnreachableUpstreamReturns502WithoutLeakingTheAddress(t *testing.T) {
 	logger, _ := observability.NewCaptured()
 	h, _ := routing.New(logger, map[string]string{"orders": "http://127.0.0.1:1"}, time.Second)
 
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/_platform/orders", nil))
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/orders", nil))
 
 	if rec.Code != http.StatusBadGateway {
 		t.Fatalf("status: want 502, got %d", rec.Code)
@@ -93,7 +76,7 @@ func TestUnreachableUpstreamLogsTheCauseWithUpstreamNameAndRequestID(t *testing.
 	h, _ := routing.New(logger, map[string]string{"orders": "http://127.0.0.1:1"}, time.Second)
 	wrapped := requestid.Middleware(h)
 
-	req := httptest.NewRequest(http.MethodGet, "/_platform/orders", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/orders", nil)
 	req.Header.Set(requestid.Header, "known-id")
 
 	rec := httptest.NewRecorder()
@@ -142,7 +125,7 @@ func TestSlowUpstreamTripsTheDeadlineAndReturnsGatewayTimeout(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	start := time.Now()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/_platform/orders", nil))
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/orders", nil))
 	elapsed := time.Since(start)
 
 	<-done // wait for the upstream handler to actually observe cancellation
@@ -266,7 +249,7 @@ func TestProxiedResponseHasExactlyOneRequestIDHeader(t *testing.T) {
 	wrapped := requestid.Middleware(h)
 
 	rec := httptest.NewRecorder()
-	wrapped.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/_platform/orders", nil))
+	wrapped.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/orders", nil))
 
 	values := rec.Header().Values(requestid.Header)
 	if got := len(values); got != 1 {

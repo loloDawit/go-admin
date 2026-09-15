@@ -16,17 +16,12 @@ import (
 	"github.com/loloDawit/go-admin/services/gateway/internal/httperr"
 )
 
-// rewrite runs after the default director points the request at target;
-// nil preserves the inbound path.
-func newProxy(logger *slog.Logger, name string, target *url.URL, rewrite func(*http.Request)) *httputil.ReverseProxy {
+func newProxy(logger *slog.Logger, name string, target *url.URL) *httputil.ReverseProxy {
 	proxy := httputil.NewSingleHostReverseProxy(target)
 
 	baseDirector := proxy.Director
 	proxy.Director = func(out *http.Request) {
 		baseDirector(out)
-		if rewrite != nil {
-			rewrite(out)
-		}
 		// The upstream would otherwise mint its own request ID.
 		if id := requestid.FromContext(out.Context()); id != "" {
 			out.Header.Set(requestid.Header, id)
@@ -70,12 +65,15 @@ func withTimeout(proxy *httputil.ReverseProxy, timeout time.Duration) http.Handl
 // apiOwners routes an /api/v1 prefix to the service that owns it. Anything not
 // listed falls through to identity, which owns the rest of the surface.
 var apiOwners = map[string]string{
-	"/api/v1/products":   "catalog",
-	"/api/v1/products/*": "catalog",
+	"/api/v1/products":    "catalog",
+	"/api/v1/products/*":  "catalog",
+	"/api/v1/orders":      "orders",
+	"/api/v1/orders/*":    "orders",
+	"/api/v1/customers":   "orders",
+	"/api/v1/customers/*": "orders",
 }
 
-// "/_platform/{service}" and "/api/v1/*" use separate directors so a change
-// to one cannot alter the other. "/internal/*" is never routed here.
+// "/api/v1/*" is the only surface proxied here. "/internal/*" is never routed here.
 func New(logger *slog.Logger, upstreams map[string]string, timeout time.Duration) (http.Handler, error) {
 	targets := make(map[string]*url.URL, len(upstreams))
 	for name, raw := range upstreams {
@@ -86,32 +84,10 @@ func New(logger *slog.Logger, upstreams map[string]string, timeout time.Duration
 		targets[name] = target
 	}
 
-	// Identity and catalog have real routes now, so their walking skeletons
-	// were retired; orders keeps its until M4 replaces it.
-	platformProxies := make(map[string]*httputil.ReverseProxy, len(targets))
-	for name, target := range targets {
-		if name == "identity" || name == "catalog" {
-			continue
-		}
-		platformProxies[name] = newProxy(logger, name, target, func(out *http.Request) {
-			out.URL.Path, out.URL.RawPath = "/_platform", ""
-		})
-	}
-
 	r := chi.NewRouter()
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 	r.Get("/readyz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
-
-	r.Get("/_platform/{service}", func(w http.ResponseWriter, req *http.Request) {
-		name := chi.URLParam(req, "service")
-		proxy, ok := platformProxies[name]
-		if !ok {
-			httperr.WriteUnknownRoute(w)
-			return
-		}
-		withTimeout(proxy, timeout)(w, req)
-	})
 
 	// Longest-prefix first: chi matches a literal segment ahead of a wildcard,
 	// so identity's catch-all cannot swallow a path another service owns.
@@ -120,11 +96,11 @@ func New(logger *slog.Logger, upstreams map[string]string, timeout time.Duration
 		if !ok {
 			continue
 		}
-		r.Handle(prefix, withTimeout(newProxy(logger, name, target, nil), timeout))
+		r.Handle(prefix, withTimeout(newProxy(logger, name, target), timeout))
 	}
 
 	if identityTarget, ok := targets["identity"]; ok {
-		identityAPI := newProxy(logger, "identity", identityTarget, nil)
+		identityAPI := newProxy(logger, "identity", identityTarget)
 		r.Handle("/api/v1/*", withTimeout(identityAPI, timeout))
 	}
 

@@ -18,7 +18,7 @@ export OWNER_EMAIL       ?= owner@example.com
 export OWNER_PASSWORD    ?= dev_only_owner_password
 export SESSION_CACHE_TTL ?= 10s
 
-.PHONY: help hooks generate up down dev logs seed test test-unit test-integration fmt lint tidy
+.PHONY: help hooks generate up down down-v dev logs ps psql seed test test-unit test-integration fmt lint tidy
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -26,14 +26,24 @@ help:
 up: ## Boot the stack and wait for containers to report ready
 	$(COMPOSE) up -d --build --wait
 
+down-v: ## Stop the stack and delete its volumes
+	$(COMPOSE) down -v --remove-orphans
+
 down: ## Stop the stack (volumes preserved)
 	$(COMPOSE) down
 
 generate: ## Regenerate code from published contracts
 	go run ./tools/permgen
+	go run ./tools/permgen -out services/orders/internal/permission/permission_gen.go -package permission
 
 seed: up ## Create the first owner account (idempotent)
 	$(COMPOSE) --profile seed run --rm identity-seed
+
+ps: ## Show this checkout's containers
+	$(COMPOSE) ps
+
+psql: ## Open psql against a service's database, e.g. make psql DB=catalog
+	$(COMPOSE) exec postgres psql "postgres://$(DB)_user:dev_only_$(DB)@127.0.0.1/$(DB)_db"
 
 dev: up ## Boot the stack and show gateway logs
 	$(COMPOSE) logs -f gateway

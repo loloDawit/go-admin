@@ -3,6 +3,7 @@
 package integration_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -18,77 +19,19 @@ func gatewayURL() string {
 	return "http://localhost:8080"
 }
 
-type platformResponse struct {
-	Service       string `json:"service"`
-	SchemaVersion int    `json:"schemaVersion"`
-	RequestID     string `json:"requestId"`
+// customerResponse mirrors customer/dto.go's CustomerResponse.
+type customerResponse struct {
+	ID    string `json:"id"`
+	Email string `json:"email"`
+	Name  string `json:"name"`
 }
 
-func TestWalkingSkeletonThroughTheGateway(t *testing.T) {
-	client := &http.Client{Timeout: 10 * time.Second}
-
-	for _, service := range []string{"orders"} {
-		t.Run(service, func(t *testing.T) {
-			req, err := http.NewRequest(http.MethodGet, gatewayURL()+"/_platform/"+service, nil)
-			if err != nil {
-				t.Fatalf("build request: %v", err)
-			}
-			req.Header.Set("X-Request-Id", "smoke-"+service)
-
-			resp, err := client.Do(req)
-			if err != nil {
-				t.Fatalf("request: %v", err)
-			}
-			defer resp.Body.Close()
-
-			if resp.StatusCode != http.StatusOK {
-				t.Fatalf("status: want 200, got %d", resp.StatusCode)
-			}
-
-			var body platformResponse
-			if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-				t.Fatalf("decode: %v", err)
-			}
-
-			if body.Service != service {
-				t.Errorf("service: want %q, got %q — the gateway routed to the wrong upstream", service, body.Service)
-			}
-			if body.SchemaVersion == 0 {
-				t.Error("schemaVersion is 0 — migrations did not run against this service's database")
-			}
-			if body.RequestID != "smoke-"+service {
-				t.Errorf("requestId: want %q, got %q — the ID did not survive the hop", "smoke-"+service, body.RequestID)
-			}
-			if echoed := resp.Header.Get("X-Request-Id"); echoed != "smoke-"+service {
-				t.Errorf("response header: want %q, got %q", "smoke-"+service, echoed)
-			}
-		})
-	}
-}
-
-func TestUnknownServiceReturnsTheStandardEnvelope(t *testing.T) {
-	client := &http.Client{Timeout: 10 * time.Second}
-
-	resp, err := client.Get(gatewayURL() + "/_platform/nosuchservice")
-	if err != nil {
-		t.Fatalf("request: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusNotFound {
-		t.Fatalf("status: want 404, got %d", resp.StatusCode)
-	}
-
-	var body struct {
-		Code    string `json:"code"`
-		Message string `json:"message"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if body.Code == "" || body.Message == "" {
-		t.Errorf("want the standard envelope, got %+v", body)
-	}
+// customerPage mirrors customer/dto.go's PageResponse.
+type customerPage struct {
+	Items    []customerResponse `json:"items"`
+	Page     int                `json:"page"`
+	PageSize int                `json:"pageSize"`
+	Total    int                `json:"total"`
 }
 
 // A freshly created product reaching the list proves the path: through the
@@ -111,6 +54,41 @@ func TestCatalogAnswersThroughTheGatewayFromItsOwnDatabase(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("product created through the gateway is absent from catalog's own list: %+v", page.Items)
+	}
+}
+
+// A freshly created customer reaching the list proves the path: through the
+// gateway, into orders, to its own database and back.
+func TestOrdersAnswersThroughTheGatewayFromItsOwnDatabase(t *testing.T) {
+	c := loggedInClient(t)
+	email := uniqueSKU(t, "smoke") + "@example.com"
+
+	var created customerResponse
+	status, env := apiCall(t, c, http.MethodPost, "/api/v1/customers", map[string]any{
+		"email": email, "name": "Smoke Test Customer",
+	}, &created)
+	if status != http.StatusCreated {
+		t.Fatalf("create customer: want 201, got %d (%s)", status, env.Code)
+	}
+	t.Cleanup(func() {
+		conn := ordersConn(t)
+		_, _ = conn.Exec(context.Background(), `DELETE FROM customers WHERE email = $1`, email)
+	})
+
+	var page customerPage
+	status, env = apiCall(t, c, http.MethodGet, "/api/v1/customers", nil, &page)
+	if status != http.StatusOK {
+		t.Fatalf("list: want 200, got %d (%s)", status, env.Code)
+	}
+
+	var found bool
+	for _, cust := range page.Items {
+		if cust.ID == created.ID {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("customer created through the gateway is absent from orders' own list: %+v", page.Items)
 	}
 }
 

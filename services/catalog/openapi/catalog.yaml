@@ -120,6 +120,24 @@ paths:
         "404": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
         "422": { $ref: "#/components/responses/Error" }
+  /api/v1/products/{id}/activate:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    post:
+      summary: Make a product sellable. Requires edit_products.
+      description: >
+        A product is created draft, and Orders refuses anything that is not
+        active. Activating one that already is returns it unchanged.
+      responses:
+        "200":
+          description: Active
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Product" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
   /api/v1/products/{id}/archive:
     parameters:
       - { name: id, in: path, required: true, schema: { type: string } }

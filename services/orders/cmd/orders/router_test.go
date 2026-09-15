@@ -10,28 +10,52 @@ import (
 
 	"github.com/loloDawit/go-admin/platform/observability"
 	"github.com/loloDawit/go-admin/platform/readiness"
+	"github.com/loloDawit/go-admin/services/orders/internal/customer"
 	"github.com/loloDawit/go-admin/services/orders/internal/httperr"
-	"github.com/loloDawit/go-admin/services/orders/internal/platformcheck"
+	"github.com/loloDawit/go-admin/services/orders/internal/order"
+	"github.com/loloDawit/go-admin/services/orders/internal/schemacheck"
 )
+
+// testPrincipalKey is the HMAC key newRouter's principal.Middleware group verifies against.
+var testPrincipalKey = []byte("0123456789012345678901234567890123456789")
 
 // alwaysFailRepo counts calls so a test can assert a route never touched it.
 type alwaysFailRepo struct {
 	calls int
 }
 
-func (r *alwaysFailRepo) SchemaState(context.Context) (platformcheck.SchemaState, error) {
+func (r *alwaysFailRepo) SchemaState(context.Context) (schemacheck.SchemaState, error) {
 	r.calls++
-	return platformcheck.SchemaState{}, errors.New("dial tcp 10.0.0.5:5432: connect: connection refused")
+	return schemacheck.SchemaState{}, errors.New("dial tcp 10.0.0.5:5432: connect: connection refused")
+}
+
+// nilCustomerRepository lets tests build a real *customer.Handler without a
+// database; no route these tests exercise calls it.
+type nilCustomerRepository struct{ customer.Repository }
+
+func newTestCustomerHandler() *customer.Handler {
+	svc := customer.NewService(nilCustomerRepository{}, 100)
+	return customer.NewHandler(svc, 1<<20, func(context.Context, http.ResponseWriter, error) {})
+}
+
+// nilOrderRepository and nilProductResolver let tests build a real
+// *order.Handler without a database or Catalog; no route these tests
+// exercise calls either.
+type nilOrderRepository struct{ order.Repository }
+type nilProductResolver struct{ order.ProductResolver }
+
+func newTestOrderHandler() *order.Handler {
+	svc := order.NewService(nilOrderRepository{}, nilProductResolver{}, 100)
+	return order.NewHandler(svc, 1<<20, func(context.Context, http.ResponseWriter, error) {})
 }
 
 func TestPanickingHandlerStillProducesALogLineWithStatus500(t *testing.T) {
 	logger, captured := observability.NewCaptured()
 	errWriter := httperr.New(logger)
-	svc := platformcheck.NewService(&alwaysFailRepo{})
-	handler := platformcheck.NewHandler(svc, "orders", errWriter.Write)
+	svc := schemacheck.NewService(&alwaysFailRepo{})
 	ready := readiness.NewHandler(svc.Probe, errWriter.Write)
 
-	r := newRouter(logger, handler, ready)
+	r := newRouter(logger, ready, newTestCustomerHandler(), newTestOrderHandler(), testPrincipalKey, errWriter.Write)
 	r.Get("/boom", func(http.ResponseWriter, *http.Request) {
 		panic("kaboom")
 	})
@@ -63,11 +87,10 @@ func TestStartupContractHealthzSkipsTheDatabaseAndReadyzReportsFailureSafely(t *
 	logger, _ := observability.NewCaptured()
 	errWriter := httperr.New(logger)
 	repo := &alwaysFailRepo{}
-	svc := platformcheck.NewService(repo)
-	handler := platformcheck.NewHandler(svc, "orders", errWriter.Write)
+	svc := schemacheck.NewService(repo)
 	ready := readiness.NewHandler(svc.Probe, errWriter.Write)
 
-	r := newRouter(logger, handler, ready)
+	r := newRouter(logger, ready, newTestCustomerHandler(), newTestOrderHandler(), testPrincipalKey, errWriter.Write)
 
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
@@ -78,7 +101,7 @@ func TestStartupContractHealthzSkipsTheDatabaseAndReadyzReportsFailureSafely(t *
 		t.Errorf("healthz touched the repository: called %d times", repo.calls)
 	}
 
-	for _, route := range []string{"/readyz", "/_platform"} {
+	for _, route := range []string{"/readyz"} {
 		rec := httptest.NewRecorder()
 		r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, route, nil))
 		if rec.Code != http.StatusServiceUnavailable {

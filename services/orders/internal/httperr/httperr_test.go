@@ -1,6 +1,7 @@
 package httperr_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -11,14 +12,227 @@ import (
 	"github.com/loloDawit/go-admin/platform/httpx"
 	"github.com/loloDawit/go-admin/platform/observability"
 	"github.com/loloDawit/go-admin/platform/requestid"
+	"github.com/loloDawit/go-admin/services/orders/internal/customer"
+	"github.com/loloDawit/go-admin/services/orders/internal/errs"
 	"github.com/loloDawit/go-admin/services/orders/internal/httperr"
-	"github.com/loloDawit/go-admin/services/orders/internal/platformcheck"
+	"github.com/loloDawit/go-admin/services/orders/internal/order"
+	"github.com/loloDawit/go-admin/services/orders/internal/schemacheck"
 )
+
+func TestWriteMapsMalformedBodyTo400(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, httpx.ErrMalformedBody)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status: want 400, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.Code != "malformed_body" {
+		t.Errorf("code: want malformed_body, got %q", body.Code)
+	}
+}
+
+func TestWriteMapsCustomerNotFoundTo404(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, customer.ErrCustomerNotFound)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status: want 404, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.Code != "not_found" {
+		t.Errorf("code: want not_found, got %q", body.Code)
+	}
+}
+
+func TestWriteMapsCustomerEmailTakenTo409(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, customer.ErrCustomerEmailTaken)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status: want 409, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.Code != "email_taken" {
+		t.Errorf("code: want email_taken, got %q", body.Code)
+	}
+}
+
+func TestWriteMapsMixedCurrencyHistoryTo422(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, customer.ErrMixedCurrencyHistory)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status: want 422, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.Code != "mixed_currency_history" {
+		t.Errorf("code: want mixed_currency_history, got %q", body.Code)
+	}
+}
+
+func TestWriteMapsInvalidCustomerEmailTo400(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, customer.ErrInvalidCustomerEmail)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status: want 400, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.Code != "validation_failed" {
+		t.Errorf("code: want validation_failed, got %q", body.Code)
+	}
+}
+
+func TestWriteMapsOrderNotFoundTo404(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, order.ErrOrderNotFound)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status: want 404, got %d", rec.Code)
+	}
+}
+
+func TestWriteMapsProductUnavailableTo422(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, order.ErrProductUnavailable)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status: want 422, got %d", rec.Code)
+	}
+}
+
+func TestWriteMapsCurrencyMismatchTo422(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, order.ErrCurrencyMismatch)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status: want 422, got %d", rec.Code)
+	}
+}
+
+// A wrapped Catalog failure must still map to 502, never fall through to the
+// unmapped 500 branch, and the response must never carry Catalog's host or
+// driver text. §16: Catalog unreachable, or answering with a 5xx, is 502
+// catalog_unavailable.
+func TestWriteMapsWrappedCatalogUnavailableTo502WithNoLeak(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	cause := errs.Wrap(errs.OpCreateOrder, errs.ErrCatalogUnavailable)
+
+	httperr.New(logger).Write(t.Context(), rec, cause)
+
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("status: want 502, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.Code != "catalog_unavailable" {
+		t.Errorf("code: want catalog_unavailable, got %q", body.Code)
+	}
+	raw := rec.Body.String()
+	if strings.Contains(raw, "http://") || strings.Contains(raw, "connection refused") {
+		t.Errorf("response leaked catalog transport detail: %q", raw)
+	}
+}
+
+// §16: a Catalog timeout is distinct from an unreachable Catalog — 504
+// catalog_timeout, not 502 — so a caller can tell "struggling" from "down".
+func TestWriteMapsCatalogTimeoutTo504(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	cause := errs.Wrap(errs.OpCreateOrder, errs.ErrCatalogTimeout)
+
+	httperr.New(logger).Write(t.Context(), rec, cause)
+
+	if rec.Code != http.StatusGatewayTimeout {
+		t.Fatalf("status: want 504, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.Code != "catalog_timeout" {
+		t.Errorf("code: want catalog_timeout, got %q", body.Code)
+	}
+}
+
+// A cancelled caller is not a failed dependency: it must not join the 5xx
+// error-rate metric a real Catalog outage would trip, and it must not be
+// logged as an error either.
+func TestWriteMapsACancelledContextToANonFiveXXWithNoErrorLog(t *testing.T) {
+	logger, captured := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	cause := errs.Wrap(errs.OpCreateOrder, context.Canceled)
+
+	httperr.New(logger).Write(t.Context(), rec, cause)
+
+	if rec.Code >= 500 {
+		t.Fatalf("status: want a non-5xx, got %d", rec.Code)
+	}
+	for _, rec := range captured.Records() {
+		if rec.Level.String() == "ERROR" {
+			t.Errorf("a cancelled request must not be logged as an error: %v", rec.Message)
+		}
+	}
+}
+
+func TestWriteMapsInvalidTransitionTo409(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, order.ErrInvalidTransition)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status: want 409, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.Code != "invalid_transition" {
+		t.Errorf("code: want invalid_transition, got %q", body.Code)
+	}
+}
+
+func TestWriteMapsInvalidSortTo422(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, order.ErrInvalidSort)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status: want 422, got %d", rec.Code)
+	}
+}
 
 func TestWriteMapsDirtySchemaTo503(t *testing.T) {
 	logger, _ := observability.NewCaptured()
 	rec := httptest.NewRecorder()
-	httperr.New(logger).Write(t.Context(), rec, platformcheck.ErrDirtySchema)
+	httperr.New(logger).Write(t.Context(), rec, schemacheck.ErrDirtySchema)
 
 	if rec.Code != 503 {
 		t.Fatalf("status: want 503, got %d", rec.Code)
@@ -35,7 +249,7 @@ func TestWriteMapsDirtySchemaTo503(t *testing.T) {
 func TestWriteMapsNoMigrationsTo503(t *testing.T) {
 	logger, _ := observability.NewCaptured()
 	rec := httptest.NewRecorder()
-	httperr.New(logger).Write(t.Context(), rec, platformcheck.ErrNoMigrations)
+	httperr.New(logger).Write(t.Context(), rec, schemacheck.ErrNoMigrations)
 
 	if rec.Code != 503 {
 		t.Fatalf("status: want 503, got %d", rec.Code)
@@ -119,5 +333,32 @@ func TestWriteLogsTheCauseCorrelatedByRequestID(t *testing.T) {
 	v, ok := captured.Attr(0, "request_id")
 	if !ok || v.String() != "known-id" {
 		t.Errorf("request_id: want %q, got %v (ok=%v)", "known-id", v, ok)
+	}
+}
+
+// A dependency failure must not read as this service being down: an operator
+// told "the service is not ready" looks at Orders, which is fine.
+func TestCatalogFailuresNameTheDependencyNotThisService(t *testing.T) {
+	for _, tc := range []struct {
+		err  error
+		code string
+	}{
+		{errs.ErrCatalogUnavailable, "catalog_unavailable"},
+		{errs.ErrCatalogTimeout, "catalog_timeout"},
+	} {
+		rec := httptest.NewRecorder()
+		logger, _ := observability.NewCaptured()
+		httperr.New(logger).Write(context.Background(), rec, tc.err)
+
+		var body httpx.ErrorBody
+		if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if body.Code != tc.code {
+			t.Errorf("code: want %s, got %s", tc.code, body.Code)
+		}
+		if !strings.Contains(body.Message, "catalogue") {
+			t.Errorf("%s message must name the dependency, got %q", tc.code, body.Message)
+		}
 	}
 }
