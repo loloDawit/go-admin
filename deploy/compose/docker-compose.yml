@@ -152,9 +152,15 @@ services:
       dockerfile: services/orders/Dockerfile
     depends_on:
       orders-migrate: { condition: service_completed_successfully }
+      catalog: { condition: service_healthy }
     environment:
       PORT: "8083"
       DATABASE_URL: "postgres://orders_user:dev_only_orders@postgres:5432/orders_db?sslmode=disable"
+      CATALOG_URL: "http://catalog:8082"
+      CATALOG_TIMEOUT: "2s"
+      CATALOG_MAX_IDLE_CONNS: "20"
+      ORDER_PAGE_SIZE_MAX: "100"
+      PRINCIPAL_SIGNING_KEY: "dev_only_principal_key_at_least_32_bytes"
     ports:
       - "8083:8083"
 
