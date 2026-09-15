@@ -36,6 +36,39 @@ type LifetimeValueResponse struct {
 	Currency           string `json:"currency"`
 }
 
+// OrderSummaryResponse is one row of a customer's order history.
+type OrderSummaryResponse struct {
+	ID         string    `json:"id"`
+	Number     string    `json:"number"`
+	Status     string    `json:"status"`
+	TotalMinor int64     `json:"totalMinor"`
+	Currency   string    `json:"currency"`
+	PlacedAt   time.Time `json:"placedAt"`
+}
+
+// OrderHistoryPageResponse's pageSize is the effective size after clamping.
+type OrderHistoryPageResponse struct {
+	Items    []OrderSummaryResponse `json:"items"`
+	Page     int                    `json:"page"`
+	PageSize int                    `json:"pageSize"`
+	Total    int                    `json:"total"`
+}
+
+func newOrderHistoryPageResponse(p OrderHistoryPage) OrderHistoryPageResponse {
+	items := make([]OrderSummaryResponse, len(p.Items))
+	for i, o := range p.Items {
+		items[i] = OrderSummaryResponse{
+			ID:         strconv.FormatInt(o.ID, 10),
+			Number:     o.Number,
+			Status:     o.Status,
+			TotalMinor: o.TotalMinor,
+			Currency:   o.Currency,
+			PlacedAt:   o.PlacedAt,
+		}
+	}
+	return OrderHistoryPageResponse{Items: items, Page: p.Page, PageSize: p.PageSize, Total: p.Total}
+}
+
 func newCustomerResponse(c Customer) CustomerResponse {
 	return CustomerResponse{
 		ID:        strconv.FormatInt(c.ID, 10),

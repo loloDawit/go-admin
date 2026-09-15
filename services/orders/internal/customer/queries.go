@@ -27,3 +27,15 @@ const countCustomersQuery = `SELECT COUNT(*) FROM customers`
 const customerLifetimeValueQuery = `SELECT currency, COALESCE(SUM(total_minor), 0) FROM orders
 WHERE customer_id = $1 AND status IN ('paid', 'packed', 'shipped', 'delivered')
 GROUP BY currency`
+
+const orderSummaryColumns = `id, number, status, total_minor, currency, placed_at`
+
+// customerOrdersQuery is scoped by customer_id = $1: every row of every
+// status this customer has ever placed, not just the revenue-counted ones
+// lifetime value uses.
+const customerOrdersQuery = `SELECT ` + orderSummaryColumns + ` FROM orders
+WHERE customer_id = $1
+ORDER BY placed_at DESC
+LIMIT $2 OFFSET $3`
+
+const customerOrdersCountQuery = `SELECT COUNT(*) FROM orders WHERE customer_id = $1`

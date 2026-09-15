@@ -94,6 +94,26 @@ func (h *Handler) LifetimeValue(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, LifetimeValueResponse{LifetimeValueMinor: total, Currency: currency})
 }
 
+func (h *Handler) OrderHistory(w http.ResponseWriter, r *http.Request) {
+	id, err := customerIDParam(r)
+	if err != nil {
+		h.writeErr(r.Context(), w, err)
+		return
+	}
+	page, pageSize, err := pagingQueryParams(r)
+	if err != nil {
+		h.writeErr(r.Context(), w, err)
+		return
+	}
+
+	result, err := h.svc.OrderHistory(r.Context(), id, OrderHistoryQuery{Page: page, PageSize: pageSize})
+	if err != nil {
+		h.writeErr(r.Context(), w, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, newOrderHistoryPageResponse(result))
+}
+
 func customerIDParam(r *http.Request) (int64, error) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {

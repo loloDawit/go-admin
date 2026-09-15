@@ -42,3 +42,31 @@ type Page struct {
 	PageSize int
 	Total    int
 }
+
+// OrderSummary is one row of a customer's order history: header fields only,
+// queried directly against the orders table the same way LifetimeValueMinor
+// already does, rather than importing the order package's full model.
+type OrderSummary struct {
+	ID         int64
+	Number     string
+	Status     string
+	TotalMinor int64
+	Currency   string
+	PlacedAt   time.Time
+}
+
+// OrderHistoryQuery carries paging for OrderHistory; a zero PageSize means
+// the service's default.
+type OrderHistoryQuery struct {
+	Page     int
+	PageSize int
+}
+
+// OrderHistoryPage is OrderHistory's response shape; Total comes from a
+// separate count query.
+type OrderHistoryPage struct {
+	Items    []OrderSummary
+	Page     int
+	PageSize int
+	Total    int
+}

@@ -17,4 +17,9 @@ type Repository interface {
 
 	// LifetimeValueMinor is money actually taken, with the currency it was taken in.
 	LifetimeValueMinor(ctx context.Context, id int64) (int64, string, error)
+
+	// OrderHistory is scoped to customerID by its WHERE clause; a query
+	// missing it would still pass with a single customer in the database,
+	// which is why it is tested with two.
+	OrderHistory(ctx context.Context, customerID int64, q OrderHistoryQuery) ([]OrderSummary, int, error)
 }

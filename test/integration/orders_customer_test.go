@@ -33,6 +33,29 @@ func customerByEmail(t *testing.T, conn *pgx.Conn, email string) (int64, bool) {
 	return id, true
 }
 
+// customerOrderNumbers mirrors customer/queries.go's customerOrdersQuery: the
+// WHERE customer_id = $1 clause is the part under test, so the query is
+// retyped here rather than reduced to something that could pass without it.
+func customerOrderNumbers(t *testing.T, conn *pgx.Conn, customerID int64) []string {
+	t.Helper()
+	rows, err := conn.Query(context.Background(), `
+		SELECT number FROM orders WHERE customer_id = $1 ORDER BY placed_at DESC`, customerID)
+	if err != nil {
+		t.Fatalf("order history: %v", err)
+	}
+	defer rows.Close()
+
+	var numbers []string
+	for rows.Next() {
+		var n string
+		if err := rows.Scan(&n); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		numbers = append(numbers, n)
+	}
+	return numbers
+}
+
 // customerLifetimeValueMinor mirrors customer/queries.go's customerLifetimeValueQuery.
 func customerLifetimeValueMinor(t *testing.T, conn *pgx.Conn, customerID int64) int64 {
 	t.Helper()
@@ -80,5 +103,26 @@ func TestLifetimeValueSumsOnlyThatCustomersRevenueOrders(t *testing.T) {
 	got := customerLifetimeValueMinor(t, conn, customerA)
 	if got != 1000 {
 		t.Fatalf("want 1000 (the one paid order, refund and other customer excluded), got %d", got)
+	}
+}
+
+// Asserted with two customers, not one: a query missing its WHERE clause
+// would still pass this test with only customer A's orders in the database.
+func TestCustomerOrderHistoryIsScopedToThatCustomer(t *testing.T) {
+	conn := ordersConn(t)
+	customerA := insertCustomer(t, conn, "history-a@example.com", "History A")
+	customerB := insertCustomer(t, conn, "history-b@example.com", "History B")
+
+	insertOrder(t, conn, customerA, "ORD-HISTORY-A")
+	insertOrder(t, conn, customerB, "ORD-HISTORY-B")
+
+	got := customerOrderNumbers(t, conn, customerA)
+	if len(got) != 1 || got[0] != "ORD-HISTORY-A" {
+		t.Fatalf("want only customer A's order, got %v", got)
+	}
+	for _, n := range got {
+		if n == "ORD-HISTORY-B" {
+			t.Fatalf("customer B's order leaked into customer A's history: %v", got)
+		}
 	}
 }

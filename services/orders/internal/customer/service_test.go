@@ -20,6 +20,7 @@ type fakeRepository struct {
 	lifetimeErr      error
 	nextID           int64
 	byID             map[int64]customer.Customer
+	ordersByCustomer map[int64][]customer.OrderSummary
 }
 
 func newFakeRepository() *fakeRepository {
@@ -64,6 +65,14 @@ func (f *fakeRepository) List(_ context.Context, q customer.ListQuery) ([]custom
 
 func (f *fakeRepository) LifetimeValueMinor(_ context.Context, id int64) (int64, string, error) {
 	return f.lifetimeValue, f.lifetimeCurrency, f.lifetimeErr
+}
+
+// OrderHistory filters ordersByCustomer by the customerID argument: a fake
+// that ignored it would let TestCustomerOrderHistoryIsScopedToThatCustomer
+// pass wrongly, the same failure mode a WHERE-less real query would have.
+func (f *fakeRepository) OrderHistory(_ context.Context, customerID int64, q customer.OrderHistoryQuery) ([]customer.OrderSummary, int, error) {
+	items := f.ordersByCustomer[customerID]
+	return items, len(items), nil
 }
 
 func newTestService() (*customer.Service, *fakeRepository) {
@@ -164,5 +173,41 @@ func TestLifetimeValueCarriesTheCurrencyItWasTakenIn(t *testing.T) {
 	}
 	if total != 14999 || currency != "USD" {
 		t.Fatalf("want 14999 USD, got %d %q", total, currency)
+	}
+}
+
+// Asserted with two customers, not one: a query missing its WHERE would
+// still pass this test with only customer A in the fixture.
+func TestCustomerOrderHistoryIsScopedToThatCustomer(t *testing.T) {
+	svc, repo := newTestService()
+	repo.ordersByCustomer = map[int64][]customer.OrderSummary{
+		1: {{ID: 100, Number: "ORD-A", Status: "paid", TotalMinor: 500, Currency: "GBP"}},
+		2: {{ID: 200, Number: "ORD-B", Status: "paid", TotalMinor: 700, Currency: "GBP"}},
+	}
+
+	page, err := svc.OrderHistory(context.Background(), 1, customer.OrderHistoryQuery{})
+	if err != nil {
+		t.Fatalf("order history: %v", err)
+	}
+	if len(page.Items) != 1 || page.Items[0].Number != "ORD-A" {
+		t.Fatalf("want only customer 1's order, got %+v", page.Items)
+	}
+	for _, o := range page.Items {
+		if o.Number == "ORD-B" {
+			t.Fatalf("customer 2's order leaked into customer 1's history: %+v", page.Items)
+		}
+	}
+}
+
+func TestOrderHistoryPageSizeIsClampedNotRefused(t *testing.T) {
+	svc, repo := newTestService()
+	repo.ordersByCustomer = map[int64][]customer.OrderSummary{1: {}}
+
+	page, err := svc.OrderHistory(context.Background(), 1, customer.OrderHistoryQuery{PageSize: testPageSizeMax + 100})
+	if err != nil {
+		t.Fatalf("order history: %v", err)
+	}
+	if page.PageSize != testPageSizeMax {
+		t.Fatalf("PageSize: want clamped to %d, got %d", testPageSizeMax, page.PageSize)
 	}
 }

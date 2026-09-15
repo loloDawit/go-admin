@@ -108,6 +108,37 @@ func (r *PostgresRepository) LifetimeValueMinor(ctx context.Context, id int64) (
 	return total, currency, nil
 }
 
+func (r *PostgresRepository) OrderHistory(ctx context.Context, customerID int64, q OrderHistoryQuery) ([]OrderSummary, int, error) {
+	rows, err := r.q.Query(ctx, customerOrdersQuery, customerID, q.PageSize, offset(q.Page, q.PageSize))
+	if err != nil {
+		return nil, 0, err
+	}
+	items, err := scanOrderSummaries(rows)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var total int
+	if err := r.q.QueryRow(ctx, customerOrdersCountQuery, customerID).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	return items, total, nil
+}
+
+func scanOrderSummaries(rows pgx.Rows) ([]OrderSummary, error) {
+	defer rows.Close()
+
+	items := []OrderSummary{}
+	for rows.Next() {
+		var o OrderSummary
+		if err := rows.Scan(&o.ID, &o.Number, &o.Status, &o.TotalMinor, &o.Currency, &o.PlacedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, o)
+	}
+	return items, rows.Err()
+}
+
 func offset(page, pageSize int) int {
 	return (page - 1) * pageSize
 }

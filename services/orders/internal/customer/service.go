@@ -77,6 +77,16 @@ func (s *Service) LifetimeValue(ctx context.Context, id int64) (int64, string, e
 	return total, currency, nil
 }
 
+func (s *Service) OrderHistory(ctx context.Context, customerID int64, q OrderHistoryQuery) (OrderHistoryPage, error) {
+	q.Page, q.PageSize = normalizePage(q.Page, q.PageSize, s.pageSizeMax)
+
+	items, total, err := s.repo.OrderHistory(ctx, customerID, q)
+	if err != nil {
+		return OrderHistoryPage{}, errs.Wrap(errs.OpCustomerOrderHistory, err)
+	}
+	return OrderHistoryPage{Items: items, Page: q.Page, PageSize: q.PageSize, Total: total}, nil
+}
+
 func normalizePage(page, pageSize, max int) (int, int) {
 	if page < 1 {
 		page = 1
