@@ -19,6 +19,7 @@ type Config struct {
 	Port                string
 	DatabaseURL         string
 	S3Endpoint          string
+	S3PublicEndpoint    string
 	S3Bucket            string
 	S3AccessKey         string
 	S3SecretKey         string
@@ -51,6 +52,12 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	cfg.S3Endpoint = s3Endpoint
+
+	s3PublicEndpoint, err := requireEnv("S3_PUBLIC_ENDPOINT")
+	if err != nil {
+		return nil, err
+	}
+	cfg.S3PublicEndpoint = s3PublicEndpoint
 
 	s3Bucket, err := requireEnv("S3_BUCKET")
 	if err != nil {

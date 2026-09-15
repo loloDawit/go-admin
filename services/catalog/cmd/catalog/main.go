@@ -59,12 +59,13 @@ func main() {
 	productHandler := product.NewHandler(productSvc, cfg.MaxRequestBodyBytes, errWriter.Write)
 
 	store, err := image.New(image.Config{
-		Endpoint:  cfg.S3Endpoint,
-		Bucket:    cfg.S3Bucket,
-		AccessKey: cfg.S3AccessKey,
-		SecretKey: cfg.S3SecretKey,
-		UseSSL:    cfg.S3UseSSL,
-		URLTTL:    cfg.ImageURLTTL,
+		Endpoint:       cfg.S3Endpoint,
+		PublicEndpoint: cfg.S3PublicEndpoint,
+		Bucket:         cfg.S3Bucket,
+		AccessKey:      cfg.S3AccessKey,
+		SecretKey:      cfg.S3SecretKey,
+		UseSSL:         cfg.S3UseSSL,
+		URLTTL:         cfg.ImageURLTTL,
 	})
 	if err != nil {
 		logger.Error("image store", slog.String("error", err.Error()))

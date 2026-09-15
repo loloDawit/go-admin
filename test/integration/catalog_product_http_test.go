@@ -88,7 +88,7 @@ func TestProductSearchThroughTheGatewayRanksTitleFirst(t *testing.T) {
 	createProduct(t, c, fmt.Sprintf("title-%d", stamp), fmt.Sprintf("Zqxoak%d stool", stamp), "walnut legs", 1000)
 
 	var page productPage
-	status, env := apiCall(t, c, http.MethodGet, fmt.Sprintf("/api/v1/products?q=zqxoak%d", stamp), nil, &page)
+	status, env := apiCall(t, c, http.MethodGet, fmt.Sprintf("/api/v1/products/search?q=zqxoak%d", stamp), nil, &page)
 	if status != http.StatusOK {
 		t.Fatalf("search: want 200, got %d (%s)", status, env.Code)
 	}
