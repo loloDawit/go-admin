@@ -34,6 +34,7 @@ down: ## Stop the stack (volumes preserved)
 
 generate: ## Regenerate code from published contracts
 	go run ./tools/permgen
+	go run ./tools/permgen -out services/orders/internal/permission/permission_gen.go -package permission
 
 seed: up ## Create the first owner account (idempotent)
 	$(COMPOSE) --profile seed run --rm identity-seed
