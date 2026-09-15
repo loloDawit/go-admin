@@ -335,3 +335,30 @@ func TestWriteLogsTheCauseCorrelatedByRequestID(t *testing.T) {
 		t.Errorf("request_id: want %q, got %v (ok=%v)", "known-id", v, ok)
 	}
 }
+
+// A dependency failure must not read as this service being down: an operator
+// told "the service is not ready" looks at Orders, which is fine.
+func TestCatalogFailuresNameTheDependencyNotThisService(t *testing.T) {
+	for _, tc := range []struct {
+		err  error
+		code string
+	}{
+		{errs.ErrCatalogUnavailable, "catalog_unavailable"},
+		{errs.ErrCatalogTimeout, "catalog_timeout"},
+	} {
+		rec := httptest.NewRecorder()
+		logger, _ := observability.NewCaptured()
+		httperr.New(logger).Write(context.Background(), rec, tc.err)
+
+		var body httpx.ErrorBody
+		if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if body.Code != tc.code {
+			t.Errorf("code: want %s, got %s", tc.code, body.Code)
+		}
+		if !strings.Contains(body.Message, "catalogue") {
+			t.Errorf("%s message must name the dependency, got %q", tc.code, body.Message)
+		}
+	}
+}

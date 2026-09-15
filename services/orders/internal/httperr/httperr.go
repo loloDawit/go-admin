@@ -83,9 +83,9 @@ func (h *Writer) Write(ctx context.Context, w http.ResponseWriter, err error) {
 		// the way a real Catalog outage would, and it is not logged as one.
 		httpx.WriteError(w, statusClientClosedRequest, "request_cancelled", "the request was cancelled")
 	case errors.Is(err, errs.ErrCatalogTimeout):
-		httpx.WriteError(w, http.StatusGatewayTimeout, "catalog_timeout", "the service is not ready")
+		httpx.WriteError(w, http.StatusGatewayTimeout, "catalog_timeout", "the product catalogue did not respond in time")
 	case errors.Is(err, errs.ErrCatalogUnavailable):
-		httpx.WriteError(w, http.StatusBadGateway, "catalog_unavailable", "the service is not ready")
+		httpx.WriteError(w, http.StatusBadGateway, "catalog_unavailable", "the product catalogue is unavailable")
 	case errors.Is(err, errs.ErrCatalogRejected):
 		// Catalog rejected our own request: a bug on this side, not a client fault, hence 502 not 4xx.
 		httpx.WriteError(w, http.StatusBadGateway, "catalog_rejected", "something went wrong")
