@@ -1,3 +1,12 @@
+# Each checkout gets its own compose project. Without this, a git worktree
+# running the stack drives the SAME containers and volume as the main checkout:
+# a worktree on an older branch once ran its migrate job against a database the
+# main checkout had already migrated forward, and both sessions lost containers
+# under each other. Host ports still collide, so a second stack now fails loudly
+# on the port bind rather than silently adopting the first one's containers.
+COMPOSE_PROJECT_NAME := $(notdir $(CURDIR))-$(shell printf '%s' "$(CURDIR)" | shasum | cut -c1-6)
+export COMPOSE_PROJECT_NAME
+
 COMPOSE := docker compose -f deploy/compose/docker-compose.yml
 GO_PKGS := ./...
 

@@ -1,3 +1,5 @@
+# The Makefile overrides this per checkout via COMPOSE_PROJECT_NAME, which takes
+# precedence. This name is what a bare `docker compose` command lands on.
 name: go-admin-platform
 
 services:
