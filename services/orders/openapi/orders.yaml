@@ -33,10 +33,9 @@ paths:
       summary: List customers, or look one up by email. Requires view_orders.
       description: >
         With no email, a page of customers. With email, the single matching
-        customer; a missing param combined with no match is 404, an absent
-        email param on an otherwise valid request is a malformed request.
+        customer, or 404. An unparseable page or pageSize is 400.
       parameters:
-        - { name: email, in: query, schema: { type: string }, description: When present, ByEmail runs instead of List. }
+        - { name: email, in: query, schema: { type: string } }
         - { name: page, in: query, schema: { type: integer, minimum: 1 } }
         - { name: pageSize, in: query, schema: { type: integer, minimum: 1 }, description: Clamped to the service's configured maximum; the response states the effective size. }
       responses:
@@ -207,7 +206,7 @@ paths:
       - { name: id, in: path, required: true, schema: { type: string } }
     post:
       summary: Cancel an order. Requires edit_orders.
-      description: Reachable from pending or paid only; refused once the order has shipped.
+      description: Reachable from pending, paid, or packed; refused once the order has shipped.
       requestBody:
         required: true
         content:
@@ -351,8 +350,8 @@ components:
       type: string
       description: >
         pending -> paid -> packed -> shipped -> delivered is the forward
-        path. cancelled is reachable from pending or paid; refunded from
-        paid, packed, shipped or delivered. Neither moves again once reached.
+        path. cancelled is reachable from pending, paid, or packed; refunded
+        from paid, packed, shipped or delivered. Neither moves again once reached.
       enum: [pending, paid, packed, shipped, delivered, cancelled, refunded]
     OrderItem:
       type: object
