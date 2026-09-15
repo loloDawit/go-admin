@@ -73,6 +73,16 @@ func (f *fakeRepository) Update(_ context.Context, id int64, in product.UpdatePr
 	return p, nil
 }
 
+func (f *fakeRepository) Activate(_ context.Context, id int64) (product.Product, error) {
+	p, ok := f.byID[id]
+	if !ok {
+		return product.Product{}, product.ErrProductNotFound
+	}
+	p.Status = product.StatusActive
+	f.byID[id] = p
+	return p, nil
+}
+
 func (f *fakeRepository) Archive(_ context.Context, id int64) (product.Product, error) {
 	p, ok := f.byID[id]
 	if !ok {
@@ -303,5 +313,36 @@ func TestResolveWithNoIDsReturnsAnEmptyResultWithoutError(t *testing.T) {
 	}
 	if len(items) != 0 {
 		t.Fatalf("want an empty result, got %+v", items)
+	}
+}
+
+// A product is created draft and Orders refuses anything that is not active, so
+// without activation nothing created through the API can ever be sold.
+func TestActivateMakesADraftProductSellable(t *testing.T) {
+	svc, repo := newTestService()
+	created, err := svc.Create(context.Background(), product.CreateProduct{
+		SKU: "activate-1", Title: "Activatable", PriceMinor: 1000, Currency: "USD",
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if created.Status != product.StatusDraft {
+		t.Fatalf("a new product must start draft, got %s", created.Status)
+	}
+
+	activated, err := svc.Activate(context.Background(), created.ID)
+	if err != nil {
+		t.Fatalf("activate: %v", err)
+	}
+	if activated.Status != product.StatusActive {
+		t.Fatalf("status: want active, got %s", activated.Status)
+	}
+	_ = repo
+}
+
+func TestActivateAnUnknownProductIsNotFound(t *testing.T) {
+	svc, _ := newTestService()
+	if _, err := svc.Activate(context.Background(), 999999); !errors.Is(err, product.ErrProductNotFound) {
+		t.Fatalf("want ErrProductNotFound, got %v", err)
 	}
 }

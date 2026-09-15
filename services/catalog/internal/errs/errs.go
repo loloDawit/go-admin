@@ -56,6 +56,7 @@ const (
 
 	OpCreateProduct   = "create product"
 	OpUpdateProduct   = "update product"
+	OpActivateProduct = "activate the product"
 	OpArchiveProduct  = "archive product"
 	OpGetProduct      = "look up product by id"
 	OpListProducts    = "list products"

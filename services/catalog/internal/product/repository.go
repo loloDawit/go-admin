@@ -16,6 +16,7 @@ type Repository interface {
 
 	// Archive is a no-op turned error, not a silent success, against an
 	// already-archived product.
+	Activate(ctx context.Context, id int64) (Product, error)
 	Archive(ctx context.Context, id int64) (Product, error)
 
 	// List and Search both return the page's items and the total matching

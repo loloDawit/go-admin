@@ -21,6 +21,12 @@ const updateProductStmt = `UPDATE products SET
 WHERE id = $1 AND status <> 'archived'
 RETURNING ` + productColumns
 
+// A product is created draft and cannot be ordered until it is active, so
+// without this there is no route from creation to a sellable product.
+const activateProductStmt = `UPDATE products SET status = 'active', updated_at = now()
+WHERE id = $1 AND status <> 'active'
+RETURNING ` + productColumns
+
 const archiveProductStmt = `UPDATE products SET status = 'archived', updated_at = now()
 WHERE id = $1 AND status <> 'archived'
 RETURNING ` + productColumns

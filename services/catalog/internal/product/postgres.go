@@ -79,6 +79,21 @@ func (r *PostgresRepository) Update(ctx context.Context, id int64, in UpdateProd
 	return p, nil
 }
 
+func (r *PostgresRepository) Activate(ctx context.Context, id int64) (Product, error) {
+	var p Product
+	row := r.q.QueryRow(ctx, activateProductStmt, id)
+	err := scanProduct(row, &p)
+	if isNoRows(err) {
+		// Already active is not a failure: the caller asked for a state the
+		// product is already in, so return it rather than inventing an error.
+		return r.GetByID(ctx, id)
+	}
+	if err != nil {
+		return Product{}, err
+	}
+	return p, nil
+}
+
 func (r *PostgresRepository) Archive(ctx context.Context, id int64) (Product, error) {
 	var p Product
 	row := r.q.QueryRow(ctx, archiveProductStmt, id)

@@ -49,6 +49,7 @@ func newRouter(
 		r.With(authz.Require(permission.ViewProducts, writeErr)).Get("/api/v1/products/search", productHandler.Search)
 		r.With(authz.Require(permission.ViewProducts, writeErr)).Get("/api/v1/products/{id}", productHandler.Get)
 		r.With(authz.Require(permission.EditProducts, writeErr)).Patch("/api/v1/products/{id}", productHandler.Update)
+		r.With(authz.Require(permission.EditProducts, writeErr)).Post("/api/v1/products/{id}/activate", productHandler.Activate)
 		r.With(authz.Require(permission.EditProducts, writeErr)).Post("/api/v1/products/{id}/archive", productHandler.Archive)
 
 		r.With(authz.Require(permission.EditProducts, writeErr)).Post("/api/v1/products/{id}/images", imageHandler.Upload)

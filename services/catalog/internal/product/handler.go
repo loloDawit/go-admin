@@ -79,6 +79,20 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, newProductResponse(updated))
 }
 
+func (h *Handler) Activate(w http.ResponseWriter, r *http.Request) {
+	id, err := productIDParam(r)
+	if err != nil {
+		h.writeErr(r.Context(), w, err)
+		return
+	}
+	activated, err := h.svc.Activate(r.Context(), id)
+	if err != nil {
+		h.writeErr(r.Context(), w, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, newProductResponse(activated))
+}
+
 func (h *Handler) Archive(w http.ResponseWriter, r *http.Request) {
 	id, err := productIDParam(r)
 	if err != nil {
