@@ -157,6 +157,27 @@ paths:
   /api/v1/products/{id}/images:
     parameters:
       - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      summary: A product's images. Requires view_products.
+      description: >
+        Upload returns a presigned URL once; this is how a client sees the
+        images afterwards. Each URL is signed per request and expires, so fetch
+        them fresh rather than storing one.
+      responses:
+        "200":
+          description: The images, in position order
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [images]
+                properties:
+                  images:
+                    type: array
+                    items: { $ref: "#/components/schemas/Image" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
     post:
       summary: Upload a product image. Requires edit_products.
       description: >

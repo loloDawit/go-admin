@@ -15,3 +15,7 @@ type ImageResponse struct {
 func newImageResponse(img Image, url string) ImageResponse {
 	return ImageResponse{ID: strconv.FormatInt(img.ID, 10), URL: url, Alt: img.Alt, Position: img.Position}
 }
+
+type ListImagesResponse struct {
+	Images []ImageResponse `json:"images"`
+}

@@ -69,6 +69,23 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusCreated, newImageResponse(created, url))
 }
 
+// List is how a client sees a product's images at all: upload returns a
+// presigned URL once, and without this route it is unreachable afterwards.
+func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
+	productID, err := productIDParam(r)
+	if err != nil {
+		h.writeErr(r.Context(), w, err)
+		return
+	}
+
+	images, err := h.svc.URLsFor(r.Context(), productID)
+	if err != nil {
+		h.writeErr(r.Context(), w, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, ListImagesResponse{Images: images})
+}
+
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	productID, err := productIDParam(r)
 	if err != nil {

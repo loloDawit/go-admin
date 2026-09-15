@@ -379,7 +379,37 @@ export interface paths {
             };
             cookie?: never;
         };
-        get?: never;
+        /**
+         * A product's images. Requires view_products.
+         * @description Upload returns a presigned URL once; this is how a client sees the images afterwards. Each URL is signed per request and expires, so fetch them fresh rather than storing one.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The images, in position order */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            images: components["schemas"]["Image"][];
+                        };
+                    };
+                };
+                401: components["responses"]["Error"];
+                403: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+            };
+        };
         put?: never;
         /**
          * Upload a product image. Requires edit_products.
