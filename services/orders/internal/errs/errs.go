@@ -23,11 +23,32 @@ var (
 	ErrCatalogTimeout = errors.New("catalog request timed out")
 	// ErrCatalogRejected: Catalog answered with a 4xx, or a body this client could not parse.
 	ErrCatalogRejected = errors.New("catalog rejected the request")
+
+	ErrCustomerNotFound     = errors.New("customer not found")
+	ErrCustomerEmailTaken   = errors.New("email is already in use")
+	ErrInvalidCustomerEmail = errors.New("email must not be empty")
+
+	// ErrProductUnavailable: a line names a product Catalog did not return, or one that is not active.
+	ErrProductUnavailable = errors.New("product unavailable")
+	ErrOrderNotFound      = errors.New("order not found")
+	// ErrCurrencyMismatch: an order's lines quote more than one currency, so a single total cannot be trusted.
+	ErrCurrencyMismatch = errors.New("currency mismatch across order lines")
+	ErrEmptyOrder       = errors.New("order has no items")
+	ErrInvalidQuantity  = errors.New("order line quantity must be positive")
 )
 
 // Operation strings for Wrap, named here so a log line and its test expectation cannot drift independently.
 const (
 	OpResolveProducts = "resolve products from catalog"
+
+	OpCreateCustomer        = "create customer"
+	OpGetCustomer           = "look up customer by id"
+	OpListCustomers         = "list customers"
+	OpLookupCustomerByEmail = "look up customer by email"
+	OpCustomerLifetimeValue = "compute customer lifetime value"
+
+	OpCreateOrder = "create order"
+	OpGetOrder    = "look up order by id"
 )
 
 // Wrap names the step that failed, so a log line reads "resolve products from catalog: connection refused", not a bare driver message.

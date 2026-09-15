@@ -11,9 +11,112 @@ import (
 	"github.com/loloDawit/go-admin/platform/httpx"
 	"github.com/loloDawit/go-admin/platform/observability"
 	"github.com/loloDawit/go-admin/platform/requestid"
+	"github.com/loloDawit/go-admin/services/orders/internal/customer"
+	"github.com/loloDawit/go-admin/services/orders/internal/errs"
 	"github.com/loloDawit/go-admin/services/orders/internal/httperr"
+	"github.com/loloDawit/go-admin/services/orders/internal/order"
 	"github.com/loloDawit/go-admin/services/orders/internal/platformcheck"
 )
+
+func TestWriteMapsCustomerNotFoundTo404(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, customer.ErrCustomerNotFound)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status: want 404, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.Code != "not_found" {
+		t.Errorf("code: want not_found, got %q", body.Code)
+	}
+}
+
+func TestWriteMapsCustomerEmailTakenTo409(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, customer.ErrCustomerEmailTaken)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status: want 409, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.Code != "email_taken" {
+		t.Errorf("code: want email_taken, got %q", body.Code)
+	}
+}
+
+func TestWriteMapsInvalidCustomerEmailTo400(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, customer.ErrInvalidCustomerEmail)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status: want 400, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.Code != "validation_failed" {
+		t.Errorf("code: want validation_failed, got %q", body.Code)
+	}
+}
+
+func TestWriteMapsOrderNotFoundTo404(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, order.ErrOrderNotFound)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status: want 404, got %d", rec.Code)
+	}
+}
+
+func TestWriteMapsProductUnavailableTo422(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, order.ErrProductUnavailable)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status: want 422, got %d", rec.Code)
+	}
+}
+
+func TestWriteMapsCurrencyMismatchTo422(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, order.ErrCurrencyMismatch)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status: want 422, got %d", rec.Code)
+	}
+}
+
+// A wrapped Catalog failure must still map to 503/502, never fall through to
+// the unmapped 500 branch, and the response must never carry Catalog's host
+// or driver text.
+func TestWriteMapsWrappedCatalogUnavailableTo503WithNoLeak(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	cause := errs.Wrap(errs.OpCreateOrder, errs.ErrCatalogUnavailable)
+
+	httperr.New(logger).Write(t.Context(), rec, cause)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status: want 503, got %d", rec.Code)
+	}
+	raw := rec.Body.String()
+	if strings.Contains(raw, "http://") || strings.Contains(raw, "connection refused") {
+		t.Errorf("response leaked catalog transport detail: %q", raw)
+	}
+}
 
 func TestWriteMapsDirtySchemaTo503(t *testing.T) {
 	logger, _ := observability.NewCaptured()
