@@ -32,6 +32,11 @@ func (c *Client) Resolve(ctx context.Context, ids []string) ([]Product, error) {
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		// A cancelled caller is not a failed dependency: reporting it as one
+		// would log an outage every time someone closes a tab.
+		if errors.Is(err, context.Canceled) {
+			return nil, errs.Wrap(errs.OpResolveProducts, err)
+		}
 		// context.DeadlineExceeded is how a slow Catalog is told apart from an unreachable one.
 		if errors.Is(err, context.DeadlineExceeded) {
 			return nil, errs.Wrap(errs.OpResolveProducts, errs.ErrCatalogTimeout)

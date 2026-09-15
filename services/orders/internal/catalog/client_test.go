@@ -100,25 +100,33 @@ func TestResolveIsCancelledWhenTheCallerIsCancelled(t *testing.T) {
 		select {
 		case <-r.Context().Done():
 			close(serverSawCancel)
-		case <-time.After(2 * time.Second):
+		case <-time.After(5 * time.Second):
 		}
 	}))
 	defer srv.Close()
 
-	client := catalog.NewClient(srv.URL, time.Second, 4)
+	// The client's own deadline is far longer than this test's patience, so a
+	// closed connection can only mean the caller's cancellation travelled. With
+	// a short deadline the client times out on its own and the server sees the
+	// close either way, which passes whether or not cancellation works.
+	client := catalog.NewClient(srv.URL, 30*time.Second, 4)
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
 		time.Sleep(20 * time.Millisecond)
 		cancel()
 	}()
 
-	if _, err := client.Resolve(ctx, []string{"1"}); err == nil {
+	_, err := client.Resolve(ctx, []string{"1"})
+	if err == nil {
 		t.Fatal("want an error when the caller cancels mid-flight")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("want a cancellation, got %v — a deadline here would mean the client timed out rather than observing the caller", err)
 	}
 
 	select {
 	case <-serverSawCancel:
-	case <-time.After(time.Second):
+	case <-time.After(2 * time.Second):
 		t.Fatal("the outgoing call was not cancelled when the caller cancelled")
 	}
 }
