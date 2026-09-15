@@ -12,6 +12,7 @@ const validSigningKey = "dev_only_principal_key_at_least_32_bytes"
 func setValidCatalogEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("S3_ENDPOINT", "minio:9000")
+	t.Setenv("S3_PUBLIC_ENDPOINT", "localhost:9000")
 	t.Setenv("S3_BUCKET", "catalog-images")
 	t.Setenv("S3_ACCESS_KEY", "dev_only_minio")
 	t.Setenv("S3_SECRET_KEY", "dev_only_minio_secret")
@@ -169,5 +170,22 @@ func TestLoadAcceptsAValidConfig(t *testing.T) {
 	}
 	if cfg.DefaultCurrency != "USD" {
 		t.Errorf("default currency: want USD, got %q", cfg.DefaultCurrency)
+	}
+}
+
+// A presigned URL names a host the browser reaches, not the one this service
+// dials, so the two endpoints are separate settings and neither may default to
+// the other: a silent fallback produced URLs no client could fetch.
+func TestLoadReportsAMissingPublicEndpointByName(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://u:p@localhost:5433/catalog_db")
+	setValidCatalogEnv(t)
+	t.Setenv("S3_PUBLIC_ENDPOINT", "")
+
+	_, err := config.Load()
+	if err == nil {
+		t.Fatal("a missing S3_PUBLIC_ENDPOINT was accepted")
+	}
+	if !strings.Contains(err.Error(), "S3_PUBLIC_ENDPOINT") {
+		t.Errorf("error must name the variable, got %q", err)
 	}
 }
