@@ -1,52 +1,34 @@
-import { useState } from 'react'
-import { Alert, Button, PageHeader, PageStack, Section, TextField } from '../ui'
-import styles from './ProductForm.module.css'
+import { useNavigate } from 'react-router-dom'
+import { Button, DefinitionList, PageHeader, PageStack, Section } from '../ui'
+import { useAuth } from '../api/auth'
+import { permissionLabels } from '../api/identity'
 
 export function Profile() {
-  const [saved, setSaved] = useState(false)
+  const auth = useAuth()
+  const navigate = useNavigate()
+  const user = auth.user
 
   return (
     <PageStack>
-      <PageHeader title="Profile" description="Your own details and sign-in." />
+      <PageHeader title="Profile" description="Your own sign-in details." />
 
-      {saved && (
-        <Alert tone="success" title="Profile saved">
-          The change is local until the identity service is connected.
-        </Alert>
-      )}
+      <Section title="Account">
+        <DefinitionList
+          items={[
+            { term: 'Email', value: user?.email ?? '—' },
+            {
+              term: 'Permissions',
+              value: user ? user.permissions.map((permission) => permissionLabels[permission]).join(', ') : '—',
+            },
+          ]}
+        />
+      </Section>
 
-      <form
-        className={styles.form}
-        onSubmit={(event) => {
-          event.preventDefault()
-          setSaved(true)
-        }}
-      >
-        <Section title="Details">
-          <div className={styles.grid}>
-            <TextField label="Name" defaultValue="Mara Lindqvist" />
-            <TextField label="Email" type="email" defaultValue="mara@northgate.example" />
-          </div>
-        </Section>
-
-        <Section title="Password" description="Changing it signs you out of other devices.">
-          <div className={styles.grid}>
-            <TextField label="Current password" type="password" autoComplete="current-password" />
-            <TextField
-              label="New password"
-              type="password"
-              autoComplete="new-password"
-              help="At least 12 characters."
-            />
-          </div>
-        </Section>
-
-        <div className={styles.actions}>
-          <Button type="submit" variant="primary">
-            Save changes
-          </Button>
-        </div>
-      </form>
+      <Section title="Password" description="Choose a new password for this account.">
+        <Button variant="secondary" onClick={() => navigate('/change-password')}>
+          Change password
+        </Button>
+      </Section>
     </PageStack>
   )
 }

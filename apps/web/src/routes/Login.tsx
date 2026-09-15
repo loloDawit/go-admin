@@ -1,15 +1,31 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import type { Location } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Alert, Button, TextField } from '../ui'
+import { useAuth } from '../api/auth'
+import { isApiError } from '../api/http'
 import styles from './Login.module.css'
 
 export function Login() {
+  const auth = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [failed, setFailed] = useState(false)
+  const [error, setError] = useState<string>()
   const [touched, setTouched] = useState(false)
+
+  useEffect(() => {
+    if (auth.status === 'must-change-password') {
+      navigate('/change-password', { replace: true })
+      return
+    }
+    if (auth.status === 'authenticated') {
+      const from = (location.state as { from?: Location } | null)?.from
+      navigate(from?.pathname ?? '/', { replace: true })
+    }
+  }, [auth.status, location.state, navigate])
 
   const emailError = touched && email.trim() === '' ? 'Enter the email you sign in with.' : undefined
   const passwordError = touched && password === '' ? 'Enter your password.' : undefined
@@ -22,9 +38,9 @@ export function Login() {
           <p className={styles.brandContext}>Staff sign-in</p>
         </div>
 
-        {failed && (
-          <Alert tone="danger" title="Those details did not match">
-            Check the email and password, then try again.
+        {error && (
+          <Alert tone="danger" title="Sign-in failed">
+            {error}
           </Alert>
         )}
 
@@ -35,14 +51,13 @@ export function Login() {
             setTouched(true)
             if (email.trim() === '' || password === '') return
             setSubmitting(true)
-            setTimeout(() => {
-              setSubmitting(false)
-              if (password === 'wrong') {
-                setFailed(true)
-                return
-              }
-              navigate('/')
-            }, 600)
+            setError(undefined)
+            auth
+              .signIn(email, password)
+              .catch((cause: unknown) => {
+                setError(isApiError(cause) ? cause.message : 'Something went wrong.')
+              })
+              .finally(() => setSubmitting(false))
           }}
         >
           <TextField
@@ -67,10 +82,6 @@ export function Login() {
             Sign in
           </Button>
         </form>
-
-        <p className={styles.footnote}>
-          Sign-in is not connected yet. Any details take you to the dashboard.
-        </p>
       </div>
     </div>
   )

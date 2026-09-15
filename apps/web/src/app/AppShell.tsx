@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { Button } from '../ui'
+import { useAuth } from '../api/auth'
+import type { Permission } from '../api/identity'
 import styles from './AppShell.module.css'
 
-const NAV_GROUPS = [
+const NAV_GROUPS: { label: string; items: { to: string; label: string; end?: boolean; require?: Permission }[] }[] = [
   {
     label: 'Shop',
     items: [
@@ -16,9 +18,9 @@ const NAV_GROUPS = [
   {
     label: 'Access',
     items: [
-      { to: '/staff', label: 'Staff' },
-      { to: '/roles', label: 'Roles' },
-      { to: '/permissions', label: 'Permissions' },
+      { to: '/staff', label: 'Staff', require: 'view_staff' },
+      { to: '/roles', label: 'Roles', require: 'view_roles' },
+      { to: '/permissions', label: 'Permissions', require: 'view_roles' },
     ],
   },
   {
@@ -32,6 +34,8 @@ const NAV_GROUPS = [
 
 export function AppShell() {
   const [navOpen, setNavOpen] = useState(false)
+  const auth = useAuth()
+  const navigate = useNavigate()
 
   return (
     <div className={styles.shell}>
@@ -41,7 +45,16 @@ export function AppShell() {
           <span className={styles.brandContext}>Back office</span>
         </div>
         <div className={styles.topbarRight}>
-          <span className={styles.account}>Mara Lindqvist · Owner</span>
+          <span className={styles.account}>{auth.user?.email}</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              void auth.signOut().then(() => navigate('/login', { replace: true }))
+            }}
+          >
+            Sign out
+          </Button>
           <Button
             variant="secondary"
             size="sm"
@@ -61,24 +74,28 @@ export function AppShell() {
           aria-label="Sections"
           className={`${styles.sidebar} ${navOpen ? '' : styles.sidebarHidden}`}
         >
-          {NAV_GROUPS.map((group) => (
-            <div className={styles.group} key={group.label}>
-              <span className={styles.groupLabel}>{group.label}</span>
-              {group.items.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end={item.end}
-                  onClick={() => setNavOpen(false)}
-                  className={({ isActive }) =>
-                    `${styles.link} ${isActive ? styles.linkActive : ''}`
-                  }
-                >
-                  {item.label}
-                </NavLink>
-              ))}
-            </div>
-          ))}
+          {NAV_GROUPS.map((group) => {
+            const items = group.items.filter((item) => !item.require || auth.hasPermission(item.require))
+            if (items.length === 0) return null
+            return (
+              <div className={styles.group} key={group.label}>
+                <span className={styles.groupLabel}>{group.label}</span>
+                {items.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.end}
+                    onClick={() => setNavOpen(false)}
+                    className={({ isActive }) =>
+                      `${styles.link} ${isActive ? styles.linkActive : ''}`
+                    }
+                  >
+                    {item.label}
+                  </NavLink>
+                ))}
+              </div>
+            )
+          })}
         </nav>
 
         <main className={styles.main}>
