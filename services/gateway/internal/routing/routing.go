@@ -70,8 +70,12 @@ func withTimeout(proxy *httputil.ReverseProxy, timeout time.Duration) http.Handl
 // apiOwners routes an /api/v1 prefix to the service that owns it. Anything not
 // listed falls through to identity, which owns the rest of the surface.
 var apiOwners = map[string]string{
-	"/api/v1/products":   "catalog",
-	"/api/v1/products/*": "catalog",
+	"/api/v1/products":    "catalog",
+	"/api/v1/products/*":  "catalog",
+	"/api/v1/orders":      "orders",
+	"/api/v1/orders/*":    "orders",
+	"/api/v1/customers":   "orders",
+	"/api/v1/customers/*": "orders",
 }
 
 // "/_platform/{service}" and "/api/v1/*" use separate directors so a change

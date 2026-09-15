@@ -32,6 +32,9 @@ var (
 
 	ErrInvalidCustomerEmail = errors.New("email must not be empty")
 
+	ErrUnauthenticated = errors.New("no principal was presented")
+	ErrForbidden       = errors.New("caller lacks the required permission")
+
 	// ErrProductUnavailable: a line names a product Catalog did not return, or one that is not active.
 	ErrProductUnavailable = errors.New("product unavailable")
 	ErrOrderNotFound      = errors.New("order not found")

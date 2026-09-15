@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/loloDawit/go-admin/platform/httpx"
+	"github.com/loloDawit/go-admin/platform/principal"
 	"github.com/loloDawit/go-admin/platform/requestid"
 	"github.com/loloDawit/go-admin/services/orders/internal/customer"
 	"github.com/loloDawit/go-admin/services/orders/internal/errs"
@@ -34,6 +35,12 @@ func (h *Writer) Write(ctx context.Context, w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, httpx.ErrMalformedBody):
 		httpx.WriteError(w, http.StatusBadRequest, "malformed_body", "the request body is invalid")
+	case errors.Is(err, errs.ErrUnauthenticated):
+		httpx.WriteError(w, http.StatusUnauthorized, "unauthenticated", "sign in to continue")
+	case errors.Is(err, principal.ErrMissing), errors.Is(err, principal.ErrBadSignature), errors.Is(err, principal.ErrExpired):
+		httpx.WriteError(w, http.StatusUnauthorized, "unauthenticated", "sign in to continue")
+	case errors.Is(err, errs.ErrForbidden):
+		httpx.WriteError(w, http.StatusForbidden, "forbidden", "you do not have permission to perform this action")
 	case errors.Is(err, platformcheck.ErrDirtySchema):
 		httpx.WriteError(w, http.StatusServiceUnavailable, "schema_dirty", "the service is not ready")
 	case errors.Is(err, platformcheck.ErrNoMigrations):

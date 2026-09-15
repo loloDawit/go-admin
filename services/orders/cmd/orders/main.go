@@ -15,10 +15,17 @@ import (
 	"github.com/loloDawit/go-admin/platform/observability"
 	pgxplatform "github.com/loloDawit/go-admin/platform/pgx"
 	"github.com/loloDawit/go-admin/platform/readiness"
+	"github.com/loloDawit/go-admin/services/orders/internal/catalog"
 	"github.com/loloDawit/go-admin/services/orders/internal/config"
+	"github.com/loloDawit/go-admin/services/orders/internal/customer"
 	"github.com/loloDawit/go-admin/services/orders/internal/httperr"
+	"github.com/loloDawit/go-admin/services/orders/internal/order"
 	"github.com/loloDawit/go-admin/services/orders/internal/platformcheck"
 )
+
+// maxRequestBodyBytes has no operator-tunable env var yet; nothing in this
+// milestone changes that.
+const maxRequestBodyBytes = 1 << 20
 
 func main() {
 	// Must exit before any normal startup below runs a second copy of the process.
@@ -54,7 +61,15 @@ func main() {
 	handler := platformcheck.NewHandler(svc, cfg.ServiceName, errWriter.Write)
 	ready := readiness.NewHandler(svc.Probe, errWriter.Write)
 
-	r := newRouter(logger, handler, ready)
+	catalogClient := catalog.NewClient(cfg.CatalogURL, cfg.CatalogTimeout, cfg.CatalogMaxIdleConns)
+
+	customerSvc := customer.NewService(customer.NewPostgresRepository(pool), cfg.OrderPageSizeMax)
+	customerHandler := customer.NewHandler(customerSvc, maxRequestBodyBytes, errWriter.Write)
+
+	orderSvc := order.NewService(order.NewPostgresRepository(pool), catalogClient, cfg.OrderPageSizeMax)
+	orderHandler := order.NewHandler(orderSvc, maxRequestBodyBytes, errWriter.Write)
+
+	r := newRouter(logger, handler, ready, customerHandler, orderHandler, cfg.PrincipalKey, errWriter.Write)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

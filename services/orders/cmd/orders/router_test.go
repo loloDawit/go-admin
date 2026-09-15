@@ -10,9 +10,14 @@ import (
 
 	"github.com/loloDawit/go-admin/platform/observability"
 	"github.com/loloDawit/go-admin/platform/readiness"
+	"github.com/loloDawit/go-admin/services/orders/internal/customer"
 	"github.com/loloDawit/go-admin/services/orders/internal/httperr"
+	"github.com/loloDawit/go-admin/services/orders/internal/order"
 	"github.com/loloDawit/go-admin/services/orders/internal/platformcheck"
 )
+
+// testPrincipalKey is the HMAC key newRouter's principal.Middleware group verifies against.
+var testPrincipalKey = []byte("0123456789012345678901234567890123456789")
 
 // alwaysFailRepo counts calls so a test can assert a route never touched it.
 type alwaysFailRepo struct {
@@ -24,6 +29,26 @@ func (r *alwaysFailRepo) SchemaState(context.Context) (platformcheck.SchemaState
 	return platformcheck.SchemaState{}, errors.New("dial tcp 10.0.0.5:5432: connect: connection refused")
 }
 
+// nilCustomerRepository lets tests build a real *customer.Handler without a
+// database; no route these tests exercise calls it.
+type nilCustomerRepository struct{ customer.Repository }
+
+func newTestCustomerHandler() *customer.Handler {
+	svc := customer.NewService(nilCustomerRepository{}, 100)
+	return customer.NewHandler(svc, 1<<20, func(context.Context, http.ResponseWriter, error) {})
+}
+
+// nilOrderRepository and nilProductResolver let tests build a real
+// *order.Handler without a database or Catalog; no route these tests
+// exercise calls either.
+type nilOrderRepository struct{ order.Repository }
+type nilProductResolver struct{ order.ProductResolver }
+
+func newTestOrderHandler() *order.Handler {
+	svc := order.NewService(nilOrderRepository{}, nilProductResolver{}, 100)
+	return order.NewHandler(svc, 1<<20, func(context.Context, http.ResponseWriter, error) {})
+}
+
 func TestPanickingHandlerStillProducesALogLineWithStatus500(t *testing.T) {
 	logger, captured := observability.NewCaptured()
 	errWriter := httperr.New(logger)
@@ -31,7 +56,7 @@ func TestPanickingHandlerStillProducesALogLineWithStatus500(t *testing.T) {
 	handler := platformcheck.NewHandler(svc, "orders", errWriter.Write)
 	ready := readiness.NewHandler(svc.Probe, errWriter.Write)
 
-	r := newRouter(logger, handler, ready)
+	r := newRouter(logger, handler, ready, newTestCustomerHandler(), newTestOrderHandler(), testPrincipalKey, errWriter.Write)
 	r.Get("/boom", func(http.ResponseWriter, *http.Request) {
 		panic("kaboom")
 	})
@@ -67,7 +92,7 @@ func TestStartupContractHealthzSkipsTheDatabaseAndReadyzReportsFailureSafely(t *
 	handler := platformcheck.NewHandler(svc, "orders", errWriter.Write)
 	ready := readiness.NewHandler(svc.Probe, errWriter.Write)
 
-	r := newRouter(logger, handler, ready)
+	r := newRouter(logger, handler, ready, newTestCustomerHandler(), newTestOrderHandler(), testPrincipalKey, errWriter.Write)
 
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
