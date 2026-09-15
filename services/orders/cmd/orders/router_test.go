@@ -13,7 +13,7 @@ import (
 	"github.com/loloDawit/go-admin/services/orders/internal/customer"
 	"github.com/loloDawit/go-admin/services/orders/internal/httperr"
 	"github.com/loloDawit/go-admin/services/orders/internal/order"
-	"github.com/loloDawit/go-admin/services/orders/internal/platformcheck"
+	"github.com/loloDawit/go-admin/services/orders/internal/schemacheck"
 )
 
 // testPrincipalKey is the HMAC key newRouter's principal.Middleware group verifies against.
@@ -24,9 +24,9 @@ type alwaysFailRepo struct {
 	calls int
 }
 
-func (r *alwaysFailRepo) SchemaState(context.Context) (platformcheck.SchemaState, error) {
+func (r *alwaysFailRepo) SchemaState(context.Context) (schemacheck.SchemaState, error) {
 	r.calls++
-	return platformcheck.SchemaState{}, errors.New("dial tcp 10.0.0.5:5432: connect: connection refused")
+	return schemacheck.SchemaState{}, errors.New("dial tcp 10.0.0.5:5432: connect: connection refused")
 }
 
 // nilCustomerRepository lets tests build a real *customer.Handler without a
@@ -52,11 +52,10 @@ func newTestOrderHandler() *order.Handler {
 func TestPanickingHandlerStillProducesALogLineWithStatus500(t *testing.T) {
 	logger, captured := observability.NewCaptured()
 	errWriter := httperr.New(logger)
-	svc := platformcheck.NewService(&alwaysFailRepo{})
-	handler := platformcheck.NewHandler(svc, "orders", errWriter.Write)
+	svc := schemacheck.NewService(&alwaysFailRepo{})
 	ready := readiness.NewHandler(svc.Probe, errWriter.Write)
 
-	r := newRouter(logger, handler, ready, newTestCustomerHandler(), newTestOrderHandler(), testPrincipalKey, errWriter.Write)
+	r := newRouter(logger, ready, newTestCustomerHandler(), newTestOrderHandler(), testPrincipalKey, errWriter.Write)
 	r.Get("/boom", func(http.ResponseWriter, *http.Request) {
 		panic("kaboom")
 	})
@@ -88,11 +87,10 @@ func TestStartupContractHealthzSkipsTheDatabaseAndReadyzReportsFailureSafely(t *
 	logger, _ := observability.NewCaptured()
 	errWriter := httperr.New(logger)
 	repo := &alwaysFailRepo{}
-	svc := platformcheck.NewService(repo)
-	handler := platformcheck.NewHandler(svc, "orders", errWriter.Write)
+	svc := schemacheck.NewService(repo)
 	ready := readiness.NewHandler(svc.Probe, errWriter.Write)
 
-	r := newRouter(logger, handler, ready, newTestCustomerHandler(), newTestOrderHandler(), testPrincipalKey, errWriter.Write)
+	r := newRouter(logger, ready, newTestCustomerHandler(), newTestOrderHandler(), testPrincipalKey, errWriter.Write)
 
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
@@ -103,7 +101,7 @@ func TestStartupContractHealthzSkipsTheDatabaseAndReadyzReportsFailureSafely(t *
 		t.Errorf("healthz touched the repository: called %d times", repo.calls)
 	}
 
-	for _, route := range []string{"/readyz", "/_platform"} {
+	for _, route := range []string{"/readyz"} {
 		rec := httptest.NewRecorder()
 		r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, route, nil))
 		if rec.Code != http.StatusServiceUnavailable {

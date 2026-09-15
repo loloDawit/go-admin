@@ -14,7 +14,7 @@ import (
 	"github.com/loloDawit/go-admin/services/orders/internal/customer"
 	"github.com/loloDawit/go-admin/services/orders/internal/errs"
 	"github.com/loloDawit/go-admin/services/orders/internal/order"
-	"github.com/loloDawit/go-admin/services/orders/internal/platformcheck"
+	"github.com/loloDawit/go-admin/services/orders/internal/schemacheck"
 )
 
 // statusClientClosedRequest mirrors nginx's 499: there is no standard HTTP
@@ -41,11 +41,11 @@ func (h *Writer) Write(ctx context.Context, w http.ResponseWriter, err error) {
 		httpx.WriteError(w, http.StatusUnauthorized, "unauthenticated", "sign in to continue")
 	case errors.Is(err, errs.ErrForbidden):
 		httpx.WriteError(w, http.StatusForbidden, "forbidden", "you do not have permission to perform this action")
-	case errors.Is(err, platformcheck.ErrDirtySchema):
+	case errors.Is(err, schemacheck.ErrDirtySchema):
 		httpx.WriteError(w, http.StatusServiceUnavailable, "schema_dirty", "the service is not ready")
-	case errors.Is(err, platformcheck.ErrNoMigrations):
+	case errors.Is(err, schemacheck.ErrNoMigrations):
 		httpx.WriteError(w, http.StatusServiceUnavailable, "schema_not_migrated", "the service is not ready")
-	case errors.Is(err, platformcheck.ErrDatabaseUnavailable):
+	case errors.Is(err, schemacheck.ErrDatabaseUnavailable):
 		// The only place the driver cause reaches the log before the client gets the generic message.
 		h.logger.ErrorContext(ctx, "database unavailable",
 			slog.String("request_id", requestid.FromContext(ctx)),
@@ -58,6 +58,8 @@ func (h *Writer) Write(ctx context.Context, w http.ResponseWriter, err error) {
 		httpx.WriteError(w, http.StatusConflict, "email_taken", "email is already in use")
 	case errors.Is(err, customer.ErrInvalidCustomerEmail):
 		httpx.WriteError(w, http.StatusBadRequest, "validation_failed", "email must not be empty")
+	case errors.Is(err, customer.ErrMixedCurrencyHistory):
+		httpx.WriteError(w, http.StatusUnprocessableEntity, "mixed_currency_history", "lifetime value cannot be computed across more than one currency")
 	case errors.Is(err, order.ErrOrderNotFound):
 		httpx.WriteError(w, http.StatusNotFound, "not_found", "order not found")
 	case errors.Is(err, order.ErrProductUnavailable):

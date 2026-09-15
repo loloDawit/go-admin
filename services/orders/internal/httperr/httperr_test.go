@@ -16,7 +16,7 @@ import (
 	"github.com/loloDawit/go-admin/services/orders/internal/errs"
 	"github.com/loloDawit/go-admin/services/orders/internal/httperr"
 	"github.com/loloDawit/go-admin/services/orders/internal/order"
-	"github.com/loloDawit/go-admin/services/orders/internal/platformcheck"
+	"github.com/loloDawit/go-admin/services/orders/internal/schemacheck"
 )
 
 func TestWriteMapsMalformedBodyTo400(t *testing.T) {
@@ -67,6 +67,23 @@ func TestWriteMapsCustomerEmailTakenTo409(t *testing.T) {
 	}
 	if body.Code != "email_taken" {
 		t.Errorf("code: want email_taken, got %q", body.Code)
+	}
+}
+
+func TestWriteMapsMixedCurrencyHistoryTo422(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, customer.ErrMixedCurrencyHistory)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status: want 422, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.Code != "mixed_currency_history" {
+		t.Errorf("code: want mixed_currency_history, got %q", body.Code)
 	}
 }
 
@@ -215,7 +232,7 @@ func TestWriteMapsInvalidSortTo422(t *testing.T) {
 func TestWriteMapsDirtySchemaTo503(t *testing.T) {
 	logger, _ := observability.NewCaptured()
 	rec := httptest.NewRecorder()
-	httperr.New(logger).Write(t.Context(), rec, platformcheck.ErrDirtySchema)
+	httperr.New(logger).Write(t.Context(), rec, schemacheck.ErrDirtySchema)
 
 	if rec.Code != 503 {
 		t.Fatalf("status: want 503, got %d", rec.Code)
@@ -232,7 +249,7 @@ func TestWriteMapsDirtySchemaTo503(t *testing.T) {
 func TestWriteMapsNoMigrationsTo503(t *testing.T) {
 	logger, _ := observability.NewCaptured()
 	rec := httptest.NewRecorder()
-	httperr.New(logger).Write(t.Context(), rec, platformcheck.ErrNoMigrations)
+	httperr.New(logger).Write(t.Context(), rec, schemacheck.ErrNoMigrations)
 
 	if rec.Code != 503 {
 		t.Fatalf("status: want 503, got %d", rec.Code)

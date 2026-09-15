@@ -46,7 +46,7 @@ func TestRouterProxiesThroughTheFullMiddlewareStack(t *testing.T) {
 	r := newRouter(logger, upstreams, noSessionValidator(t, logger))
 
 	rec := httptest.NewRecorder()
-	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/_platform/orders", nil))
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/orders", nil))
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status: want 200, got %d", rec.Code)
@@ -65,8 +65,8 @@ func TestRouterProxiesThroughTheFullMiddlewareStack(t *testing.T) {
 		t.Fatalf("want 1 logged request, got %d", len(records))
 	}
 	route, ok := captured.Attr(0, "route")
-	if !ok || route.String() != "/_platform/orders" {
-		t.Errorf("route: want /_platform/orders, got %v (ok=%v)", route, ok)
+	if !ok || route.String() != "/api/v1/orders" {
+		t.Errorf("route: want /api/v1/orders, got %v (ok=%v)", route, ok)
 	}
 }
 

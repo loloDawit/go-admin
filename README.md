@@ -20,6 +20,14 @@ curl -s -b /tmp/j -X POST localhost:8080/api/v1/products \
   -H 'Content-Type: application/json' \
   -d '{"sku":"desk-1","title":"Walnut desk","priceMinor":14999}'
 curl -s -b /tmp/j localhost:8080/api/v1/products
+curl -s -b /tmp/j -X POST localhost:8080/api/v1/products/1/activate
+curl -s -b /tmp/j -X POST localhost:8080/api/v1/customers \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"jane@example.com","name":"Jane Doe"}'
+curl -s -b /tmp/j -X POST localhost:8080/api/v1/orders \
+  -H 'Content-Type: application/json' \
+  -d '{"customerId":"1","items":[{"productId":"1","quantity":1}]}'
+curl -s -b /tmp/j localhost:8080/api/v1/orders
 ```
 
 `make up` boots postgres, the migrate jobs, the three services and the gateway,
@@ -49,13 +57,13 @@ for the contract.
 
 Catalog is complete: products, search, images and an internal resolve endpoint
 for Orders, all behind route-level authorization. See
-`services/catalog/openapi/catalog.yaml` for the contract. Orders does not exist
-yet.
+`services/catalog/openapi/catalog.yaml` for the contract.
 
-Orders still answers `GET /_platform/orders` with
-`{service, schemaVersion, requestId}`. That is scaffolding so there is something
-to verify end to end, not a product API, and it loses it when M4's real routes
-land. Don't build against it.
+Orders is complete: customers, orders, and their lifecycle transitions
+(cancel, refund, and the generic status change), all behind route-level
+authorization. Each order line is resolved against Catalog and snapshotted at
+creation time, so a later change to a product never changes what was bought.
+See `services/orders/openapi/orders.yaml` for the contract.
 
 ## Dev credentials
 

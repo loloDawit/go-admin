@@ -20,12 +20,8 @@ import (
 	"github.com/loloDawit/go-admin/services/orders/internal/customer"
 	"github.com/loloDawit/go-admin/services/orders/internal/httperr"
 	"github.com/loloDawit/go-admin/services/orders/internal/order"
-	"github.com/loloDawit/go-admin/services/orders/internal/platformcheck"
+	"github.com/loloDawit/go-admin/services/orders/internal/schemacheck"
 )
-
-// maxRequestBodyBytes has no operator-tunable env var yet; nothing in this
-// milestone changes that.
-const maxRequestBodyBytes = 1 << 20
 
 func main() {
 	// Must exit before any normal startup below runs a second copy of the process.
@@ -56,20 +52,19 @@ func main() {
 	}
 
 	errWriter := httperr.New(logger)
-	svc := platformcheck.NewService(platformcheck.NewPostgresRepository(pool))
+	svc := schemacheck.NewService(schemacheck.NewPostgresRepository(pool))
 
-	handler := platformcheck.NewHandler(svc, cfg.ServiceName, errWriter.Write)
 	ready := readiness.NewHandler(svc.Probe, errWriter.Write)
 
 	catalogClient := catalog.NewClient(cfg.CatalogURL, cfg.CatalogTimeout, cfg.CatalogMaxIdleConns)
 
 	customerSvc := customer.NewService(customer.NewPostgresRepository(pool), cfg.OrderPageSizeMax)
-	customerHandler := customer.NewHandler(customerSvc, maxRequestBodyBytes, errWriter.Write)
+	customerHandler := customer.NewHandler(customerSvc, cfg.MaxRequestBodyBytes, errWriter.Write)
 
 	orderSvc := order.NewService(order.NewPostgresRepository(pool), catalogClient, cfg.OrderPageSizeMax)
-	orderHandler := order.NewHandler(orderSvc, maxRequestBodyBytes, errWriter.Write)
+	orderHandler := order.NewHandler(orderSvc, cfg.MaxRequestBodyBytes, errWriter.Write)
 
-	r := newRouter(logger, handler, ready, customerHandler, orderHandler, cfg.PrincipalKey, errWriter.Write)
+	r := newRouter(logger, ready, customerHandler, orderHandler, cfg.PrincipalKey, errWriter.Write)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

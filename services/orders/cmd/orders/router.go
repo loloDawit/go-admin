@@ -15,14 +15,12 @@ import (
 	"github.com/loloDawit/go-admin/services/orders/internal/customer"
 	"github.com/loloDawit/go-admin/services/orders/internal/order"
 	"github.com/loloDawit/go-admin/services/orders/internal/permission"
-	"github.com/loloDawit/go-admin/services/orders/internal/platformcheck"
 )
 
 // RequestLogger must be registered before Recoverer: it logs only after next.ServeHTTP returns, which a panic would unwind past.
 // Routes live here, not in main, so router_test.go can pin the spec §6 startup contract without a database.
 func newRouter(
 	logger *slog.Logger,
-	platformHandler *platformcheck.Handler,
 	ready *readiness.Handler,
 	customerHandler *customer.Handler,
 	orderHandler *order.Handler,
@@ -36,7 +34,6 @@ func newRouter(
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 	r.Get("/readyz", ready.Ready)
-	r.Get("/_platform", platformHandler.Platform)
 
 	r.Group(func(r chi.Router) {
 		r.Use(principal.Middleware(principalKey, func(w http.ResponseWriter, r *http.Request, err error) {

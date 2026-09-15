@@ -20,6 +20,7 @@ type Config struct {
 	CatalogTimeout      time.Duration
 	CatalogMaxIdleConns int
 	OrderPageSizeMax    int
+	MaxRequestBodyBytes int64
 	PrincipalKey        []byte
 }
 
@@ -73,6 +74,16 @@ func Load() (*Config, error) {
 	}
 	cfg.OrderPageSizeMax = orderPageSizeMax
 
+	maxRequestBodyBytesRaw, err := requireEnv("MAX_REQUEST_BODY_BYTES")
+	if err != nil {
+		return nil, err
+	}
+	maxRequestBodyBytes, err := strconv.ParseInt(maxRequestBodyBytesRaw, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("MAX_REQUEST_BODY_BYTES: %w", err)
+	}
+	cfg.MaxRequestBodyBytes = maxRequestBodyBytes
+
 	principalKey, err := requireEnv("PRINCIPAL_SIGNING_KEY")
 	if err != nil {
 		return nil, err
@@ -94,6 +105,9 @@ func (c *Config) validate() error {
 	}
 	if c.OrderPageSizeMax <= 0 {
 		return fmt.Errorf("ORDER_PAGE_SIZE_MAX must be positive")
+	}
+	if c.MaxRequestBodyBytes <= 0 {
+		return fmt.Errorf("MAX_REQUEST_BODY_BYTES must be positive")
 	}
 	if len(c.PrincipalKey) < 32 {
 		return fmt.Errorf("PRINCIPAL_SIGNING_KEY must be at least 32 bytes")

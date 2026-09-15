@@ -14,6 +14,7 @@ func setValidOrdersEnv(t *testing.T) {
 	t.Setenv("CATALOG_TIMEOUT", "2s")
 	t.Setenv("CATALOG_MAX_IDLE_CONNS", "20")
 	t.Setenv("ORDER_PAGE_SIZE_MAX", "100")
+	t.Setenv("MAX_REQUEST_BODY_BYTES", "1048576")
 	t.Setenv("PRINCIPAL_SIGNING_KEY", validSigningKey)
 }
 
@@ -94,6 +95,16 @@ func TestLoadRejectsAZeroOrderPageSizeMax(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsAZeroMaxRequestBodyBytes(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://u:p@localhost:5433/orders_db")
+	setValidOrdersEnv(t)
+	t.Setenv("MAX_REQUEST_BODY_BYTES", "0")
+
+	if _, err := config.Load(); err == nil {
+		t.Fatal("a zero MAX_REQUEST_BODY_BYTES must be rejected")
+	}
+}
+
 func TestLoadRejectsAShortPrincipalKey(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://u:p@localhost:5433/orders_db")
 	setValidOrdersEnv(t)
@@ -123,6 +134,9 @@ func TestLoadCarriesCatalogSettingsThrough(t *testing.T) {
 	}
 	if cfg.OrderPageSizeMax != 100 {
 		t.Errorf("order page size max: want 100, got %d", cfg.OrderPageSizeMax)
+	}
+	if cfg.MaxRequestBodyBytes != 1048576 {
+		t.Errorf("max request body bytes: want 1048576, got %d", cfg.MaxRequestBodyBytes)
 	}
 	if string(cfg.PrincipalKey) != validSigningKey {
 		t.Errorf("principal key: want %q, got %q", validSigningKey, cfg.PrincipalKey)

@@ -12,14 +12,13 @@ import (
 	"github.com/loloDawit/go-admin/platform/principal"
 	"github.com/loloDawit/go-admin/platform/readiness"
 	"github.com/loloDawit/go-admin/services/orders/internal/httperr"
-	"github.com/loloDawit/go-admin/services/orders/internal/platformcheck"
+	"github.com/loloDawit/go-admin/services/orders/internal/schemacheck"
 )
 
 // publicRoutes is the entire declared-unauthenticated surface; adding to it is a deliberate, reviewed edit.
 var publicRoutes = map[string]bool{
-	"GET /healthz":   true,
-	"GET /readyz":    true,
-	"GET /_platform": true,
+	"GET /healthz": true,
+	"GET /readyz":  true,
 }
 
 var routeParam = regexp.MustCompile(`\{[^}]+\}`)
@@ -28,11 +27,10 @@ func testRouter(t *testing.T) *chi.Mux {
 	t.Helper()
 	logger, _ := observability.NewCaptured()
 	errWriter := httperr.New(logger)
-	svc := platformcheck.NewService(&alwaysFailRepo{})
-	handler := platformcheck.NewHandler(svc, "orders", errWriter.Write)
+	svc := schemacheck.NewService(&alwaysFailRepo{})
 	ready := readiness.NewHandler(svc.Probe, errWriter.Write)
 
-	return newRouter(logger, handler, ready, newTestCustomerHandler(), newTestOrderHandler(), testPrincipalKey, errWriter.Write)
+	return newRouter(logger, ready, newTestCustomerHandler(), newTestOrderHandler(), testPrincipalKey, errWriter.Write)
 }
 
 // This drives a real request rather than comparing middleware slices, which could pass on a route enforcing nothing.

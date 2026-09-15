@@ -13,22 +13,21 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// dirtyTarget's hostURL reaches /healthz, /readyz and /_platform directly,
-// bypassing the gateway, which does not expose /readyz per service.
+// dirtyTarget's hostURL reaches /healthz and /readyz directly, bypassing the
+// gateway, which does not expose /readyz per service.
 type dirtyTarget struct {
-	service     string
-	user        string
-	password    string
-	database    string
-	hostURL     string
-	hasPlatform bool // false for identity: it has no /_platform route
+	service  string
+	user     string
+	password string
+	database string
+	hostURL  string
 }
 
 func dirtyTargets() []dirtyTarget {
 	return []dirtyTarget{
-		{"identity", "identity_user", "dev_only_identity", "identity_db", hostURL("IDENTITY_HOST_URL", "http://localhost:8081"), false},
-		{"catalog", "catalog_user", "dev_only_catalog", "catalog_db", hostURL("CATALOG_HOST_URL", "http://localhost:8082"), false},
-		{"orders", "orders_user", "dev_only_orders", "orders_db", hostURL("ORDERS_HOST_URL", "http://localhost:8083"), true},
+		{"identity", "identity_user", "dev_only_identity", "identity_db", hostURL("IDENTITY_HOST_URL", "http://localhost:8081")},
+		{"catalog", "catalog_user", "dev_only_catalog", "catalog_db", hostURL("CATALOG_HOST_URL", "http://localhost:8082")},
+		{"orders", "orders_user", "dev_only_orders", "orders_db", hostURL("ORDERS_HOST_URL", "http://localhost:8083")},
 	}
 }
 
@@ -99,21 +98,11 @@ func TestDirtyMigrationFailsReadiness(t *testing.T) {
 			if body := getEnvelope(t, client, tgt.hostURL+"/readyz", http.StatusServiceUnavailable); body.Code != "schema_dirty" {
 				t.Errorf("/readyz code: want schema_dirty, got %q", body.Code)
 			}
-			if tgt.hasPlatform {
-				if body := getEnvelope(t, client, tgt.hostURL+"/_platform", http.StatusServiceUnavailable); body.Code != "schema_dirty" {
-					t.Errorf("/_platform code: want schema_dirty, got %q", body.Code)
-				}
-				getEnvelope(t, client, gatewayURL()+"/_platform/"+tgt.service, http.StatusServiceUnavailable)
-			}
 			getEnvelope(t, client, tgt.hostURL+"/healthz", http.StatusOK)
 
 			setDirty(t, tgt, false)
 
 			getEnvelope(t, client, tgt.hostURL+"/readyz", http.StatusOK)
-			if tgt.hasPlatform {
-				getEnvelope(t, client, tgt.hostURL+"/_platform", http.StatusOK)
-				getEnvelope(t, client, gatewayURL()+"/_platform/"+tgt.service, http.StatusOK)
-			}
 		})
 	}
 }
