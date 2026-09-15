@@ -336,6 +336,17 @@ components:
         totalMinor: { type: integer }
         currency: { type: string }
         placedAt: { type: string, format: date-time }
+    OrderPage:
+      type: object
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/OrderSummary" }
+        page: { type: integer }
+        # The effective size after clamping, not what the caller asked for.
+        pageSize: { type: integer }
+        total: { type: integer }
     OrderHistoryPage:
       type: object
       required: [items, page, pageSize, total]

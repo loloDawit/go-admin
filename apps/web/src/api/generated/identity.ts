@@ -160,7 +160,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The caller's own record. */
+        /**
+         * The caller's own record.
+         * @description Returns 403 password_change_required while the caller's mustChangePassword is set: the gate covers every authenticated route except changing that password and logging out, this one included. A client bootstrapping its session from here must treat that as its own state rather than as an error.
+         */
         get: {
             parameters: {
                 query?: never;
@@ -180,6 +183,7 @@ export interface paths {
                     };
                 };
                 401: components["responses"]["Error"];
+                403: components["responses"]["Error"];
             };
         };
         put?: never;
@@ -537,7 +541,7 @@ export interface paths {
         post?: never;
         /**
          * Delete a role. Requires edit_roles.
-         * @description Refused with conflict while any staff member still holds it.
+         * @description Refused with role_in_use while any staff member still holds it. The foreign key refuses first, so this is a guarantee rather than a check that could be raced.
          */
         delete: {
             parameters: {
@@ -698,7 +702,7 @@ export interface components {
     schemas: {
         Error: {
             /** @enum {string} */
-            code: "invalid_credentials" | "unauthenticated" | "forbidden" | "password_change_required" | "not_found" | "conflict" | "last_admin" | "validation_failed" | "internal" | "schema_dirty" | "schema_not_migrated" | "database_unavailable";
+            code: "invalid_credentials" | "unauthenticated" | "forbidden" | "password_change_required" | "not_found" | "conflict" | "last_admin" | "role_in_use" | "validation_failed" | "internal" | "schema_dirty" | "schema_not_migrated" | "database_unavailable";
             message: string;
         };
         /**
