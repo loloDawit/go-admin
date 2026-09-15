@@ -10,13 +10,16 @@ import (
 	"github.com/loloDawit/go-admin/services/orders/internal/errs"
 )
 
+const defaultPageSize = 20
+
 type Service struct {
-	repo    Repository
-	catalog ProductResolver
+	repo        Repository
+	catalog     ProductResolver
+	pageSizeMax int
 }
 
-func NewService(repo Repository, resolver ProductResolver) *Service {
-	return &Service{repo: repo, catalog: resolver}
+func NewService(repo Repository, resolver ProductResolver, pageSizeMax int) *Service {
+	return &Service{repo: repo, catalog: resolver, pageSizeMax: pageSizeMax}
 }
 
 // Create resolves every line against Catalog, then opens one transaction to
@@ -91,6 +94,88 @@ func (s *Service) Get(ctx context.Context, id int64) (Order, error) {
 		return Order{}, errs.Wrap(errs.OpGetOrder, err)
 	}
 	return got, nil
+}
+
+// SetStatus drives the generic status endpoint, which must never reach
+// cancelled or refunded: those have preconditions of their own, modelled by
+// Cancel and Refund, and a generic endpoint that could reach them would be a
+// way around those rules.
+func (s *Service) SetStatus(ctx context.Context, id int64, actorID string, to Status) (Order, error) {
+	if to == StatusCancelled || to == StatusRefunded {
+		return Order{}, ErrInvalidTransition
+	}
+	return s.transition(ctx, id, actorID, to, "")
+}
+
+// Cancel is reachable from pending, paid and packed, per the transition
+// table; once shipped, an order can only be refunded, not cancelled.
+func (s *Service) Cancel(ctx context.Context, id int64, actorID, reason string) (Order, error) {
+	return s.transition(ctx, id, actorID, StatusCancelled, reason)
+}
+
+// Refund is reachable from paid, packed, shipped and delivered: every one of
+// those is reached only by way of paid, so no separate history check is
+// needed to require that the order was paid at some point.
+func (s *Service) Refund(ctx context.Context, id int64, actorID, reason string) (Order, error) {
+	return s.transition(ctx, id, actorID, StatusRefunded, reason)
+}
+
+// transition locks the order's current status, checks it against the
+// transition table, and writes the new status and its event in the same
+// transaction: a status column and an event log that could disagree would
+// be worse than no event log at all.
+func (s *Service) transition(ctx context.Context, id int64, actorID string, to Status, reason string) (Order, error) {
+	var updated Order
+	err := s.repo.RunInTx(ctx, func(tx Repository) error {
+		current, err := tx.GetStatusForUpdate(ctx, id)
+		if err != nil {
+			return err
+		}
+		if !CanTransition(current, to) {
+			return ErrInvalidTransition
+		}
+		updated, err = tx.UpdateStatus(ctx, id, current, to)
+		if err != nil {
+			return err
+		}
+		from := current
+		return tx.InsertEvent(ctx, NewEvent{OrderID: id, FromStatus: &from, ToStatus: to, ActorID: actorID, Reason: reason})
+	})
+	if err != nil {
+		if errors.Is(err, ErrOrderNotFound) || errors.Is(err, ErrInvalidTransition) {
+			return Order{}, err
+		}
+		return Order{}, errs.Wrap(errs.OpTransitionOrder, err)
+	}
+	return updated, nil
+}
+
+func (s *Service) List(ctx context.Context, q ListQuery) (Page, error) {
+	q.Page, q.PageSize = normalizePage(q.Page, q.PageSize, s.pageSizeMax)
+
+	items, total, err := s.repo.ListOrders(ctx, q)
+	if err != nil {
+		if errors.Is(err, ErrInvalidSort) {
+			return Page{}, err
+		}
+		return Page{}, errs.Wrap(errs.OpListOrders, err)
+	}
+	return Page{Items: items, Page: q.Page, PageSize: q.PageSize, Total: total}, nil
+}
+
+// normalizePage clamps pageSize to max rather than refusing it: the caller
+// still gets a page, just not the size they asked for.
+func normalizePage(page, pageSize, max int) (int, int) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = defaultPageSize
+	}
+	if pageSize > max {
+		pageSize = max
+	}
+	return page, pageSize
 }
 
 // validateShape rejects a request Catalog would never even see: an order

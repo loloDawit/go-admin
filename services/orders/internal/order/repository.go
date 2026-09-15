@@ -23,6 +23,18 @@ type Repository interface {
 	InsertEvent(ctx context.Context, in NewEvent) error
 
 	GetByID(ctx context.Context, id int64) (Order, error)
+
+	// GetStatusForUpdate locks the order row for the remainder of the
+	// caller's transaction, so the status it reports cannot change under a
+	// concurrent transition before UpdateStatus writes the new one.
+	GetStatusForUpdate(ctx context.Context, id int64) (Status, error)
+
+	// UpdateStatus is a compare-and-set: it writes only if the row's status
+	// still matches from. Call it only after GetStatusForUpdate in the same
+	// transaction, which is what makes that guaranteed rather than racy.
+	UpdateStatus(ctx context.Context, id int64, from, to Status) (Order, error)
+
+	ListOrders(ctx context.Context, q ListQuery) ([]Order, int, error)
 }
 
 // NewOrder is InsertOrder's input: the header row before its items exist.
@@ -41,6 +53,7 @@ type NewEvent struct {
 	FromStatus *Status
 	ToStatus   Status
 	ActorID    string
+	Reason     string
 }
 
 // ProductResolver is the subset of catalog.Client the service calls; a fake

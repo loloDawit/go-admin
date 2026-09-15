@@ -3,6 +3,8 @@ package order
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -11,6 +13,17 @@ import (
 
 	"github.com/loloDawit/go-admin/services/orders/internal/errs"
 )
+
+// orderSortColumns is the only place a caller's sort string reaches a
+// column name: anything absent here is refused rather than interpolated.
+var orderSortColumns = map[string]string{
+	"placed_at":   "placed_at",
+	"total_minor": "total_minor",
+	"status":      "status",
+	"number":      "number",
+}
+
+const defaultOrderSort = "-placed_at"
 
 // foreignKeyViolationCode is Postgres's SQLSTATE for a reference to a row that does not exist.
 const foreignKeyViolationCode = "23503"
@@ -90,8 +103,112 @@ func (r *PostgresRepository) InsertEvent(ctx context.Context, in NewEvent) error
 		s := string(*in.FromStatus)
 		fromStatus = &s
 	}
-	_, err := r.q.Exec(ctx, insertOrderEventStmt, in.OrderID, fromStatus, string(in.ToStatus), in.ActorID)
+	_, err := r.q.Exec(ctx, insertOrderEventStmt, in.OrderID, fromStatus, string(in.ToStatus), in.ActorID, in.Reason)
 	return err
+}
+
+// GetStatusForUpdate locks the row: no other transaction can write a new
+// status until this one commits or rolls back.
+func (r *PostgresRepository) GetStatusForUpdate(ctx context.Context, id int64) (Status, error) {
+	var status string
+	err := r.q.QueryRow(ctx, getOrderStatusForUpdateQuery, id).Scan(&status)
+	if isNoRows(err) {
+		return "", ErrOrderNotFound
+	}
+	if err != nil {
+		return "", err
+	}
+	return Status(status), nil
+}
+
+// UpdateStatus's WHERE clause repeats the check the caller already made
+// under GetStatusForUpdate's lock: belt and braces, not the only guard.
+func (r *PostgresRepository) UpdateStatus(ctx context.Context, id int64, from, to Status) (Order, error) {
+	var o Order
+	var status string
+	row := r.q.QueryRow(ctx, updateOrderStatusStmt, id, string(from), string(to))
+	err := row.Scan(&o.ID, &o.Number, &o.CustomerID, &status, &o.TotalMinor, &o.Currency, &o.PlacedAt, &o.UpdatedAt)
+	if isNoRows(err) {
+		return Order{}, ErrOrderNotFound
+	}
+	if err != nil {
+		return Order{}, err
+	}
+	o.Status = Status(status)
+	return o, nil
+}
+
+func (r *PostgresRepository) ListOrders(ctx context.Context, q ListQuery) ([]Order, int, error) {
+	col, desc, err := resolveOrderSort(q.Sort)
+	if err != nil {
+		return nil, 0, err
+	}
+	direction := "ASC"
+	if desc {
+		direction = "DESC"
+	}
+	status := orderStatusParam(q.Status)
+
+	stmt := fmt.Sprintf(listOrdersQueryTemplate, col, direction)
+	rows, err := r.q.Query(ctx, stmt, status, q.CustomerID, q.PageSize, offset(q.Page, q.PageSize))
+	if err != nil {
+		return nil, 0, err
+	}
+	items, err := scanOrders(rows)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var total int
+	if err := r.q.QueryRow(ctx, listOrdersCountQuery, status, q.CustomerID).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	return items, total, nil
+}
+
+// resolveOrderSort maps a caller's sort string to a fixed column via
+// orderSortColumns; anything absent from the map is refused, never
+// interpolated.
+func resolveOrderSort(sort string) (string, bool, error) {
+	if sort == "" {
+		sort = defaultOrderSort
+	}
+	desc := strings.HasPrefix(sort, "-")
+	key := strings.TrimPrefix(sort, "-")
+
+	col, ok := orderSortColumns[key]
+	if !ok {
+		return "", false, ErrInvalidSort
+	}
+	return col, desc, nil
+}
+
+func orderStatusParam(s *Status) *string {
+	if s == nil {
+		return nil
+	}
+	v := string(*s)
+	return &v
+}
+
+func offset(page, pageSize int) int {
+	return (page - 1) * pageSize
+}
+
+func scanOrders(rows pgx.Rows) ([]Order, error) {
+	defer rows.Close()
+
+	items := []Order{}
+	for rows.Next() {
+		var o Order
+		var status string
+		if err := rows.Scan(&o.ID, &o.Number, &o.CustomerID, &status, &o.TotalMinor, &o.Currency, &o.PlacedAt, &o.UpdatedAt); err != nil {
+			return nil, err
+		}
+		o.Status = Status(status)
+		items = append(items, o)
+	}
+	return items, rows.Err()
 }
 
 func (r *PostgresRepository) GetByID(ctx context.Context, id int64) (Order, error) {

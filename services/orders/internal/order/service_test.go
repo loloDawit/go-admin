@@ -11,6 +11,8 @@ import (
 	"github.com/loloDawit/go-admin/services/orders/internal/order"
 )
 
+const testPageSizeMax = 50
+
 // fakeCatalog is a Resolve double: no HTTP round trip, no retry semantics.
 type fakeCatalog struct {
 	products []catalog.Product
@@ -40,6 +42,17 @@ type fakeRepo struct {
 
 	getByIDResult order.Order
 	getByIDErr    error
+
+	status              order.Status
+	getStatusErr        error
+	updateStatusCalls   int
+	updateStatusErr     error
+	insertedEventReason string
+
+	listResult []order.Order
+	listTotal  int
+	listErr    error
+	lastListQ  order.ListQuery
 }
 
 func (f *fakeRepo) RunInTx(_ context.Context, fn func(order.Repository) error) error {
@@ -75,11 +88,33 @@ func (f *fakeRepo) InsertItems(_ context.Context, _ int64, items []order.Item) (
 
 func (f *fakeRepo) InsertEvent(_ context.Context, in order.NewEvent) error {
 	f.insertedEvent = in
+	f.insertedEventReason = in.Reason
 	return nil
 }
 
 func (f *fakeRepo) GetByID(context.Context, int64) (order.Order, error) {
 	return f.getByIDResult, f.getByIDErr
+}
+
+func (f *fakeRepo) GetStatusForUpdate(context.Context, int64) (order.Status, error) {
+	if f.getStatusErr != nil {
+		return "", f.getStatusErr
+	}
+	return f.status, nil
+}
+
+func (f *fakeRepo) UpdateStatus(_ context.Context, id int64, from, to order.Status) (order.Order, error) {
+	f.updateStatusCalls++
+	if f.updateStatusErr != nil {
+		return order.Order{}, f.updateStatusErr
+	}
+	f.status = to
+	return order.Order{ID: id, Status: to}, nil
+}
+
+func (f *fakeRepo) ListOrders(_ context.Context, q order.ListQuery) ([]order.Order, int, error) {
+	f.lastListQ = q
+	return f.listResult, f.listTotal, f.listErr
 }
 
 func newActiveProduct(id, title, currency string, priceMinor int64) catalog.Product {
@@ -89,7 +124,7 @@ func newActiveProduct(id, title, currency string, priceMinor int64) catalog.Prod
 func TestCreateSnapshotsTitleAndPriceFromCatalog(t *testing.T) {
 	repo := &fakeRepo{nextSeq: 1, nextAt: time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)}
 	cat := &fakeCatalog{products: []catalog.Product{newActiveProduct("1", "Widget", "GBP", 500)}}
-	svc := order.NewService(repo, cat)
+	svc := order.NewService(repo, cat, testPageSizeMax)
 
 	_, err := svc.Create(context.Background(), order.CreateOrder{
 		CustomerID: 7, ActorID: "staff-1",
@@ -116,7 +151,7 @@ func TestCreateRejectsAnIdCatalogDidNotReturn(t *testing.T) {
 		newActiveProduct("1", "A", "GBP", 100),
 		newActiveProduct("3", "C", "GBP", 300),
 	}}
-	svc := order.NewService(repo, cat)
+	svc := order.NewService(repo, cat, testPageSizeMax)
 
 	_, err := svc.Create(context.Background(), order.CreateOrder{
 		CustomerID: 1, ActorID: "staff-1",
@@ -143,7 +178,7 @@ func TestCreateRefusesMixedCurrencies(t *testing.T) {
 		newActiveProduct("1", "A", "GBP", 100),
 		newActiveProduct("2", "B", "EUR", 200),
 	}}
-	svc := order.NewService(repo, cat)
+	svc := order.NewService(repo, cat, testPageSizeMax)
 
 	_, err := svc.Create(context.Background(), order.CreateOrder{
 		CustomerID: 1, ActorID: "staff-1",
@@ -163,7 +198,7 @@ func TestTotalIsTheSumOfLineTotals(t *testing.T) {
 		newActiveProduct("1", "A", "GBP", 500),
 		newActiveProduct("2", "B", "GBP", 250),
 	}}
-	svc := order.NewService(repo, cat)
+	svc := order.NewService(repo, cat, testPageSizeMax)
 
 	_, err := svc.Create(context.Background(), order.CreateOrder{
 		CustomerID: 1, ActorID: "staff-1",
@@ -181,7 +216,7 @@ func TestTotalIsTheSumOfLineTotals(t *testing.T) {
 func TestCreateOpensNoTransactionUntilCatalogHasAnswered(t *testing.T) {
 	repo := &fakeRepo{}
 	cat := &fakeCatalog{err: errors.New("catalog is unavailable")}
-	svc := order.NewService(repo, cat)
+	svc := order.NewService(repo, cat, testPageSizeMax)
 
 	_, err := svc.Create(context.Background(), order.CreateOrder{
 		CustomerID: 1, ActorID: "staff-1",
@@ -200,7 +235,7 @@ func TestCreateRejectsAnInactiveProduct(t *testing.T) {
 	cat := &fakeCatalog{products: []catalog.Product{
 		{ID: "1", Title: "Discontinued", PriceMinor: 100, Currency: "GBP", Status: "archived"},
 	}}
-	svc := order.NewService(repo, cat)
+	svc := order.NewService(repo, cat, testPageSizeMax)
 
 	_, err := svc.Create(context.Background(), order.CreateOrder{
 		CustomerID: 1, ActorID: "staff-1",
@@ -217,7 +252,7 @@ func TestCreateRejectsAnInactiveProduct(t *testing.T) {
 func TestCreateRejectsEmptyItems(t *testing.T) {
 	repo := &fakeRepo{}
 	cat := &fakeCatalog{}
-	svc := order.NewService(repo, cat)
+	svc := order.NewService(repo, cat, testPageSizeMax)
 
 	_, err := svc.Create(context.Background(), order.CreateOrder{CustomerID: 1, ActorID: "staff-1"})
 	if err == nil {
@@ -233,7 +268,7 @@ func TestCreateRejectsEmptyItems(t *testing.T) {
 func TestCreateRecordsTheFirstEventWithNoFromStatus(t *testing.T) {
 	repo := &fakeRepo{nextSeq: 1, nextAt: time.Now()}
 	cat := &fakeCatalog{products: []catalog.Product{newActiveProduct("1", "A", "GBP", 100)}}
-	svc := order.NewService(repo, cat)
+	svc := order.NewService(repo, cat, testPageSizeMax)
 
 	_, err := svc.Create(context.Background(), order.CreateOrder{
 		CustomerID: 1, ActorID: "staff-42",
@@ -252,7 +287,7 @@ func TestCreateRecordsTheFirstEventWithNoFromStatus(t *testing.T) {
 
 func TestGetWrapsRepositoryNotFound(t *testing.T) {
 	repo := &fakeRepo{getByIDErr: order.ErrOrderNotFound}
-	svc := order.NewService(repo, &fakeCatalog{})
+	svc := order.NewService(repo, &fakeCatalog{}, testPageSizeMax)
 
 	_, err := svc.Get(context.Background(), 99)
 	if !errors.Is(err, order.ErrOrderNotFound) {

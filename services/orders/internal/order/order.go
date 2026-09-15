@@ -16,6 +16,8 @@ var (
 	ErrCurrencyMismatch   = errs.ErrCurrencyMismatch
 	ErrEmptyOrder         = errs.ErrEmptyOrder
 	ErrInvalidQuantity    = errs.ErrInvalidQuantity
+	ErrInvalidTransition  = errs.ErrInvalidTransition
+	ErrInvalidSort        = errs.ErrInvalidSort
 )
 
 type Status string
@@ -67,6 +69,25 @@ type CreateOrder struct {
 type CreateOrderItem struct {
 	ProductID string
 	Quantity  int
+}
+
+// ListQuery carries a listing request; Status and CustomerID nil mean no
+// filter on that field, and a zero PageSize means the service's default.
+type ListQuery struct {
+	Status     *Status
+	CustomerID *int64
+	Sort       string
+	Page       int
+	PageSize   int
+}
+
+// Page is List's response shape; Total comes from a separate count query,
+// never a window function over the paged rows.
+type Page struct {
+	Items    []Order
+	Page     int
+	PageSize int
+	Total    int
 }
 
 // formatOrderNumber is done in Go, not SQL: lpad truncates past six digits

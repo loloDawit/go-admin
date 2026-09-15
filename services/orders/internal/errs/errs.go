@@ -39,6 +39,11 @@ var (
 	ErrCurrencyMismatch = errors.New("currency mismatch across order lines")
 	ErrEmptyOrder       = errors.New("order has no items")
 	ErrInvalidQuantity  = errors.New("order line quantity must be positive")
+	// ErrInvalidTransition: the requested status change is not reachable from the order's current status,
+	// or targets cancelled/refunded through the generic status endpoint, which those transitions refuse.
+	ErrInvalidTransition = errors.New("invalid order status transition")
+	// ErrInvalidSort: a caller's sort key is absent from the fixed column allowlist.
+	ErrInvalidSort = errors.New("sort is not supported")
 )
 
 // Operation strings for Wrap, named here so a log line and its test expectation cannot drift independently.
@@ -51,8 +56,11 @@ const (
 	OpLookupCustomerByEmail = "look up customer by email"
 	OpCustomerLifetimeValue = "compute customer lifetime value"
 
-	OpCreateOrder = "create order"
-	OpGetOrder    = "look up order by id"
+	OpCreateOrder          = "create order"
+	OpGetOrder             = "look up order by id"
+	OpTransitionOrder      = "transition order status"
+	OpListOrders           = "list orders"
+	OpCustomerOrderHistory = "look up customer order history"
 )
 
 // Wrap names the step that failed, so a log line reads "resolve products from catalog: connection refused", not a bare driver message.
