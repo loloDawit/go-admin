@@ -16,6 +16,10 @@ import (
 	"github.com/loloDawit/go-admin/services/orders/internal/platformcheck"
 )
 
+// statusClientClosedRequest mirrors nginx's 499: there is no standard HTTP
+// status for a client that disconnected before an answer was ready.
+const statusClientClosedRequest = 499
+
 // Writer's logger is injected, not read off the slog default, so log lines are attributed to this service.
 type Writer struct {
 	logger *slog.Logger
@@ -28,6 +32,8 @@ func New(logger *slog.Logger) *Writer {
 // Write takes ctx so the logged error carries the same request_id as the request line RequestLogger emits.
 func (h *Writer) Write(ctx context.Context, w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, httpx.ErrMalformedBody):
+		httpx.WriteError(w, http.StatusBadRequest, "malformed_body", "the request body is invalid")
 	case errors.Is(err, platformcheck.ErrDirtySchema):
 		httpx.WriteError(w, http.StatusServiceUnavailable, "schema_dirty", "the service is not ready")
 	case errors.Is(err, platformcheck.ErrNoMigrations):
@@ -48,17 +54,29 @@ func (h *Writer) Write(ctx context.Context, w http.ResponseWriter, err error) {
 	case errors.Is(err, order.ErrOrderNotFound):
 		httpx.WriteError(w, http.StatusNotFound, "not_found", "order not found")
 	case errors.Is(err, order.ErrProductUnavailable):
-		httpx.WriteError(w, http.StatusUnprocessableEntity, "product_unavailable", "one or more products in this order are unavailable")
+		// err.Error() here is just "product unavailable: product <id>", built
+		// in service.go from caller-supplied ids; safe to show, unlike a
+		// driver or SQL message.
+		httpx.WriteError(w, http.StatusUnprocessableEntity, "product_unavailable", err.Error())
 	case errors.Is(err, order.ErrCurrencyMismatch):
 		httpx.WriteError(w, http.StatusUnprocessableEntity, "currency_mismatch", "an order's lines must share one currency")
 	case errors.Is(err, order.ErrEmptyOrder):
 		httpx.WriteError(w, http.StatusBadRequest, "validation_failed", "an order must have at least one item")
 	case errors.Is(err, order.ErrInvalidQuantity):
 		httpx.WriteError(w, http.StatusBadRequest, "validation_failed", "order line quantity must be positive")
+	case errors.Is(err, order.ErrInvalidTransition):
+		httpx.WriteError(w, http.StatusConflict, "invalid_transition", "that status change is not allowed from the order's current status")
+	case errors.Is(err, order.ErrInvalidSort):
+		httpx.WriteError(w, http.StatusUnprocessableEntity, "validation_failed", "sort is not supported")
+	case errors.Is(err, context.Canceled):
+		// The client disconnected before Catalog answered; this is not a
+		// dependency failure, so it must not join a 5xx error-rate metric
+		// the way a real Catalog outage would, and it is not logged as one.
+		httpx.WriteError(w, statusClientClosedRequest, "request_cancelled", "the request was cancelled")
 	case errors.Is(err, errs.ErrCatalogTimeout):
-		httpx.WriteError(w, http.StatusServiceUnavailable, "catalog_unavailable", "the service is not ready")
+		httpx.WriteError(w, http.StatusGatewayTimeout, "catalog_timeout", "the service is not ready")
 	case errors.Is(err, errs.ErrCatalogUnavailable):
-		httpx.WriteError(w, http.StatusServiceUnavailable, "catalog_unavailable", "the service is not ready")
+		httpx.WriteError(w, http.StatusBadGateway, "catalog_unavailable", "the service is not ready")
 	case errors.Is(err, errs.ErrCatalogRejected):
 		// Catalog rejected our own request: a bug on this side, not a client fault, hence 502 not 4xx.
 		httpx.WriteError(w, http.StatusBadGateway, "catalog_rejected", "something went wrong")
