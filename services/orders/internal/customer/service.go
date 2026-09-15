@@ -65,14 +65,16 @@ func (s *Service) List(ctx context.Context, q ListQuery) (Page, error) {
 	return Page{Items: items, Page: q.Page, PageSize: q.PageSize, Total: total}, nil
 }
 
-// LifetimeValue reports minor-unit revenue only: cancelled and refunded
-// orders are excluded by the repository query, not filtered here.
-func (s *Service) LifetimeValue(ctx context.Context, id int64) (int64, error) {
-	total, err := s.repo.LifetimeValueMinor(ctx, id)
+// LifetimeValue is money actually taken, in the currency it was taken in.
+func (s *Service) LifetimeValue(ctx context.Context, id int64) (int64, string, error) {
+	total, currency, err := s.repo.LifetimeValueMinor(ctx, id)
 	if err != nil {
-		return 0, errs.Wrap(errs.OpCustomerLifetimeValue, err)
+		if errors.Is(err, ErrMixedCurrencyHistory) {
+			return 0, "", err
+		}
+		return 0, "", errs.Wrap(errs.OpCustomerLifetimeValue, err)
 	}
-	return total, nil
+	return total, currency, nil
 }
 
 func normalizePage(page, pageSize, max int) (int, int) {

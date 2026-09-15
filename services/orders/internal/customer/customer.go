@@ -12,6 +12,7 @@ var (
 	ErrCustomerNotFound     = errs.ErrCustomerNotFound
 	ErrCustomerEmailTaken   = errs.ErrCustomerEmailTaken
 	ErrInvalidCustomerEmail = errs.ErrInvalidCustomerEmail
+	ErrMixedCurrencyHistory = errs.ErrMixedCurrencyHistory
 )
 
 type Customer struct {

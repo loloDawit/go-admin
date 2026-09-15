@@ -83,12 +83,29 @@ func (r *PostgresRepository) List(ctx context.Context, q ListQuery) ([]Customer,
 	return items, total, nil
 }
 
-func (r *PostgresRepository) LifetimeValueMinor(ctx context.Context, id int64) (int64, error) {
-	var total int64
-	if err := r.q.QueryRow(ctx, customerLifetimeValueQuery, id).Scan(&total); err != nil {
-		return 0, err
+func (r *PostgresRepository) LifetimeValueMinor(ctx context.Context, id int64) (int64, string, error) {
+	rows, err := r.q.Query(ctx, customerLifetimeValueQuery, id)
+	if err != nil {
+		return 0, "", err
 	}
-	return total, nil
+	defer rows.Close()
+
+	var total int64
+	var currency string
+	seen := 0
+	for rows.Next() {
+		if err := rows.Scan(&currency, &total); err != nil {
+			return 0, "", err
+		}
+		seen++
+	}
+	if err := rows.Err(); err != nil {
+		return 0, "", err
+	}
+	if seen > 1 {
+		return 0, "", ErrMixedCurrencyHistory
+	}
+	return total, currency, nil
 }
 
 func offset(page, pageSize int) int {

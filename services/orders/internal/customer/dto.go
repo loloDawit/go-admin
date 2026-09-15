@@ -32,7 +32,8 @@ type PageResponse struct {
 // LifetimeValueResponse reports minor-unit revenue, currency-naive: correct
 // for a single-currency shop, not summed correctly across currencies.
 type LifetimeValueResponse struct {
-	LifetimeValueMinor int64 `json:"lifetimeValueMinor"`
+	LifetimeValueMinor int64  `json:"lifetimeValueMinor"`
+	Currency           string `json:"currency"`
 }
 
 func newCustomerResponse(c Customer) CustomerResponse {

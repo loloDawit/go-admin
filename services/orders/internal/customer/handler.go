@@ -86,12 +86,12 @@ func (h *Handler) LifetimeValue(w http.ResponseWriter, r *http.Request) {
 		h.writeErr(r.Context(), w, err)
 		return
 	}
-	total, err := h.svc.LifetimeValue(r.Context(), id)
+	total, currency, err := h.svc.LifetimeValue(r.Context(), id)
 	if err != nil {
 		h.writeErr(r.Context(), w, err)
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, LifetimeValueResponse{LifetimeValueMinor: total})
+	httpx.WriteJSON(w, http.StatusOK, LifetimeValueResponse{LifetimeValueMinor: total, Currency: currency})
 }
 
 func customerIDParam(r *http.Request) (int64, error) {

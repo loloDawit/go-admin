@@ -24,8 +24,12 @@ var (
 	// ErrCatalogRejected: Catalog answered with a 4xx, or a body this client could not parse.
 	ErrCatalogRejected = errors.New("catalog rejected the request")
 
-	ErrCustomerNotFound     = errors.New("customer not found")
-	ErrCustomerEmailTaken   = errors.New("email is already in use")
+	ErrCustomerNotFound   = errors.New("customer not found")
+	ErrCustomerEmailTaken = errors.New("email is already in use")
+	// ErrMixedCurrencyHistory: a lifetime value summed across currencies is a
+	// number that means nothing, so it is refused rather than returned.
+	ErrMixedCurrencyHistory = errors.New("orders span more than one currency")
+
 	ErrInvalidCustomerEmail = errors.New("email must not be empty")
 
 	// ErrProductUnavailable: a line names a product Catalog did not return, or one that is not active.

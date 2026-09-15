@@ -15,8 +15,11 @@ const testPageSizeMax = 50
 // fakeRepository is an in-memory double; each test builds its own so none
 // depends on another test's state or a real database.
 type fakeRepository struct {
-	nextID int64
-	byID   map[int64]customer.Customer
+	lifetimeValue    int64
+	lifetimeCurrency string
+	lifetimeErr      error
+	nextID           int64
+	byID             map[int64]customer.Customer
 }
 
 func newFakeRepository() *fakeRepository {
@@ -59,8 +62,8 @@ func (f *fakeRepository) List(_ context.Context, q customer.ListQuery) ([]custom
 	return nil, len(f.byID), nil
 }
 
-func (f *fakeRepository) LifetimeValueMinor(_ context.Context, id int64) (int64, error) {
-	return 0, nil
+func (f *fakeRepository) LifetimeValueMinor(_ context.Context, id int64) (int64, string, error) {
+	return f.lifetimeValue, f.lifetimeCurrency, f.lifetimeErr
 }
 
 func newTestService() (*customer.Service, *fakeRepository) {
@@ -137,5 +140,29 @@ func TestPageSizeIsClampedNotRefused(t *testing.T) {
 	}
 	if result.Page != 1 {
 		t.Fatalf("page: want default 1, got %d", result.Page)
+	}
+}
+
+// A customer whose orders span two currencies has no single lifetime value, so
+// the repository refuses rather than returning a sum across them.
+func TestLifetimeValueRefusesAMixedCurrencyHistory(t *testing.T) {
+	svc, repo := newTestService()
+	repo.lifetimeErr = customer.ErrMixedCurrencyHistory
+
+	if _, _, err := svc.LifetimeValue(context.Background(), 1); !errors.Is(err, customer.ErrMixedCurrencyHistory) {
+		t.Fatalf("want ErrMixedCurrencyHistory, got %v", err)
+	}
+}
+
+func TestLifetimeValueCarriesTheCurrencyItWasTakenIn(t *testing.T) {
+	svc, repo := newTestService()
+	repo.lifetimeValue, repo.lifetimeCurrency = 14999, "USD"
+
+	total, currency, err := svc.LifetimeValue(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("lifetime value: %v", err)
+	}
+	if total != 14999 || currency != "USD" {
+		t.Fatalf("want 14999 USD, got %d %q", total, currency)
 	}
 }

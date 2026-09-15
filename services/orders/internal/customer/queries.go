@@ -20,7 +20,10 @@ LIMIT $1 OFFSET $2`
 
 const countCustomersQuery = `SELECT COUNT(*) FROM customers`
 
-// customerLifetimeValueQuery excludes cancelled and refunded orders: money
-// returned to the customer is not part of their lifetime value.
-const customerLifetimeValueQuery = `SELECT COALESCE(SUM(total_minor), 0) FROM orders
-WHERE customer_id = $1 AND status NOT IN ('cancelled', 'refunded')`
+// customerLifetimeValueQuery counts money actually taken: pending is not yet
+// value, and cancelled or refunded money went back. Grouping by currency makes
+// a customer with orders in two of them two rows, which the caller refuses
+// rather than summing into a number that means nothing.
+const customerLifetimeValueQuery = `SELECT currency, COALESCE(SUM(total_minor), 0) FROM orders
+WHERE customer_id = $1 AND status IN ('paid', 'packed', 'shipped', 'delivered')
+GROUP BY currency`
