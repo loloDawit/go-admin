@@ -15,6 +15,12 @@ jobs:
         with:
           go-version: '1.27'
           cache: true
+      - run: make generate
+      # Catalog's permission constants come from identity's published contract.
+      # A diff here means the two have drifted, which is the failure §6.5 exists
+      # to catch before a service enforces a permission the issuer never issues.
+      - name: Generated code is current
+        run: git diff --exit-code
       - run: make lint
       - run: go build ./services/... ./platform/...
       # Deliberately excludes test/integration: those tests carry

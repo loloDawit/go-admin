@@ -1,9 +1,21 @@
 openapi: 3.1.0
 info:
   title: Catalog Service
-  version: 0.1.0
+  version: 1.0.0
   description: >
-    M1 exposes only infrastructure endpoints. Domain endpoints arrive in M2.
+    Products and their images. Every /api/v1 route requires a signed principal,
+    forwarded by the gateway after identity resolves the session cookie.
+    /internal/products/resolve is gateway-network-only, called by Orders to
+    snapshot title and price at purchase time.
+
+    Identifiers are strings on every surface. They are BIGSERIAL values that can
+    exceed JavaScript's safe integer range, where a JSON number would silently
+    lose precision. Money is priceMinor (an integer count of the currency's
+    smallest unit) plus a currency code; the default when a caller omits one is
+    USD.
+servers:
+  - url: http://localhost:8080
+    description: Through the gateway
 paths:
   /healthz:
     get:
@@ -15,33 +27,291 @@ paths:
       summary: Readiness. Checks database connectivity and clean migration state.
       responses:
         "200": { description: Ready to serve }
-        "503": { description: Not ready, $ref: "#/components/responses/Error" }
-  /_platform:
+        "503": { $ref: "#/components/responses/Error" }
+
+  /api/v1/products:
     get:
-      summary: >
-        Temporary M1 walking skeleton. Removed in M2. Not a product endpoint.
+      summary: List products. Requires view_products.
+      description: >
+        With no status filter, draft and active products are returned and
+        archived ones excluded.
+      parameters:
+        - { name: status, in: query, schema: { $ref: "#/components/schemas/ProductStatus" } }
+        - { name: sort, in: query, schema: { type: string }, description: A column from the server's sort allowlist; an unrecognized value is refused. }
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1 }, description: Clamped to the service's configured maximum; the response states the effective size. }
       responses:
         "200":
-          description: Schema state
+          description: A page of products
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProductPage" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+    post:
+      summary: Create a product. Requires edit_products.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateProductRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Product" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /api/v1/products/search:
+    get:
+      summary: Full-text search over title and description. Requires view_products.
+      description: A title match ranks above a description match; q must not be empty.
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string } }
+        - { name: status, in: query, schema: { $ref: "#/components/schemas/ProductStatus" } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1 } }
+      responses:
+        "200":
+          description: A page of matching products
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProductPage" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /api/v1/products/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      summary: One product. Requires view_products.
+      description: An archived product remains retrievable by id; it just leaves the default list.
+      responses:
+        "200":
+          description: The product
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Product" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    patch:
+      summary: Update a product. Requires edit_products.
+      description: >
+        Every field is optional; an omitted field leaves that column
+        unchanged. Refused once the product is archived.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateProductRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Product" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /api/v1/products/{id}/archive:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    post:
+      summary: Archive a product. Requires edit_products.
+      description: Leaves the default list view; the row and its images are untouched.
+      responses:
+        "200":
+          description: Archived
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Product" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /api/v1/products/{id}/images:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    post:
+      summary: Upload a product image. Requires edit_products.
+      description: >
+        multipart/form-data with the file in a field named "file". The
+        response's url is presigned fresh for this response; it is not stored
+        and will differ on a later fetch of the same image.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        "201":
+          description: Uploaded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Image" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "413": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /api/v1/products/{id}/images/{imageID}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+      - { name: imageID, in: path, required: true, schema: { type: integer } }
+    delete:
+      summary: Delete a product image. Requires edit_products.
+      responses:
+        "204": { description: Deleted }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /internal/products/resolve:
+    post:
+      summary: Resolve a batch of product ids to purchase-time snapshots. Gateway only.
+      description: >
+        Not routed through the gateway and reachable on the container network
+        only. An id with no matching product is simply absent from the
+        response, never an error; an archived product is still resolved. The
+        batch is capped by the service's configured maximum.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ids]
+              properties:
+                ids:
+                  type: array
+                  items: { type: string }
+      responses:
+        "200":
+          description: The resolved snapshots, ordered to match the requested ids
           content:
             application/json:
               schema:
                 type: object
-                required: [service, schemaVersion, requestId]
+                required: [products]
                 properties:
-                  service: { type: string }
-                  schemaVersion: { type: integer }
-                  requestId: { type: string }
-        "503": { description: Not ready, $ref: "#/components/responses/Error" }
+                  products:
+                    type: array
+                    items: { $ref: "#/components/schemas/ResolvedProduct" }
+        "422": { $ref: "#/components/responses/Error" }
+
 components:
   responses:
     Error:
       description: Standard error envelope
       content:
         application/json:
-          schema:
-            type: object
-            required: [code, message]
-            properties:
-              code: { type: string }
-              message: { type: string }
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum:
+            - unauthenticated
+            - forbidden
+            - not_found
+            - sku_taken
+            - product_archived
+            - validation_failed
+            - unsupported_image_type
+            - image_too_large
+            - malformed_body
+            - internal
+            - schema_dirty
+            - schema_not_migrated
+            - database_unavailable
+        message: { type: string }
+    Permission:
+      description: >
+        The canonical permission vocabulary. Identity owns this list (see
+        services/identity/openapi/identity.yaml#/components/schemas/Permission);
+        Catalog generates typed constants from it rather than hand-writing
+        permission strings. Every route on this contract requires view_products
+        or edit_products.
+      type: string
+      enum:
+        - view_staff
+        - edit_staff
+        - view_roles
+        - edit_roles
+        - view_products
+        - edit_products
+        - view_orders
+        - edit_orders
+    ProductStatus:
+      type: string
+      enum: [draft, active, archived]
+    Product:
+      type: object
+      required: [id, sku, title, description, priceMinor, currency, status, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        sku: { type: string }
+        title: { type: string }
+        description: { type: string }
+        priceMinor: { type: integer, description: An integer count of the currency's smallest unit, e.g. cents. }
+        currency: { type: string, description: A 3-letter currency code. Defaults to USD when omitted on create. }
+        status: { $ref: "#/components/schemas/ProductStatus" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CreateProductRequest:
+      type: object
+      required: [sku, title]
+      properties:
+        sku: { type: string }
+        title: { type: string }
+        description: { type: string }
+        priceMinor: { type: integer, minimum: 0 }
+        currency: { type: string }
+    UpdateProductRequest:
+      type: object
+      properties:
+        title: { type: string }
+        description: { type: string }
+        priceMinor: { type: integer, minimum: 0 }
+        currency: { type: string }
+    ProductPage:
+      type: object
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Product" }
+        page: { type: integer }
+        pageSize: { type: integer, description: The effective size after clamping, not necessarily what the caller requested. }
+        total: { type: integer }
+    ResolvedProduct:
+      type: object
+      required: [id, title, priceMinor, currency, status]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        priceMinor: { type: integer }
+        currency: { type: string }
+        status: { $ref: "#/components/schemas/ProductStatus" }
+    Image:
+      type: object
+      required: [id, url, alt, position]
+      properties:
+        id: { type: string }
+        url: { type: string, description: A presigned URL, valid for a limited time; fetch it fresh rather than caching it. }
+        alt: { type: string }
+        position: { type: integer }

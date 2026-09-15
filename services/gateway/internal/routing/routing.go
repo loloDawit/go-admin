@@ -67,6 +67,13 @@ func withTimeout(proxy *httputil.ReverseProxy, timeout time.Duration) http.Handl
 	}
 }
 
+// apiOwners routes an /api/v1 prefix to the service that owns it. Anything not
+// listed falls through to identity, which owns the rest of the surface.
+var apiOwners = map[string]string{
+	"/api/v1/products":   "catalog",
+	"/api/v1/products/*": "catalog",
+}
+
 // "/_platform/{service}" and "/api/v1/*" use separate directors so a change
 // to one cannot alter the other. "/internal/*" is never routed here.
 func New(logger *slog.Logger, upstreams map[string]string, timeout time.Duration) (http.Handler, error) {
@@ -79,11 +86,11 @@ func New(logger *slog.Logger, upstreams map[string]string, timeout time.Duration
 		targets[name] = target
 	}
 
-	// Identity has real routes now, so its walking skeleton was retired; catalog
-	// and orders keep theirs until M3 and M4 replace them.
+	// Identity and catalog have real routes now, so their walking skeletons
+	// were retired; orders keeps its until M4 replaces it.
 	platformProxies := make(map[string]*httputil.ReverseProxy, len(targets))
 	for name, target := range targets {
-		if name == "identity" {
+		if name == "identity" || name == "catalog" {
 			continue
 		}
 		platformProxies[name] = newProxy(logger, name, target, func(out *http.Request) {
@@ -105,6 +112,16 @@ func New(logger *slog.Logger, upstreams map[string]string, timeout time.Duration
 		}
 		withTimeout(proxy, timeout)(w, req)
 	})
+
+	// Longest-prefix first: chi matches a literal segment ahead of a wildcard,
+	// so identity's catch-all cannot swallow a path another service owns.
+	for prefix, name := range apiOwners {
+		target, ok := targets[name]
+		if !ok {
+			continue
+		}
+		r.Handle(prefix, withTimeout(newProxy(logger, name, target, nil), timeout))
+	}
 
 	if identityTarget, ok := targets["identity"]; ok {
 		identityAPI := newProxy(logger, "identity", identityTarget, nil)

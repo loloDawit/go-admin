@@ -16,6 +16,10 @@ curl -s -c /tmp/j -X POST localhost:8080/api/v1/login \
   -H 'Content-Type: application/json' \
   -d '{"email":"owner@example.com","password":"dev_only_owner_password"}'
 curl -s -b /tmp/j localhost:8080/api/v1/me
+curl -s -b /tmp/j -X POST localhost:8080/api/v1/products \
+  -H 'Content-Type: application/json' \
+  -d '{"sku":"desk-1","title":"Walnut desk","priceMinor":14999}'
+curl -s -b /tmp/j localhost:8080/api/v1/products
 ```
 
 `make up` boots postgres, the migrate jobs, the three services and the gateway,
@@ -41,12 +45,17 @@ runs zero of them and still reports `ok`.
 
 Identity is complete: login and sessions, staff, roles and permissions, all
 behind route-level authorization. See `services/identity/openapi/identity.yaml`
-for the contract. Products and orders do not exist yet.
+for the contract.
 
-Catalog and orders still answer `GET /_platform/{service}` with
+Catalog is complete: products, search, images and an internal resolve endpoint
+for Orders, all behind route-level authorization. See
+`services/catalog/openapi/catalog.yaml` for the contract. Orders does not exist
+yet.
+
+Orders still answers `GET /_platform/orders` with
 `{service, schemaVersion, requestId}`. That is scaffolding so there is something
-to verify end to end, not a product API, and each one loses it when its real
-routes land. Don't build against it.
+to verify end to end, not a product API, and it loses it when M4's real routes
+land. Don't build against it.
 
 ## Dev credentials
 

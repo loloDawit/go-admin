@@ -1,3 +1,5 @@
+# The Makefile overrides this per checkout via COMPOSE_PROJECT_NAME, which takes
+# precedence. This name is what a bare `docker compose` command lands on.
 name: go-admin-platform
 
 services:
@@ -63,6 +65,37 @@ services:
       OWNER_EMAIL: "${OWNER_EMAIL:-owner@example.com}"
       OWNER_PASSWORD: "${OWNER_PASSWORD:-dev_only_owner_password}"
 
+  minio:
+    # docker.io/minio/minio now refuses anonymous pulls; quay.io is MinIO's other official mirror and stays open.
+    image: quay.io/minio/minio:RELEASE.2024-09-13T20-26-02Z
+    restart: unless-stopped
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: "dev_only_minio"
+      MINIO_ROOT_PASSWORD: "dev_only_minio_secret"
+    ports:
+      - "127.0.0.1:9000:9000"
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+
+  # One-shot, following identity-migrate's shape: the bucket is an
+  # infrastructure precondition, created before catalog starts rather than
+  # by catalog itself on its own startup path.
+  minio-init:
+    image: quay.io/minio/mc:RELEASE.2024-09-16T17-43-14Z
+    depends_on:
+      minio: { condition: service_healthy }
+    entrypoint: >
+      sh -c "
+      mc alias set local http://minio:9000 dev_only_minio dev_only_minio_secret &&
+      mc mb --ignore-existing local/catalog-images
+      "
+
   catalog-migrate:
     image: migrate/migrate:v4.17.1
     depends_on:
@@ -80,9 +113,25 @@ services:
       dockerfile: services/catalog/Dockerfile
     depends_on:
       catalog-migrate: { condition: service_completed_successfully }
+      minio-init: { condition: service_completed_successfully }
     environment:
       PORT: "8082"
       DATABASE_URL: "postgres://catalog_user:dev_only_catalog@postgres:5432/catalog_db?sslmode=disable"
+      S3_ENDPOINT: "minio:9000"
+      # A presigned URL is fetched by a browser on the host, which cannot
+      # resolve the compose network's hostname.
+      S3_PUBLIC_ENDPOINT: "localhost:9000"
+      S3_BUCKET: "catalog-images"
+      S3_ACCESS_KEY: "dev_only_minio"
+      S3_SECRET_KEY: "dev_only_minio_secret"
+      S3_USE_SSL: "false"
+      IMAGE_MAX_BYTES: "5242880"
+      IMAGE_URL_TTL: "15m"
+      PRODUCT_PAGE_SIZE_MAX: "100"
+      PRODUCT_RESOLVE_BATCH_MAX: "100"
+      MAX_REQUEST_BODY_BYTES: "1048576"
+      DEFAULT_CURRENCY: "USD"
+      PRINCIPAL_SIGNING_KEY: "dev_only_principal_key_at_least_32_bytes"
     ports:
       - "8082:8082"
 
@@ -130,3 +179,4 @@ services:
 
 volumes:
   pgdata:
+  miniodata:

@@ -17,7 +17,9 @@ import (
 	"github.com/loloDawit/go-admin/platform/readiness"
 	"github.com/loloDawit/go-admin/services/catalog/internal/config"
 	"github.com/loloDawit/go-admin/services/catalog/internal/httperr"
-	"github.com/loloDawit/go-admin/services/catalog/internal/platformcheck"
+	"github.com/loloDawit/go-admin/services/catalog/internal/image"
+	"github.com/loloDawit/go-admin/services/catalog/internal/product"
+	"github.com/loloDawit/go-admin/services/catalog/internal/schemacheck"
 )
 
 func main() {
@@ -49,12 +51,30 @@ func main() {
 	}
 
 	errWriter := httperr.New(logger)
-	svc := platformcheck.NewService(platformcheck.NewPostgresRepository(pool))
+	svc := schemacheck.NewService(schemacheck.NewPostgresRepository(pool))
 
-	handler := platformcheck.NewHandler(svc, cfg.ServiceName, errWriter.Write)
 	ready := readiness.NewHandler(svc.Probe, errWriter.Write)
 
-	r := newRouter(logger, handler, ready)
+	productSvc := product.NewService(product.NewPostgresRepository(pool), cfg.ProductPageSizeMax, cfg.DefaultCurrency, cfg.ResolveBatchMax)
+	productHandler := product.NewHandler(productSvc, cfg.MaxRequestBodyBytes, errWriter.Write)
+
+	store, err := image.New(image.Config{
+		Endpoint:       cfg.S3Endpoint,
+		PublicEndpoint: cfg.S3PublicEndpoint,
+		Bucket:         cfg.S3Bucket,
+		AccessKey:      cfg.S3AccessKey,
+		SecretKey:      cfg.S3SecretKey,
+		UseSSL:         cfg.S3UseSSL,
+		URLTTL:         cfg.ImageURLTTL,
+	})
+	if err != nil {
+		logger.Error("image store", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	imageSvc := image.NewService(image.NewPostgresRepository(pool), store, cfg.ImageMaxBytes)
+	imageHandler := image.NewHandler(imageSvc, cfg.ImageMaxBytes, errWriter.Write)
+
+	r := newRouter(logger, ready, productHandler, imageHandler, cfg.PrincipalKey, errWriter.Write)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

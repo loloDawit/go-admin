@@ -1,3 +1,12 @@
+# Each checkout gets its own compose project. Without this, a git worktree
+# running the stack drives the SAME containers and volume as the main checkout:
+# a worktree on an older branch once ran its migrate job against a database the
+# main checkout had already migrated forward, and both sessions lost containers
+# under each other. Host ports still collide, so a second stack now fails loudly
+# on the port bind rather than silently adopting the first one's containers.
+COMPOSE_PROJECT_NAME := $(notdir $(CURDIR))-$(shell printf '%s' "$(CURDIR)" | shasum | cut -c1-6)
+export COMPOSE_PROJECT_NAME
+
 COMPOSE := docker compose -f deploy/compose/docker-compose.yml
 GO_PKGS := ./...
 
@@ -9,7 +18,7 @@ export OWNER_EMAIL       ?= owner@example.com
 export OWNER_PASSWORD    ?= dev_only_owner_password
 export SESSION_CACHE_TTL ?= 10s
 
-.PHONY: help hooks up down dev logs seed test test-unit test-integration fmt lint tidy
+.PHONY: help hooks generate up down dev logs seed test test-unit test-integration fmt lint tidy
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -19,6 +28,9 @@ up: ## Boot the stack and wait for containers to report ready
 
 down: ## Stop the stack (volumes preserved)
 	$(COMPOSE) down
+
+generate: ## Regenerate code from published contracts
+	go run ./tools/permgen
 
 seed: up ## Create the first owner account (idempotent)
 	$(COMPOSE) --profile seed run --rm identity-seed
@@ -34,7 +46,7 @@ test: test-unit test-integration ## Run everything
 test-unit: ## Unit tests, no stack required
 	go test $(GO_PKGS) ./test/arch/... -count=1
 
-test-integration: up ## Integration tests against the running stack
+test-integration: seed ## Integration tests against the running stack
 	# test/integration carries //go:build integration; drop -tags integration
 	# and go test matches no packages here at all (a hard failure, not a
 	# silent pass) — but the same mistake against a wider path like ./test/...

@@ -10,15 +10,63 @@ import (
 
 	"github.com/loloDawit/go-admin/platform/httpx"
 	"github.com/loloDawit/go-admin/platform/observability"
+	"github.com/loloDawit/go-admin/platform/principal"
 	"github.com/loloDawit/go-admin/platform/requestid"
+	"github.com/loloDawit/go-admin/services/catalog/internal/errs"
 	"github.com/loloDawit/go-admin/services/catalog/internal/httperr"
-	"github.com/loloDawit/go-admin/services/catalog/internal/platformcheck"
+	"github.com/loloDawit/go-admin/services/catalog/internal/schemacheck"
 )
+
+func TestWriteMapsUnauthenticatedTo401(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, errs.ErrUnauthenticated)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status: want 401, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Code != "unauthenticated" {
+		t.Errorf("code: want unauthenticated, got %q", body.Code)
+	}
+}
+
+func TestWriteMapsAnUnverifiablePrincipalTo401(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+
+	for _, cause := range []error{principal.ErrMissing, principal.ErrBadSignature, principal.ErrExpired} {
+		rec := httptest.NewRecorder()
+		httperr.New(logger).Write(t.Context(), rec, cause)
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("%v: status: want 401, got %d", cause, rec.Code)
+		}
+	}
+}
+
+func TestWriteMapsForbiddenTo403(t *testing.T) {
+	logger, _ := observability.NewCaptured()
+	rec := httptest.NewRecorder()
+	httperr.New(logger).Write(t.Context(), rec, errs.ErrForbidden)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status: want 403, got %d", rec.Code)
+	}
+	var body httpx.ErrorBody
+	if err := json.NewDecoder(strings.NewReader(rec.Body.String())).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Code != "forbidden" {
+		t.Errorf("code: want forbidden, got %q", body.Code)
+	}
+}
 
 func TestWriteMapsDirtySchemaTo503(t *testing.T) {
 	logger, _ := observability.NewCaptured()
 	rec := httptest.NewRecorder()
-	httperr.New(logger).Write(t.Context(), rec, platformcheck.ErrDirtySchema)
+	httperr.New(logger).Write(t.Context(), rec, schemacheck.ErrDirtySchema)
 
 	if rec.Code != 503 {
 		t.Fatalf("status: want 503, got %d", rec.Code)
@@ -35,7 +83,7 @@ func TestWriteMapsDirtySchemaTo503(t *testing.T) {
 func TestWriteMapsNoMigrationsTo503(t *testing.T) {
 	logger, _ := observability.NewCaptured()
 	rec := httptest.NewRecorder()
-	httperr.New(logger).Write(t.Context(), rec, platformcheck.ErrNoMigrations)
+	httperr.New(logger).Write(t.Context(), rec, schemacheck.ErrNoMigrations)
 
 	if rec.Code != 503 {
 		t.Fatalf("status: want 503, got %d", rec.Code)

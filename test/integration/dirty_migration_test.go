@@ -27,7 +27,7 @@ type dirtyTarget struct {
 func dirtyTargets() []dirtyTarget {
 	return []dirtyTarget{
 		{"identity", "identity_user", "dev_only_identity", "identity_db", hostURL("IDENTITY_HOST_URL", "http://localhost:8081"), false},
-		{"catalog", "catalog_user", "dev_only_catalog", "catalog_db", hostURL("CATALOG_HOST_URL", "http://localhost:8082"), true},
+		{"catalog", "catalog_user", "dev_only_catalog", "catalog_db", hostURL("CATALOG_HOST_URL", "http://localhost:8082"), false},
 		{"orders", "orders_user", "dev_only_orders", "orders_db", hostURL("ORDERS_HOST_URL", "http://localhost:8083"), true},
 	}
 }
