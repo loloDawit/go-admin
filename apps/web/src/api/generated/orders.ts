@@ -409,6 +409,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/orders/{id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * An order's recorded transitions. Requires view_orders.
+         * @description Every transition writes one event with the acting staff member and any reason given; this is the only way to read them. Oldest first. An order with no events does not exist — creation records one.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The order's events, oldest first */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            events: components["schemas"]["OrderEvent"][];
+                        };
+                    };
+                };
+                401: components["responses"]["Error"];
+                403: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/orders/{id}/status": {
         parameters: {
             query?: never;
@@ -627,6 +675,17 @@ export interface components {
          * @enum {string}
          */
         OrderStatus: "pending" | "paid" | "packed" | "shipped" | "delivered" | "cancelled" | "refunded";
+        OrderEvent: {
+            id: string;
+            /** @description Null for the order's creation, which has no prior status. */
+            fromStatus: components["schemas"]["OrderStatus"] | null;
+            toStatus: components["schemas"]["OrderStatus"];
+            /** @description The staff member who made the transition */
+            actorId: string;
+            reason: string;
+            /** Format: date-time */
+            at: string;
+        };
         OrderItem: {
             productId: string;
             /** @description The product's title at purchase time; unaffected by a later rename. */

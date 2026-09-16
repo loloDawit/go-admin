@@ -77,6 +77,41 @@ func newOrderPageResponse(p Page) OrderPageResponse {
 	return OrderPageResponse{Items: items, Page: p.Page, PageSize: p.PageSize, Total: p.Total}
 }
 
+// OrderEventResponse's FromStatus is null for the order's creation, which
+// has no prior status.
+type OrderEventResponse struct {
+	ID         string    `json:"id"`
+	FromStatus *string   `json:"fromStatus"`
+	ToStatus   string    `json:"toStatus"`
+	ActorID    string    `json:"actorId"`
+	Reason     string    `json:"reason"`
+	At         time.Time `json:"at"`
+}
+
+type ListEventsResponse struct {
+	Events []OrderEventResponse `json:"events"`
+}
+
+func newListEventsResponse(events []Event) ListEventsResponse {
+	out := make([]OrderEventResponse, len(events))
+	for i, e := range events {
+		var from *string
+		if e.FromStatus != nil {
+			s := string(*e.FromStatus)
+			from = &s
+		}
+		out[i] = OrderEventResponse{
+			ID:         strconv.FormatInt(e.ID, 10),
+			FromStatus: from,
+			ToStatus:   string(e.ToStatus),
+			ActorID:    e.ActorID,
+			Reason:     e.Reason,
+			At:         e.At,
+		}
+	}
+	return ListEventsResponse{Events: out}
+}
+
 type OrderItemResponse struct {
 	ProductID      string `json:"productId"`
 	TitleSnapshot  string `json:"titleSnapshot"`

@@ -76,6 +76,22 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, newOrderResponse(got))
 }
 
+// Events is how the recorded transitions are readable at all: every
+// transition writes one, and without this route none of them can be seen.
+func (h *Handler) Events(w http.ResponseWriter, r *http.Request) {
+	id, err := orderIDParam(r)
+	if err != nil {
+		h.writeErr(r.Context(), w, err)
+		return
+	}
+	events, err := h.svc.Events(r.Context(), id)
+	if err != nil {
+		h.writeErr(r.Context(), w, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, newListEventsResponse(events))
+}
+
 // SetStatus is the generic status endpoint; it refuses cancelled and
 // refunded itself before the service ever checks the transition table,
 // since those targets are Cancel's and Refund's, not this one's.
