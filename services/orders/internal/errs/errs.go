@@ -68,6 +68,8 @@ const (
 	OpConnectBroker  = "connect to the broker"
 	OpEnsureStream   = "ensure the event stream"
 	OpEnsureConsumer = "ensure the event consumer"
+	OpReadOutbox     = "read the outbox"
+	OpMarkPublished  = "mark an outbox row published"
 	OpCustomerOrderHistory = "look up customer order history"
 )
 

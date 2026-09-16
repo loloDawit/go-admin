@@ -2,12 +2,14 @@ package order_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/loloDawit/go-admin/services/orders/internal/catalog"
+	"github.com/loloDawit/go-admin/services/orders/internal/outbox"
 	"github.com/loloDawit/go-admin/services/orders/internal/order"
 )
 
@@ -56,11 +58,23 @@ type fakeRepo struct {
 
 	listEventsResult []order.Event
 	listEventsErr    error
+
+	insertedOutbox outbox.Record
+	outboxTxDepth  int
+	txDepth        int
 }
 
 func (f *fakeRepo) RunInTx(_ context.Context, fn func(order.Repository) error) error {
 	f.runInTxCalls++
+	f.txDepth++
+	defer func() { f.txDepth-- }()
 	return fn(f)
+}
+
+func (f *fakeRepo) InsertOutbox(_ context.Context, rec outbox.Record) error {
+	f.insertedOutbox = rec
+	f.outboxTxDepth = f.txDepth
+	return nil
 }
 
 func (f *fakeRepo) NextOrderNumber(context.Context) (int64, time.Time, error) {
@@ -331,5 +345,72 @@ func TestEventsReturnsTheRecordedTransitions(t *testing.T) {
 	}
 	if len(events) != 2 || events[0].FromStatus != nil || events[1].ToStatus != order.StatusShipped {
 		t.Fatalf("Events = %+v", events)
+	}
+}
+
+// The outbox row and the order commit together or not at all. If InsertOutbox
+// ran outside RunInTx, a crash between them would leave an order whose event
+// never existed — the one window an outbox exists to close.
+func TestCreateWritesItsOutboxRowInTheSameTransaction(t *testing.T) {
+	repo := &fakeRepo{nextSeq: 1, nextAt: time.Date(2026, 9, 16, 9, 0, 0, 0, time.UTC)}
+	cat := &fakeCatalog{products: []catalog.Product{newActiveProduct("1", "Widget", "USD", 500)}}
+	svc := order.NewService(repo, cat, 100)
+
+	if _, err := svc.Create(t.Context(), order.CreateOrder{
+		CustomerID: 7,
+		ActorID:    "3",
+		Items:      []order.CreateOrderItem{{ProductID: "1", Quantity: 2}},
+	}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	if repo.outboxTxDepth != 1 {
+		t.Fatalf("InsertOutbox ran at transaction depth %d, want 1", repo.outboxTxDepth)
+	}
+	if repo.insertedOutbox.Subject != "orders.created" {
+		t.Fatalf("subject = %q, want orders.created", repo.insertedOutbox.Subject)
+	}
+
+	var envelope outbox.Envelope
+	if err := json.Unmarshal(repo.insertedOutbox.Payload, &envelope); err != nil {
+		t.Fatalf("payload is not an envelope: %v", err)
+	}
+	if envelope.Type != outbox.TypeOrderCreated || envelope.Version != outbox.Version {
+		t.Fatalf("envelope = %+v", envelope)
+	}
+	if envelope.ActorID != "3" {
+		t.Fatalf("actor = %q, want 3 from the principal", envelope.ActorID)
+	}
+}
+
+func TestTransitionWritesItsOutboxRowInTheSameTransaction(t *testing.T) {
+	repo := &fakeRepo{status: order.StatusPending}
+	svc := order.NewService(repo, nil, 100)
+
+	if _, err := svc.SetStatus(t.Context(), 7, "3", order.StatusPaid); err != nil {
+		t.Fatalf("SetStatus: %v", err)
+	}
+
+	if repo.outboxTxDepth != 1 {
+		t.Fatalf("InsertOutbox ran at transaction depth %d, want 1", repo.outboxTxDepth)
+	}
+
+	var envelope outbox.Envelope
+	if err := json.Unmarshal(repo.insertedOutbox.Payload, &envelope); err != nil {
+		t.Fatalf("payload is not an envelope: %v", err)
+	}
+	if envelope.Type != outbox.TypeOrderStatusChanged {
+		t.Fatalf("type = %q", envelope.Type)
+	}
+
+	var payload struct {
+		From string `json:"from"`
+		To   string `json:"to"`
+	}
+	if err := json.Unmarshal(envelope.Payload, &payload); err != nil {
+		t.Fatalf("payload: %v", err)
+	}
+	if payload.From != "pending" || payload.To != "paid" {
+		t.Fatalf("payload = %+v", payload)
 	}
 }

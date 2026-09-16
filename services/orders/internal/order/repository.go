@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/loloDawit/go-admin/services/orders/internal/catalog"
+	"github.com/loloDawit/go-admin/services/orders/internal/outbox"
 )
 
 // Repository is the data access this package needs; every error not named
@@ -33,6 +34,10 @@ type Repository interface {
 	// still matches from. Call it only after GetStatusForUpdate in the same
 	// transaction, which is what makes that guaranteed rather than racy.
 	UpdateStatus(ctx context.Context, id int64, from, to Status) (Order, error)
+
+	// InsertOutbox writes the event that accompanies this transaction's
+	// business rows. Called only inside RunInTx.
+	InsertOutbox(ctx context.Context, rec outbox.Record) error
 
 	ListOrders(ctx context.Context, q ListQuery) ([]Order, int, error)
 
