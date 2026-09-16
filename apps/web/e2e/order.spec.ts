@@ -124,3 +124,35 @@ test.describe('narrow', () => {
     await page.screenshot({ path: 'screenshots/narrow_order_detail.png', fullPage: true })
   })
 })
+
+// The service refuses an order whose lines quote different currencies. The screen
+// has to refuse it first: a total summed across currencies means nothing.
+test('an order cannot mix currencies', async ({ page, request }) => {
+  const stamp = unique()
+  const usd = `USD line ${stamp}`
+  const eur = `EUR line ${stamp}`
+  const buyer = `Mixed ${stamp}`
+
+  await activeProduct(page, usd, '10.00')
+
+  const created = await request.post('/api/v1/products', {
+    data: { sku: `EUR-${stamp}`, title: eur, priceMinor: 900, currency: 'EUR' },
+  })
+  expect(created.ok()).toBeTruthy()
+  const { id } = (await created.json()) as { id: string }
+  expect((await request.post(`/api/v1/products/${id}/activate`)).ok()).toBeTruthy()
+
+  await customer(page, buyer)
+
+  await page.goto('/orders/new')
+  await page.getByLabel('Customer').selectOption({ label: buyer })
+  for (const title of [usd, eur]) {
+    await page.getByRole('searchbox', { name: 'Search the catalog' }).fill(title)
+    await page.getByRole('button', { name: 'Search' }).click()
+    await page.getByRole('button', { name: 'Add' }).click()
+  }
+
+  await expect(page.getByText('Every line must be in one currency')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Place order' })).toBeDisabled()
+  await expect(page.getByText('Total')).toHaveCount(0)
+})

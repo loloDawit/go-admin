@@ -179,3 +179,12 @@ test('a searched list does not offer a sort it cannot apply', async ({ page }) =
   )
   await expect(page.getByText('ranked by how well they match')).toBeVisible()
 })
+
+// The error state must not throw the filters away: reloading into an error and
+// losing the query would make a shared link unrecoverable.
+test('a list error keeps the filters that produced it', async ({ page }) => {
+  await page.goto('/products?status=active&mock=error')
+  await expect(page.getByText('could not be loaded')).toBeVisible()
+  await expect(page.getByLabel('Status')).toHaveValue('active')
+  await expect(page).toHaveURL(/status=active/)
+})
