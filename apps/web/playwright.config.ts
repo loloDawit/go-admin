@@ -16,7 +16,7 @@ export default defineConfig({
     { name: 'setup', testMatch: /auth\.setup\.ts/ },
     {
       name: 'authenticated',
-      testMatch: /(shell|interaction|catalog)\.spec\.ts/,
+      testMatch: /(shell|interaction|catalog|order)\.spec\.ts/,
       dependencies: ['setup'],
       use: { storageState: authFile },
     },

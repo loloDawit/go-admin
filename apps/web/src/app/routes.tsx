@@ -6,6 +6,7 @@ import { Login } from '../routes/Login'
 import { ChangePassword } from '../routes/ChangePassword'
 import { Orders } from '../routes/Orders'
 import { OrderDetail } from '../routes/OrderDetail'
+import { OrderCreate } from '../routes/OrderCreate'
 import { Products } from '../routes/Products'
 import { ProductDetail } from '../routes/ProductDetail'
 import { ProductForm } from '../routes/ProductForm'
@@ -31,6 +32,7 @@ export const router = createBrowserRouter([
         children: [
           { path: '/', element: <Dashboard /> },
           { path: '/orders', element: <Orders /> },
+          { path: '/orders/new', element: <OrderCreate /> },
           { path: '/orders/:orderId', element: <OrderDetail /> },
           { path: '/products', element: <Products /> },
           { path: '/products/new', element: <ProductForm /> },

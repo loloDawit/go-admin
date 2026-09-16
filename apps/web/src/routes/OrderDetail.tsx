@@ -9,50 +9,77 @@ import {
   PageHeader,
   PageStack,
   Section,
-  SelectField,
   StateBlock,
   Status,
   TextareaField,
 } from '../ui'
 import type { Column } from '../ui'
-import { getOrder, orderStatusLabels } from '../api/orders'
-import type { OrderLine, OrderStatus } from '../api/orders'
+import {
+  canCancel,
+  canRefund,
+  cancelOrder,
+  getOrder,
+  listOrderEvents,
+  nextStatus,
+  orderStatusLabels,
+  refundOrder,
+  setOrderStatus,
+} from '../api/orders'
+import type { OrderItem } from '../api/orders'
+import { getCustomer } from '../api/customers'
+import { isApiError } from '../api/client'
 import { formatDateTime, formatMoney } from '../api/format'
 import { useResource } from '../api/useResource'
 import { orderStatusTones } from '../app/statusTones'
 import styles from './OrderDetail.module.css'
 
-const lineColumns: Column<OrderLine>[] = [
-  { key: 'name', header: 'Item', cell: (line) => line.name },
-  { key: 'sku', header: 'SKU', cell: (line) => line.sku },
-  { key: 'quantity', header: 'Qty', numeric: true, cell: (line) => line.quantity },
+const itemColumns: Column<OrderItem>[] = [
+  { key: 'title', header: 'Item', cell: (item) => item.titleSnapshot },
+  { key: 'quantity', header: 'Qty', numeric: true, cell: (item) => item.quantity },
   {
     key: 'unit',
     header: 'Unit price',
     numeric: true,
-    cell: (line) => formatMoney(line.unitPriceCents, 'USD'),
+    cell: (item) => formatMoney(item.unitPriceMinor, item.currency),
   },
   {
     key: 'total',
     header: 'Line total',
     numeric: true,
-    cell: (line) => formatMoney(line.unitPriceCents * line.quantity, 'USD'),
+    cell: (item) => formatMoney(item.lineTotalMinor, item.currency),
   },
 ]
 
-const NEXT_STATUSES: OrderStatus[] = ['paid', 'packed', 'shipped', 'cancelled', 'refunded']
+type Reasoned = 'cancel' | 'refund'
 
 export function OrderDetail() {
   const { orderId = '' } = useParams()
   const order = useResource(`order:${orderId}`, () => getOrder(orderId))
-  const [advanceOpen, setAdvanceOpen] = useState(false)
-  const [saved, setSaved] = useState(false)
+  const events = useResource(`order-events:${orderId}`, () => listOrderEvents(orderId))
+  const [asking, setAsking] = useState<Reasoned>()
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [failure, setFailure] = useState<string>()
+
+  async function run(action: () => Promise<unknown>) {
+    setBusy(true)
+    setFailure(undefined)
+    try {
+      await action()
+      order.reload()
+      events.reload()
+    } catch (cause) {
+      setFailure(isApiError(cause) ? cause.message : 'The order could not be updated.')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   if (order.status === 'loading') {
     return <StateBlock title="Loading order" description="Fetching the order and its history." />
   }
 
-  if (order.status === 'error') {
+  if (order.status === 'error' || !order.data) {
     return (
       <StateBlock
         tone="error"
@@ -67,39 +94,39 @@ export function OrderDetail() {
     )
   }
 
-  if (!order.data) {
-    return (
-      <StateBlock
-        title="No such order"
-        description="The reference may be mistyped, or the order was removed."
-        action={<Link to="/orders">Back to orders</Link>}
-      />
-    )
-  }
-
   const current = order.data
+  const advance = nextStatus(current.status)
 
   return (
     <PageStack>
       <PageHeader
         breadcrumb={<Link to="/orders">Orders</Link>}
-        title={current.reference}
-        description={`Placed ${formatDateTime(current.placedAt)} by ${current.customerName}`}
+        title={current.number}
+        description={`Placed ${formatDateTime(current.placedAt)}`}
         actions={
           <>
-            <Button variant="secondary">Print packing slip</Button>
-            <Button variant="primary" onClick={() => setAdvanceOpen(true)}>
-              Update status
-            </Button>
+            {canRefund(current.status) && (
+              <Button onClick={() => setAsking('refund')}>Refund</Button>
+            )}
+            {canCancel(current.status) && (
+              <Button variant="danger" onClick={() => setAsking('cancel')}>
+                Cancel order
+              </Button>
+            )}
+            {advance && (
+              <Button
+                variant="primary"
+                loading={busy}
+                onClick={() => void run(() => setOrderStatus(current.id, advance))}
+              >
+                Mark {orderStatusLabels[advance].toLowerCase()}
+              </Button>
+            )}
           </>
         }
       />
 
-      {saved && (
-        <Alert tone="success" title="Status updated">
-          The change is local until the orders service is connected.
-        </Alert>
-      )}
+      {failure && <Alert tone="danger" title={failure} />}
 
       <DefinitionList
         items={[
@@ -111,68 +138,101 @@ export function OrderDetail() {
               </Status>
             ),
           },
-          { term: 'Total', value: formatMoney(current.totalCents, 'USD') },
-          { term: 'Customer', value: current.customerEmail },
-          { term: 'Ship to', value: current.shippingAddress },
+          { term: 'Total', value: formatMoney(current.totalMinor, current.currency) },
+          { term: 'Customer', value: <CustomerName id={current.customerId} /> },
         ]}
       />
 
-      <Section title="Items">
+      <Section
+        title="Items"
+        description="Titles and prices are what was bought; a later catalog change does not alter them."
+      >
         <DataTable
-          columns={lineColumns}
-          rows={current.lines}
-          rowKey={(line) => line.sku}
+          columns={itemColumns}
+          rows={current.items}
+          rowKey={(item) => item.productId}
           emptyTitle="No items on this order"
         />
       </Section>
 
       <Section title="History">
-        <ol className={styles.timeline}>
-          {current.history.map((event) => (
-            <li key={event.at} className={styles.event}>
-              <span className={styles.eventTime}>{formatDateTime(event.at)}</span>
-              <span className={styles.eventSummary}>{event.summary}</span>
-              <span className={styles.eventActor}>{event.actor}</span>
-            </li>
-          ))}
-        </ol>
+        {events.status === 'error' && (
+          <StateBlock
+            tone="error"
+            title="The history could not be loaded"
+            description={events.error?.message}
+            action={
+              <Button variant="secondary" onClick={events.reload}>
+                Try again
+              </Button>
+            }
+          />
+        )}
+        {events.status === 'ready' && (
+          <ol className={styles.timeline}>
+            {events.data?.map((event) => (
+              <li key={event.id} className={styles.event}>
+                <span className={styles.eventTime}>{formatDateTime(event.at)}</span>
+                <span className={styles.eventSummary}>
+                  {event.fromStatus
+                    ? `${orderStatusLabels[event.fromStatus]} → ${orderStatusLabels[event.toStatus]}`
+                    : 'Order placed'}
+                  {event.reason && ` — ${event.reason}`}
+                </span>
+                <span className={styles.eventActor}>Staff #{event.actorId}</span>
+              </li>
+            ))}
+          </ol>
+        )}
       </Section>
 
       <Dialog
-        open={advanceOpen}
-        title="Update order status"
-        description={`${current.reference} is currently ${orderStatusLabels[current.status].toLowerCase()}.`}
-        onClose={() => setAdvanceOpen(false)}
+        open={asking !== undefined}
+        title={asking === 'refund' ? 'Refund this order?' : 'Cancel this order?'}
+        description={
+          asking === 'refund'
+            ? 'A refunded order does not move again.'
+            : 'A cancelled order does not move again.'
+        }
+        onClose={() => setAsking(undefined)}
         footer={
           <>
-            <Button variant="ghost" onClick={() => setAdvanceOpen(false)}>
-              Cancel
-            </Button>
+            <Button onClick={() => setAsking(undefined)}>Back</Button>
             <Button
-              variant="primary"
+              variant="danger"
+              loading={busy}
               onClick={() => {
-                setAdvanceOpen(false)
-                setSaved(true)
+                const action = asking
+                setAsking(undefined)
+                if (!action) return
+                void run(() =>
+                  action === 'refund'
+                    ? refundOrder(current.id, reason)
+                    : cancelOrder(current.id, reason),
+                ).then(() => setReason(''))
               }}
             >
-              Save status
+              {asking === 'refund' ? 'Refund' : 'Cancel order'}
             </Button>
           </>
         }
       >
-        <SelectField label="New status" defaultValue="packed">
-          {NEXT_STATUSES.map((status) => (
-            <option key={status} value={status}>
-              {orderStatusLabels[status]}
-            </option>
-          ))}
-        </SelectField>
         <TextareaField
-          label="Note for the history"
+          label="Reason"
           optional
-          placeholder="Courier collected at 15:10"
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+          placeholder="Customer asked for it before dispatch"
         />
       </Dialog>
     </PageStack>
   )
+}
+
+// The order carries only a customer id; the name lives in another endpoint and
+// a failure here must not take the order down with it.
+function CustomerName({ id }: { id: string }) {
+  const customer = useResource(`customer:${id}`, () => getCustomer(id))
+  if (!customer.data) return <Link to={`/customers/${id}`}>Customer {id}</Link>
+  return <Link to={`/customers/${id}`}>{customer.data.name}</Link>
 }

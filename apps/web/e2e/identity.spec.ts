@@ -162,7 +162,10 @@ test('a session that dies mid-visit sends the next action to login, not a crash'
   // bootstrap /me fetch against clearCookies below. Staying on the already-settled page avoids that.
   await page.getByRole('link', { name: 'Orders' }).click()
   await expect(page.getByRole('heading', { name: 'Orders' })).toBeVisible()
+  await page.waitForLoadState('networkidle')
   await context.clearCookies()
-  await page.getByRole('link', { name: 'Staff' }).click()
+  // force: once a request 401s the app is entitled to unmount this link out from under the
+  // click, and either route to /login is the behaviour under test.
+  await page.getByRole('link', { name: 'Staff' }).click({ force: true })
   await expect(page).toHaveURL(/\/login$/)
 })

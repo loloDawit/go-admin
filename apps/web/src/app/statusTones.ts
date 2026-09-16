@@ -6,7 +6,8 @@ export const orderStatusTones: Record<OrderStatus, StatusTone> = {
   pending: 'warning',
   paid: 'info',
   packed: 'info',
-  shipped: 'success',
+  shipped: 'info',
+  delivered: 'success',
   cancelled: 'neutral',
   refunded: 'danger',
 }

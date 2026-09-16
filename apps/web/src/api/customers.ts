@@ -1,64 +1,36 @@
 import { withScenario } from './client'
+import type { components } from './generated/orders'
+import { api } from './http'
 
-// Slice B/C replace this file with a generated client; until then respond keeps
-// the mock screens on the same scenario knob as the real ones.
-function respond<T>(data: T, emptyValue?: T): Promise<T> {
-  return withScenario(async () => data, emptyValue)
+export type Customer = components['schemas']['Customer']
+export type CustomerPage = components['schemas']['CustomerPage']
+export type LifetimeValue = components['schemas']['LifetimeValue']
+
+const emptyPage: CustomerPage = { items: [], page: 1, pageSize: 20, total: 0 }
+
+export function listCustomers(page = 1): Promise<CustomerPage> {
+  const query = page > 1 ? `?page=${page}` : ''
+  return withScenario(() => api.get<CustomerPage>(`/api/v1/customers${query}`), emptyPage)
 }
 
-export type Customer = {
-  id: string
-  name: string
-  email: string
-  orderCount: number
-  lifetimeCents: number
-  lastOrderAt: string
-  location: string
+export function getCustomer(id: string): Promise<Customer> {
+  return withScenario(() => api.get<Customer>(`/api/v1/customers/${id}`))
 }
 
-const CUSTOMERS: Customer[] = [
-  {
-    id: 'c-1',
-    name: 'Rita Alvarez',
-    email: 'rita.alvarez@example.com',
-    orderCount: 7,
-    lifetimeCents: 41200,
-    lastOrderAt: '2026-09-12T07:41:00Z',
-    location: 'Leeds',
-  },
-  {
-    id: 'c-2',
-    name: 'Tom Whitfield',
-    email: 'tom.whitfield@example.com',
-    orderCount: 2,
-    lifetimeCents: 9800,
-    lastOrderAt: '2026-09-11T16:02:00Z',
-    location: 'Manchester',
-  },
-  {
-    id: 'c-3',
-    name: 'Priya Nandi',
-    email: 'priya.nandi@example.com',
-    orderCount: 12,
-    lifetimeCents: 88400,
-    lastOrderAt: '2026-09-11T09:22:00Z',
-    location: 'Bristol',
-  },
-  {
-    id: 'c-4',
-    name: 'Aisha Rahman',
-    email: 'aisha.rahman@example.com',
-    orderCount: 1,
-    lifetimeCents: 4400,
-    lastOrderAt: '2026-09-10T12:14:00Z',
-    location: 'Cardiff',
-  },
-]
-
-export function listCustomers(): Promise<Customer[]> {
-  return respond(CUSTOMERS, [])
+export function createCustomer(email: string, name: string): Promise<Customer> {
+  return api.post<Customer>('/api/v1/customers', { email, name })
 }
 
-export function getCustomer(id: string): Promise<Customer | undefined> {
-  return respond(CUSTOMERS.find((customer) => customer.id === id))
+// Refused with mixed_currency_history when the customer's orders span more
+// than one currency, which is a real answer and not a failure to show.
+export function getLifetimeValue(id: string): Promise<LifetimeValue> {
+  return api.get<LifetimeValue>(`/api/v1/customers/${id}/lifetime-value`)
+}
+
+export function listCustomerOrders(id: string, page = 1) {
+  const query = page > 1 ? `?page=${page}` : ''
+  return withScenario(
+    () => api.get<components['schemas']['OrderHistoryPage']>(`/api/v1/customers/${id}/orders${query}`),
+    { items: [], page: 1, pageSize: 20, total: 0 },
+  )
 }
