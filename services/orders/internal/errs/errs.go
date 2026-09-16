@@ -71,6 +71,7 @@ const (
 	OpReadOutbox     = "read the outbox"
 	OpMarkPublished  = "mark an outbox row published"
 	OpPublishEvent   = "publish an outbox event"
+	OpProjectEvent   = "project an event"
 	OpCustomerOrderHistory = "look up customer order history"
 )
 
