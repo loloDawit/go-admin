@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useMemo } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Button,
   DataTable,
@@ -14,6 +14,7 @@ import type { Column } from '../ui'
 import { listProducts, productStatusLabels } from '../api/catalog'
 import type { Product, ProductQuery, ProductStatus } from '../api/catalog'
 import { formatDate, formatMoney } from '../api/format'
+import { oneOf, positiveInt, text, toSearchParams } from '../api/listQuery'
 import { useResource } from '../api/useResource'
 import { productStatusTones } from '../app/statusTones'
 import styles from './Products.module.css'
@@ -47,12 +48,30 @@ const STATUS_FILTERS: ProductStatus[] = ['draft', 'active', 'archived']
 
 export function Products() {
   const navigate = useNavigate()
-  const [term, setTerm] = useState('')
-  const [query, setQuery] = useState<ProductQuery>({ page: 1 })
-  const products = useResource(`products:${JSON.stringify(query)}`, () => listProducts(query))
+  const [params, setParams] = useSearchParams()
 
+  const query: ProductQuery = useMemo(
+    () => ({
+      q: text(params, 'q'),
+      status: oneOf(params, 'status', STATUS_FILTERS),
+      page: positiveInt(params, 'page') ?? 1,
+    }),
+    [params],
+  )
+
+  const products = useResource(`products:${params.toString()}`, () => listProducts(query))
   const page = products.data
   const filtered = Boolean(query.q) || Boolean(query.status)
+
+  function apply(next: ProductQuery) {
+    setParams(
+      toSearchParams({
+        q: next.q,
+        status: next.status,
+        page: next.page === 1 ? undefined : next.page,
+      }),
+    )
+  }
 
   return (
     <PageStack>
@@ -67,19 +86,21 @@ export function Products() {
       />
 
       <form
+        key={query.q ?? ''}
         className={styles.filters}
         onSubmit={(event) => {
           event.preventDefault()
-          setQuery((current) => ({ ...current, q: term.trim() || undefined, page: 1 }))
+          const entered = new FormData(event.currentTarget).get('q')
+          apply({ ...query, q: String(entered ?? '').trim() || undefined, page: 1 })
         }}
       >
         <div className={styles.search}>
           <TextField
             label="Search"
             type="search"
-            value={term}
+            name="q"
+            defaultValue={query.q ?? ''}
             placeholder="Title or description"
-            onChange={(event) => setTerm(event.target.value)}
           />
         </div>
         <div className={styles.status}>
@@ -87,11 +108,11 @@ export function Products() {
             label="Status"
             value={query.status ?? ''}
             onChange={(event) =>
-              setQuery((current) => ({
-                ...current,
+              apply({
+                ...query,
                 status: (event.target.value || undefined) as ProductStatus | undefined,
                 page: 1,
-              }))
+              })
             }
           >
             <option value="">Draft and active</option>
@@ -132,7 +153,7 @@ export function Products() {
           page={page.page}
           pageSize={page.pageSize}
           total={page.total}
-          onChange={(next) => setQuery((current) => ({ ...current, page: next }))}
+          onChange={(next) => apply({ ...query, page: next })}
         />
       )}
     </PageStack>
