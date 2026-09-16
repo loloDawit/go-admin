@@ -117,5 +117,8 @@ function LifetimeValue({
     )
   }
   if (!resource.data) return <>—</>
+  // No orders means no money taken in any currency, which the service reports as
+  // an empty code rather than inventing one.
+  if (!resource.data.currency) return <>No orders yet</>
   return <>{formatMoney(resource.data.lifetimeValueMinor, resource.data.currency)}</>
 }
