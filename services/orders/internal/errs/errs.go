@@ -64,6 +64,10 @@ const (
 	OpTransitionOrder      = "transition order status"
 	OpListOrders           = "list orders"
 	OpListOrderEvents      = "list order events"
+
+	OpConnectBroker  = "connect to the broker"
+	OpEnsureStream   = "ensure the event stream"
+	OpEnsureConsumer = "ensure the event consumer"
 	OpCustomerOrderHistory = "look up customer order history"
 )
 

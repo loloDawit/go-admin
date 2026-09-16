@@ -16,6 +16,11 @@ func setValidOrdersEnv(t *testing.T) {
 	t.Setenv("ORDER_PAGE_SIZE_MAX", "100")
 	t.Setenv("MAX_REQUEST_BODY_BYTES", "1048576")
 	t.Setenv("PRINCIPAL_SIGNING_KEY", validSigningKey)
+	t.Setenv("NATS_URL", "nats://nats:4222")
+	t.Setenv("NATS_DUPLICATE_WINDOW", "2m")
+	t.Setenv("OUTBOX_BATCH_SIZE", "100")
+	t.Setenv("OUTBOX_POLL_INTERVAL", "500ms")
+	t.Setenv("REPORT_WINDOW_DAYS", "30")
 }
 
 func TestLoadRejectsAMissingDatabaseURL(t *testing.T) {
