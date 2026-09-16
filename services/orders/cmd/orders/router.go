@@ -15,6 +15,7 @@ import (
 	"github.com/loloDawit/go-admin/services/orders/internal/customer"
 	"github.com/loloDawit/go-admin/services/orders/internal/order"
 	"github.com/loloDawit/go-admin/services/orders/internal/permission"
+	"github.com/loloDawit/go-admin/services/orders/internal/reporting"
 )
 
 // RequestLogger must be registered before Recoverer: it logs only after next.ServeHTTP returns, which a panic would unwind past.
@@ -24,6 +25,7 @@ func newRouter(
 	ready *readiness.Handler,
 	customerHandler *customer.Handler,
 	orderHandler *order.Handler,
+	reportingHandler *reporting.Handler,
 	principalKey []byte,
 	writeErr func(context.Context, http.ResponseWriter, error),
 ) *chi.Mux {
@@ -61,6 +63,8 @@ func newRouter(
 		r.With(authz.Require(permission.EditOrders, writeErr)).Post("/api/v1/orders/{id}/status", orderHandler.SetStatus)
 		r.With(authz.Require(permission.EditOrders, writeErr)).Post("/api/v1/orders/{id}/cancel", orderHandler.Cancel)
 		r.With(authz.Require(permission.EditOrders, writeErr)).Post("/api/v1/orders/{id}/refund", orderHandler.Refund)
+
+		r.With(authz.Require(permission.ViewOrders, writeErr)).Get("/api/v1/reports/dashboard", reportingHandler.Dashboard)
 	})
 
 	return r

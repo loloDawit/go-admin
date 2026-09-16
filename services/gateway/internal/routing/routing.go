@@ -72,6 +72,8 @@ var apiOwners = map[string]string{
 	"/api/v1/orders/*":    "orders",
 	"/api/v1/customers":   "orders",
 	"/api/v1/customers/*": "orders",
+	"/api/v1/reports":     "orders",
+	"/api/v1/reports/*":   "orders",
 }
 
 // "/api/v1/*" is the only surface proxied here. "/internal/*" is never routed here.

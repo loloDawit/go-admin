@@ -23,3 +23,16 @@ ON CONFLICT (order_id) DO NOTHING`
 
 const takeRecognisedOrderStmt = `DELETE FROM recognised_orders WHERE order_id = $1
 RETURNING day, currency, amount_minor`
+
+// Status counts are a plain aggregate, not a projection: at this size the count
+// is cheap and correct, and projecting it would be machinery with no question
+// behind it.
+const statusCountsQuery = `SELECT status, COUNT(*) FROM orders GROUP BY status`
+
+const recentOrdersQuery = `SELECT id, number, status, total_minor, currency, placed_at
+FROM orders ORDER BY placed_at DESC LIMIT $1`
+
+const revenueWindowQuery = `SELECT day, currency, placed_count, paid_count, recognised_minor, refunded_minor
+FROM revenue_by_day
+WHERE day > CURRENT_DATE - $1::int
+ORDER BY day DESC, currency`

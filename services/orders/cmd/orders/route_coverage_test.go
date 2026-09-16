@@ -30,7 +30,7 @@ func testRouter(t *testing.T) *chi.Mux {
 	svc := schemacheck.NewService(&alwaysFailRepo{})
 	ready := readiness.NewHandler(svc.Probe, errWriter.Write)
 
-	return newRouter(logger, ready, newTestCustomerHandler(), newTestOrderHandler(), testPrincipalKey, errWriter.Write)
+	return newRouter(logger, ready, newTestCustomerHandler(), newTestOrderHandler(), newTestReportingHandler(), testPrincipalKey, errWriter.Write)
 }
 
 // This drives a real request rather than comparing middleware slices, which could pass on a route enforcing nothing.

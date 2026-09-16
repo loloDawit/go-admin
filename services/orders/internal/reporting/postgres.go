@@ -109,3 +109,58 @@ func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == uniqueViolationCode
 }
+
+func (r *PostgresRepository) StatusCounts(ctx context.Context) (map[string]int, error) {
+	rows, err := r.pool.Query(ctx, statusCountsQuery)
+	if err != nil {
+		return nil, errs.Wrap(errs.OpDashboardReport, err)
+	}
+	defer rows.Close()
+
+	counts := map[string]int{}
+	for rows.Next() {
+		var status string
+		var count int
+		if err := rows.Scan(&status, &count); err != nil {
+			return nil, errs.Wrap(errs.OpDashboardReport, err)
+		}
+		counts[status] = count
+	}
+	return counts, rows.Err()
+}
+
+func (r *PostgresRepository) RecentOrders(ctx context.Context, limit int) ([]RecentOrder, error) {
+	rows, err := r.pool.Query(ctx, recentOrdersQuery, limit)
+	if err != nil {
+		return nil, errs.Wrap(errs.OpDashboardReport, err)
+	}
+	defer rows.Close()
+
+	out := []RecentOrder{}
+	for rows.Next() {
+		var o RecentOrder
+		if err := rows.Scan(&o.ID, &o.Number, &o.Status, &o.TotalMinor, &o.Currency, &o.PlacedAt); err != nil {
+			return nil, errs.Wrap(errs.OpDashboardReport, err)
+		}
+		out = append(out, o)
+	}
+	return out, rows.Err()
+}
+
+func (r *PostgresRepository) Revenue(ctx context.Context, windowDays int) ([]RevenueDay, error) {
+	rows, err := r.pool.Query(ctx, revenueWindowQuery, windowDays)
+	if err != nil {
+		return nil, errs.Wrap(errs.OpDashboardReport, err)
+	}
+	defer rows.Close()
+
+	out := []RevenueDay{}
+	for rows.Next() {
+		var d RevenueDay
+		if err := rows.Scan(&d.Day, &d.Currency, &d.PlacedCount, &d.PaidCount, &d.RecognisedMinor, &d.RefundedMinor); err != nil {
+			return nil, errs.Wrap(errs.OpDashboardReport, err)
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
+}

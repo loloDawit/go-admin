@@ -13,6 +13,7 @@ import (
 	"github.com/loloDawit/go-admin/services/orders/internal/customer"
 	"github.com/loloDawit/go-admin/services/orders/internal/httperr"
 	"github.com/loloDawit/go-admin/services/orders/internal/order"
+	"github.com/loloDawit/go-admin/services/orders/internal/reporting"
 	"github.com/loloDawit/go-admin/services/orders/internal/schemacheck"
 )
 
@@ -49,13 +50,34 @@ func newTestOrderHandler() *order.Handler {
 	return order.NewHandler(svc, 1<<20, func(context.Context, http.ResponseWriter, error) {})
 }
 
+func newTestReportingHandler() *reporting.Handler {
+	svc := reporting.NewService(nilReportingRepository{}, 30)
+	return reporting.NewHandler(svc, func(context.Context, http.ResponseWriter, error) {})
+}
+
+// The route table is what these tests pin; a repository that answers nothing is
+// enough, because no test here reaches the database.
+type nilReportingRepository struct{}
+
+func (nilReportingRepository) StatusCounts(context.Context) (map[string]int, error) {
+	return nil, nil
+}
+
+func (nilReportingRepository) RecentOrders(context.Context, int) ([]reporting.RecentOrder, error) {
+	return nil, nil
+}
+
+func (nilReportingRepository) Revenue(context.Context, int) ([]reporting.RevenueDay, error) {
+	return nil, nil
+}
+
 func TestPanickingHandlerStillProducesALogLineWithStatus500(t *testing.T) {
 	logger, captured := observability.NewCaptured()
 	errWriter := httperr.New(logger)
 	svc := schemacheck.NewService(&alwaysFailRepo{})
 	ready := readiness.NewHandler(svc.Probe, errWriter.Write)
 
-	r := newRouter(logger, ready, newTestCustomerHandler(), newTestOrderHandler(), testPrincipalKey, errWriter.Write)
+	r := newRouter(logger, ready, newTestCustomerHandler(), newTestOrderHandler(), newTestReportingHandler(), testPrincipalKey, errWriter.Write)
 	r.Get("/boom", func(http.ResponseWriter, *http.Request) {
 		panic("kaboom")
 	})
@@ -90,7 +112,7 @@ func TestStartupContractHealthzSkipsTheDatabaseAndReadyzReportsFailureSafely(t *
 	svc := schemacheck.NewService(repo)
 	ready := readiness.NewHandler(svc.Probe, errWriter.Write)
 
-	r := newRouter(logger, ready, newTestCustomerHandler(), newTestOrderHandler(), testPrincipalKey, errWriter.Write)
+	r := newRouter(logger, ready, newTestCustomerHandler(), newTestOrderHandler(), newTestReportingHandler(), testPrincipalKey, errWriter.Write)
 
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
