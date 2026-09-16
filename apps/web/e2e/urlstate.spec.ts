@@ -69,3 +69,30 @@ test('an unrecognised status in the URL is dropped, not forwarded', async ({ pag
   await expect(page.getByLabel('Status')).toHaveValue('')
   await expect(page.getByText('could not be loaded')).toHaveCount(0)
 })
+
+test('an order status filter is in the URL and survives a reload', async ({ page }) => {
+  await page.goto('/orders')
+  await page.getByLabel('Status').selectOption('packed')
+  await expect(page).toHaveURL(/\/orders\?status=packed$/)
+
+  await page.reload()
+  await expect(page.getByLabel('Status')).toHaveValue('packed')
+})
+
+test('an unrecognised order status in the URL is dropped', async ({ page }) => {
+  await page.goto('/orders?status=elsewhere')
+  await expect(page.locator('[aria-busy="true"]')).toHaveCount(0)
+  await expect(page.getByLabel('Status')).toHaveValue('')
+  await expect(page.getByText('could not be loaded')).toHaveCount(0)
+})
+
+// Asserting the URL alone would pass against a screen that ignores it. Previous
+// is disabled on page one and enabled beyond it, so it observes the page in effect.
+test('the customer list page is in the URL', async ({ page }) => {
+  await page.goto('/customers')
+  await expect(page.getByRole('button', { name: 'Previous' })).toBeDisabled()
+
+  await page.goto('/customers?page=2')
+  await expect(page.locator('[aria-busy="true"]')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Previous' })).toBeEnabled()
+})

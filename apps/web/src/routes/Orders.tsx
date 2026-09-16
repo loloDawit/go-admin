@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useMemo } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Button,
   DataTable,
@@ -13,6 +13,7 @@ import type { Column } from '../ui'
 import { listOrders, orderStatusLabels } from '../api/orders'
 import type { OrderQuery, OrderStatus, OrderSummary } from '../api/orders'
 import { formatDateTime, formatMoney } from '../api/format'
+import { oneOf, positiveInt, toSearchParams } from '../api/listQuery'
 import { useResource } from '../api/useResource'
 import { orderStatusTones } from '../app/statusTones'
 import styles from './Orders.module.css'
@@ -43,9 +44,27 @@ const STATUSES = Object.keys(orderStatusLabels) as OrderStatus[]
 
 export function Orders() {
   const navigate = useNavigate()
-  const [query, setQuery] = useState<OrderQuery>({ page: 1 })
-  const orders = useResource(`orders:${JSON.stringify(query)}`, () => listOrders(query))
+  const [params, setParams] = useSearchParams()
+
+  const query: OrderQuery = useMemo(
+    () => ({
+      status: oneOf(params, 'status', STATUSES),
+      page: positiveInt(params, 'page') ?? 1,
+    }),
+    [params],
+  )
+
+  const orders = useResource(`orders:${params.toString()}`, () => listOrders(query))
   const page = orders.data
+
+  function apply(next: OrderQuery) {
+    setParams(
+      toSearchParams({
+        status: next.status,
+        page: next.page === 1 ? undefined : next.page,
+      }),
+    )
+  }
 
   return (
     <PageStack>
@@ -65,7 +84,7 @@ export function Orders() {
             label="Status"
             value={query.status ?? ''}
             onChange={(event) =>
-              setQuery({
+              apply({
                 page: 1,
                 status: (event.target.value || undefined) as OrderStatus | undefined,
               })
@@ -108,7 +127,7 @@ export function Orders() {
           page={page.page}
           pageSize={page.pageSize}
           total={page.total}
-          onChange={(next) => setQuery((current) => ({ ...current, page: next }))}
+          onChange={(next) => apply({ ...query, page: next })}
         />
       )}
     </PageStack>
