@@ -35,6 +35,8 @@ type Repository interface {
 	UpdateStatus(ctx context.Context, id int64, from, to Status) (Order, error)
 
 	ListOrders(ctx context.Context, q ListQuery) ([]Order, int, error)
+
+	ListEvents(ctx context.Context, orderID int64) ([]Event, error)
 }
 
 // NewOrder is InsertOrder's input: the header row before its items exist.

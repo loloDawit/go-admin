@@ -63,6 +63,7 @@ const (
 	OpGetOrder             = "look up order by id"
 	OpTransitionOrder      = "transition order status"
 	OpListOrders           = "list orders"
+	OpListOrderEvents      = "list order events"
 	OpCustomerOrderHistory = "look up customer order history"
 )
 

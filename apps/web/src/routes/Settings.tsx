@@ -1,75 +1,33 @@
-import { useState } from 'react'
-import {
-  Alert,
-  Button,
-  CheckboxField,
-  PageHeader,
-  PageStack,
-  Section,
-  SelectField,
-  TextField,
-} from '../ui'
-import styles from './ProductForm.module.css'
+import { Link } from 'react-router-dom'
+import { DefinitionList, PageHeader, PageStack, Section, StateBlock } from '../ui'
+import { useAuth } from '../api/auth'
 
 export function Settings() {
-  const [saved, setSaved] = useState(false)
+  const { user } = useAuth()
 
   return (
     <PageStack>
-      <PageHeader title="Settings" description="How the shop behaves for everyone." />
+      <PageHeader title="Settings" description="What this back office is configured with." />
 
-      {saved && (
-        <Alert tone="success" title="Settings saved">
-          The change is local until the services are connected.
-        </Alert>
-      )}
-
-      <form
-        className={styles.form}
-        onSubmit={(event) => {
-          event.preventDefault()
-          setSaved(true)
-        }}
+      <Section
+        title="Your account"
+        description="Change your password from your profile."
+        actions={<Link to="/profile">Profile</Link>}
       >
-        <Section title="Shop">
-          <div className={styles.grid}>
-            <TextField label="Shop name" defaultValue="Northgate Supply" />
-            <SelectField label="Currency" defaultValue="GBP">
-              <option>GBP</option>
-              <option>EUR</option>
-              <option>USD</option>
-            </SelectField>
-            <SelectField label="Time zone" defaultValue="Europe/London">
-              <option>Europe/London</option>
-              <option>Europe/Berlin</option>
-              <option>UTC</option>
-            </SelectField>
-          </div>
-        </Section>
+        <DefinitionList
+          items={[
+            { term: 'Signed in as', value: user?.email ?? '—' },
+            { term: 'Permissions', value: user?.permissions.join(', ') || 'None' },
+          ]}
+        />
+      </Section>
 
-        <Section title="Fulfilment">
-          <div className={styles.grid}>
-            <TextField label="Low stock threshold" inputMode="numeric" defaultValue="3" />
-            <TextField label="Dispatch cut-off" defaultValue="15:00" />
-          </div>
-          <CheckboxField label="Email the team when an order has waited over a day" defaultChecked />
-        </Section>
-
-        <Section title="Danger zone" description="These cannot be undone from this screen.">
-          <Alert tone="danger" title="Closing the shop hides the storefront">
-            Customers see a holding page and no new orders arrive.
-          </Alert>
-          <div>
-            <Button variant="danger">Close the shop</Button>
-          </div>
-        </Section>
-
-        <div className={styles.actions}>
-          <Button type="submit" variant="primary">
-            Save settings
-          </Button>
-        </div>
-      </form>
+      <Section title="Shop settings">
+        <StateBlock
+          title="Nothing to configure yet"
+          description="Shop-wide settings need a service to store them; none exists. This screen will list them when one does."
+        />
+      </Section>
     </PageStack>
   )
 }

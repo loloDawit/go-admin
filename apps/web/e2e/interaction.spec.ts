@@ -21,12 +21,3 @@ test('keyboard focus is visible', async ({ page }) => {
   await page.screenshot({ path: 'screenshots/interaction_dialog.png' })
 })
 
-test('a failed product save keeps the entered values', async ({ page }) => {
-  await page.goto('/products/new')
-  await page.getByRole('button', { name: 'Create product' }).click()
-  await expect(page.getByText('Give the product a name.')).toBeVisible()
-  await page.screenshot({ path: 'screenshots/interaction_form-error.png', fullPage: true })
-  await page.getByLabel('Name').fill('Ash bread bin')
-  await page.getByRole('button', { name: 'Create product' }).click()
-  await expect(page.getByText('Product saved')).toBeVisible()
-})

@@ -1,23 +1,20 @@
 import { Link } from 'react-router-dom'
-import { Alert, DataTable, PageHeader, PageStack, Section, Status } from '../ui'
+import { DataTable, PageHeader, PageStack, Section, Status } from '../ui'
 import type { Column } from '../ui'
 import { listOrders, orderStatusLabels } from '../api/orders'
-import type { Order } from '../api/orders'
-import { listProducts } from '../api/catalog'
-import type { Product } from '../api/catalog'
+import type { OrderSummary } from '../api/orders'
 import { formatDateTime, formatMoney } from '../api/format'
 import { useResource } from '../api/useResource'
 import { orderStatusTones } from '../app/statusTones'
 import styles from './Dashboard.module.css'
 
-const orderColumns: Column<Order>[] = [
+const columns: Column<OrderSummary>[] = [
   {
-    key: 'reference',
+    key: 'number',
     header: 'Order',
-    cell: (order) => <Link to={`/orders/${order.id}`}>{order.reference}</Link>,
+    cell: (order) => <Link to={`/orders/${order.id}`}>{order.number}</Link>,
   },
   { key: 'placed', header: 'Placed', cell: (order) => formatDateTime(order.placedAt) },
-  { key: 'customer', header: 'Customer', cell: (order) => order.customerName },
   {
     key: 'status',
     header: 'Status',
@@ -25,91 +22,62 @@ const orderColumns: Column<Order>[] = [
       <Status tone={orderStatusTones[order.status]}>{orderStatusLabels[order.status]}</Status>
     ),
   },
-  { key: 'total', header: 'Total', numeric: true, cell: (order) => formatMoney(order.totalCents) },
+  {
+    key: 'total',
+    header: 'Total',
+    numeric: true,
+    cell: (order) => formatMoney(order.totalMinor, order.currency),
+  },
 ]
 
-const lowStockColumns: Column<Product>[] = [
-  {
-    key: 'name',
-    header: 'Product',
-    cell: (product) => <Link to={`/products/${product.id}`}>{product.name}</Link>,
-  },
-  { key: 'sku', header: 'SKU', cell: (product) => product.sku },
-  {
-    key: 'stock',
-    header: 'In stock',
-    numeric: true,
-    cell: (product) => (product.stock === 0 ? 'Out of stock' : product.stock),
-  },
-]
+// One request per status rather than a client-side filter over one page: a
+// figure computed from the first page would silently undercount.
+function useCount(status: OrderSummary['status']) {
+  return useResource(`dashboard:${status}`, () => listOrders({ status, pageSize: 1 }))
+}
 
 export function Dashboard() {
-  const orders = useResource('orders', listOrders)
-  const products = useResource('products', listProducts)
+  const pending = useCount('pending')
+  const paid = useCount('paid')
+  const packed = useCount('packed')
+  const recent = useResource('dashboard:recent', () => listOrders({ pageSize: 10 }))
 
-  const openOrders = (orders.data ?? []).filter(
-    (order) => order.status === 'pending' || order.status === 'paid' || order.status === 'packed',
-  )
-  const lowStock = (products.data ?? []).filter((product) => product.stock <= 3)
-  const takings = (orders.data ?? [])
-    .filter((order) => order.status !== 'cancelled' && order.status !== 'refunded')
-    .reduce((total, order) => total + order.totalCents, 0)
+  const counted = [pending, paid, packed]
+  const waiting = counted.every((c) => c.status === 'ready')
+    ? counted.reduce((sum, c) => sum + (c.data?.total ?? 0), 0)
+    : undefined
 
   return (
     <PageStack>
       <PageHeader title="Today" description="Where the shop stands this morning." />
 
       <dl className={styles.figures}>
-        <div className={styles.figure}>
-          <dt className={styles.figureLabel}>Orders to handle</dt>
-          <dd className={styles.figureValue}>{orders.status === 'ready' ? openOrders.length : '—'}</dd>
-        </div>
-        <div className={styles.figure}>
-          <dt className={styles.figureLabel}>Taken, last 7 days</dt>
-          <dd className={styles.figureValue}>
-            {orders.status === 'ready' ? formatMoney(takings) : '—'}
-          </dd>
-        </div>
-        <div className={styles.figure}>
-          <dt className={styles.figureLabel}>Products low or out of stock</dt>
-          <dd className={styles.figureValue}>
-            {products.status === 'ready' ? lowStock.length : '—'}
-          </dd>
-        </div>
+        <Figure label="Orders to handle" value={waiting} />
+        <Figure label="Awaiting payment" value={pending.data?.total} />
+        <Figure label="Ready to ship" value={packed.data?.total} />
       </dl>
 
-      {products.status === 'ready' && lowStock.length > 0 && (
-        <Alert tone="warning" title={`${lowStock.length} products need restocking`}>
-          The storefront keeps selling products that are out of stock. Update the counts or set
-          them to draft.
-        </Alert>
-      )}
-
-      <Section title="Orders waiting on you">
+      <Section title="Latest orders">
         <DataTable
-          columns={orderColumns}
-          rows={openOrders}
+          columns={columns}
+          rows={recent.data?.items ?? []}
           rowKey={(order) => order.id}
-          status={orders.status}
-          emptyTitle="Nothing waiting"
-          emptyDescription="Every order has been packed and dispatched."
-          errorDescription={orders.error?.message}
-          onRetry={orders.reload}
-        />
-      </Section>
-
-      <Section title="Running low">
-        <DataTable
-          columns={lowStockColumns}
-          rows={lowStock}
-          rowKey={(product) => product.id}
-          status={products.status}
-          emptyTitle="Stock levels are healthy"
-          emptyDescription="No product is down to its last few units."
-          errorDescription={products.error?.message}
-          onRetry={products.reload}
+          status={recent.status}
+          emptyTitle="No orders yet"
+          emptyDescription="The first order placed appears here."
+          errorDescription={recent.error?.message}
+          onRetry={recent.reload}
         />
       </Section>
     </PageStack>
+  )
+}
+
+function Figure({ label, value }: { label: string; value: number | undefined }) {
+  return (
+    <div className={styles.figure}>
+      <dt className={styles.figureLabel}>{label}</dt>
+      <dd className={styles.figureValue}>{value === undefined ? '—' : value}</dd>
+    </div>
   )
 }

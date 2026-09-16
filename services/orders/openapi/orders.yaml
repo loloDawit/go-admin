@@ -176,6 +176,30 @@ paths:
         "401": { $ref: "#/components/responses/Error" }
         "403": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
+  /api/v1/orders/{id}/events:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      summary: An order's recorded transitions. Requires view_orders.
+      description: >
+        Every transition writes one event with the acting staff member and
+        any reason given; this is the only way to read them. Oldest first.
+        An order with no events does not exist — creation records one.
+      responses:
+        "200":
+          description: The order's events, oldest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [events]
+                properties:
+                  events:
+                    type: array
+                    items: { $ref: "#/components/schemas/OrderEvent" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
   /api/v1/orders/{id}/status:
     parameters:
       - { name: id, in: path, required: true, schema: { type: string } }
@@ -336,6 +360,17 @@ components:
         totalMinor: { type: integer }
         currency: { type: string }
         placedAt: { type: string, format: date-time }
+    OrderPage:
+      type: object
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/OrderSummary" }
+        page: { type: integer }
+        # The effective size after clamping, not what the caller asked for.
+        pageSize: { type: integer }
+        total: { type: integer }
     OrderHistoryPage:
       type: object
       required: [items, page, pageSize, total]
@@ -353,6 +388,20 @@ components:
         path. cancelled is reachable from pending, paid, or packed; refunded
         from paid, packed, shipped or delivered. Neither moves again once reached.
       enum: [pending, paid, packed, shipped, delivered, cancelled, refunded]
+    OrderEvent:
+      type: object
+      required: [id, fromStatus, toStatus, actorId, reason, at]
+      properties:
+        id: { type: string }
+        fromStatus:
+          description: Null for the order's creation, which has no prior status.
+          oneOf:
+            - { $ref: "#/components/schemas/OrderStatus" }
+            - { type: "null" }
+        toStatus: { $ref: "#/components/schemas/OrderStatus" }
+        actorId: { type: string, description: The staff member who made the transition, from the verified principal. }
+        reason: { type: string }
+        at: { type: string, format: date-time }
     OrderItem:
       type: object
       required: [productId, titleSnapshot, unitPriceMinor, currency, quantity, lineTotalMinor]

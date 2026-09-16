@@ -3,107 +3,161 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   Alert,
   Button,
-  CheckboxField,
   PageHeader,
   PageStack,
   Section,
-  SelectField,
+  StateBlock,
   TextField,
   TextareaField,
 } from '../ui'
-import { productStatusLabels } from '../api/catalog'
-import type { ProductStatus } from '../api/catalog'
+import { createProduct, getProduct, updateProduct } from '../api/catalog'
+import type { Product } from '../api/catalog'
+import { isApiError } from '../api/client'
+import { moneyInputValue, parseMoney } from '../api/money'
+import { useResource } from '../api/useResource'
 import styles from './ProductForm.module.css'
 
-const STATUSES: ProductStatus[] = ['active', 'draft', 'discontinued']
+const DEFAULT_CURRENCY = 'USD'
+
+type Errors = { sku?: string; title?: string; price?: string }
+
+function Fields({ product }: { product?: Product }) {
+  const navigate = useNavigate()
+  const currency = product?.currency ?? DEFAULT_CURRENCY
+  const [sku, setSku] = useState(product?.sku ?? '')
+  const [title, setTitle] = useState(product?.title ?? '')
+  const [description, setDescription] = useState(product?.description ?? '')
+  const [price, setPrice] = useState(product ? moneyInputValue(product.priceMinor, currency) : '')
+  const [errors, setErrors] = useState<Errors>({})
+  const [failure, setFailure] = useState<string>()
+  const [saving, setSaving] = useState(false)
+
+  async function submit() {
+    const priceMinor = parseMoney(price, currency)
+    const found: Errors = {}
+    if (!product && sku.trim() === '') found.sku = 'Give the product a SKU.'
+    if (title.trim() === '') found.title = 'Give the product a title.'
+    if (price.trim() !== '' && priceMinor === undefined) {
+      found.price = `Enter an amount in ${currency}, such as 22.00.`
+    }
+    setErrors(found)
+    if (Object.keys(found).length > 0) return
+
+    setSaving(true)
+    setFailure(undefined)
+    try {
+      const saved = product
+        ? await updateProduct(product.id, { title, description, priceMinor })
+        : await createProduct({ sku, title, description, priceMinor, currency })
+      navigate(`/products/${saved.id}`)
+    } catch (cause) {
+      if (isApiError(cause) && cause.code === 'sku_taken') {
+        setErrors({ sku: 'Another product already uses this SKU.' })
+      } else {
+        setFailure(isApiError(cause) ? cause.message : 'The product could not be saved.')
+      }
+      setSaving(false)
+    }
+  }
+
+  return (
+    <form
+      className={styles.form}
+      onSubmit={(event) => {
+        event.preventDefault()
+        void submit()
+      }}
+    >
+      {failure && <Alert tone="danger" title={failure} />}
+
+      <Section title="Details">
+        <div className={styles.grid}>
+          {product ? (
+            <TextField label="SKU" value={product.sku} readOnly help="A SKU cannot be changed." />
+          ) : (
+            <TextField
+              label="SKU"
+              value={sku}
+              error={errors.sku}
+              onChange={(event) => setSku(event.target.value)}
+              placeholder="MUG-CLY-300"
+            />
+          )}
+          <TextField
+            label="Title"
+            value={title}
+            error={errors.title}
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder="Clay mug, 300 ml"
+          />
+          <TextField
+            label={`Price (${currency})`}
+            inputMode="decimal"
+            value={price}
+            error={errors.price}
+            optional
+            onChange={(event) => setPrice(event.target.value)}
+            placeholder="22.00"
+          />
+        </div>
+        <TextareaField
+          label="Description"
+          optional
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+        />
+      </Section>
+
+      <div className={styles.actions}>
+        <Button type="submit" variant="primary" loading={saving}>
+          {product ? 'Save changes' : 'Create product'}
+        </Button>
+        <Button variant="ghost" onClick={() => navigate(product ? `/products/${product.id}` : '/products')}>
+          Cancel
+        </Button>
+      </div>
+    </form>
+  )
+}
 
 export function ProductForm() {
-  const navigate = useNavigate()
   const { productId } = useParams()
-  const editing = Boolean(productId)
-  const [name, setName] = useState(editing ? 'Clay mug, 300 ml' : '')
-  const [submitting, setSubmitting] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [touched, setTouched] = useState(false)
-
-  const nameError = touched && name.trim() === '' ? 'Give the product a name.' : undefined
 
   return (
     <PageStack>
       <PageHeader
         breadcrumb={<Link to="/products">Products</Link>}
-        title={editing ? 'Edit product' : 'New product'}
-        description="Everything here is visible to customers on the storefront."
+        title={productId ? 'Edit product' : 'New product'}
+        description={
+          productId
+            ? undefined
+            : 'A new product starts as a draft. Activate it from its page once it is ready to sell.'
+        }
       />
-
-      {saved && (
-        <Alert tone="success" title="Product saved">
-          The change is local until the catalog service is connected.
-        </Alert>
-      )}
-
-      <form
-        className={styles.form}
-        onSubmit={(event) => {
-          event.preventDefault()
-          setTouched(true)
-          if (name.trim() === '') return
-          setSubmitting(true)
-          setTimeout(() => {
-            setSubmitting(false)
-            setSaved(true)
-          }, 600)
-        }}
-      >
-        <Section title="Details">
-          <div className={styles.grid}>
-            <TextField
-              label="Name"
-              value={name}
-              error={nameError}
-              onChange={(event) => setName(event.target.value)}
-              onBlur={() => setTouched(true)}
-              placeholder="Stoneware kettle, 0.5 L"
-            />
-            <TextField label="SKU" defaultValue={editing ? 'MUG-CLY-300' : ''} help="Uppercase, no spaces." />
-            <SelectField label="Category" defaultValue="Kitchen">
-              <option>Kitchen</option>
-              <option>Textiles</option>
-              <option>Home</option>
-            </SelectField>
-            <SelectField label="Status" defaultValue="draft">
-              {STATUSES.map((status) => (
-                <option key={status} value={status}>
-                  {productStatusLabels[status]}
-                </option>
-              ))}
-            </SelectField>
-          </div>
-          <TextareaField
-            label="Description"
-            optional
-            placeholder="What the customer sees on the product page."
-          />
-        </Section>
-
-        <Section title="Price and stock">
-          <div className={styles.grid}>
-            <TextField label="Price" inputMode="decimal" defaultValue={editing ? '22.00' : ''} help="In pounds." />
-            <TextField label="Stock on hand" inputMode="numeric" defaultValue={editing ? '3' : '0'} />
-            <TextField label="Reorder level" inputMode="numeric" defaultValue="3" optional />
-          </div>
-          <CheckboxField label="Keep selling when stock reaches zero" />
-        </Section>
-
-        <div className={styles.actions}>
-          <Button type="submit" variant="primary" loading={submitting}>
-            {editing ? 'Save changes' : 'Create product'}
-          </Button>
-          <Button variant="ghost" onClick={() => navigate('/products')}>
-            Cancel
-          </Button>
-        </div>
-      </form>
+      {productId ? <EditFields productId={productId} /> : <Fields />}
     </PageStack>
   )
+}
+
+function EditFields({ productId }: { productId: string }) {
+  const product = useResource(`product:${productId}`, () => getProduct(productId))
+
+  if (product.status === 'loading') {
+    return <StateBlock title="Loading product" description="Fetching the catalog entry." />
+  }
+  if (product.status === 'error' || !product.data) {
+    return (
+      <StateBlock
+        tone="error"
+        title="This product could not be loaded"
+        description={product.error?.message}
+        action={
+          <Button variant="secondary" onClick={product.reload}>
+            Try again
+          </Button>
+        }
+      />
+    )
+  }
+  return <Fields key={product.data.id} product={product.data} />
 }

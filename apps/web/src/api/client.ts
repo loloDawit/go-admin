@@ -1,11 +1,8 @@
-export type ApiError = {
-  code: string
-  message: string
-}
+export type { ApiError } from './http'
+export { isApiError } from './http'
 
 type Scenario = 'ready' | 'empty' | 'error' | 'slow'
 
-const LATENCY_MS = 220
 const SLOW_LATENCY_MS = 4000
 
 function currentScenario(): Scenario {
@@ -13,22 +10,18 @@ function currentScenario(): Scenario {
   return value === 'empty' || value === 'error' || value === 'slow' ? value : 'ready'
 }
 
-export async function respond<T>(data: T, emptyValue?: T): Promise<T> {
+// withScenario overrides a real call so the loading, empty and error states stay
+// reachable without breaking a service. ?mock=error and ?mock=empty never reach
+// the network; ?mock=slow does, after a delay.
+export async function withScenario<T>(load: () => Promise<T>, emptyValue?: T): Promise<T> {
   const scenario = currentScenario()
-  await new Promise((resolve) =>
-    setTimeout(resolve, scenario === 'slow' ? SLOW_LATENCY_MS : LATENCY_MS),
-  )
+
   if (scenario === 'error') {
-    const failure: ApiError = {
-      code: 'service_unavailable',
-      message: 'The service did not respond. Try again in a moment.',
-    }
-    throw failure
+    throw { code: 'internal', message: 'The service did not respond. Try again in a moment.' }
   }
   if (scenario === 'empty' && emptyValue !== undefined) return emptyValue
-  return data
-}
-
-export function isApiError(value: unknown): value is ApiError {
-  return typeof value === 'object' && value !== null && 'code' in value && 'message' in value
+  if (scenario === 'slow') {
+    await new Promise((resolve) => setTimeout(resolve, SLOW_LATENCY_MS))
+  }
+  return load()
 }

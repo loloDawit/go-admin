@@ -1,98 +1,99 @@
-import { respond } from './client'
+import { withScenario } from './client'
+import type { components } from './generated/catalog'
+import { api } from './http'
 
-export type ProductStatus = 'active' | 'draft' | 'discontinued'
+export type ProductStatus = components['schemas']['ProductStatus']
+export type Product = components['schemas']['Product']
+export type ProductImage = components['schemas']['Image']
+export type CreateProductRequest = components['schemas']['CreateProductRequest']
+export type UpdateProductRequest = components['schemas']['UpdateProductRequest']
 
-export type Product = {
-  id: string
-  sku: string
-  name: string
-  category: string
-  priceCents: number
-  stock: number
-  status: ProductStatus
-  updatedAt: string
-  description: string
-}
-
-const PRODUCTS: Product[] = [
-  {
-    id: 'p-1041',
-    sku: 'KTL-STN-500',
-    name: 'Stoneware kettle, 0.5 L',
-    category: 'Kitchen',
-    priceCents: 6400,
-    stock: 18,
-    status: 'active',
-    updatedAt: '2026-09-09T09:12:00Z',
-    description: 'Hand-thrown stoneware kettle with a matte glaze. Dishwasher safe.',
-  },
-  {
-    id: 'p-1042',
-    sku: 'MUG-CLY-300',
-    name: 'Clay mug, 300 ml',
-    category: 'Kitchen',
-    priceCents: 2200,
-    stock: 3,
-    status: 'active',
-    updatedAt: '2026-09-11T14:40:00Z',
-    description: 'Everyday mug in unglazed clay with a glazed interior.',
-  },
-  {
-    id: 'p-1043',
-    sku: 'TWL-LIN-NAT',
-    name: 'Linen tea towel, natural',
-    category: 'Textiles',
-    priceCents: 1400,
-    stock: 0,
-    status: 'active',
-    updatedAt: '2026-09-12T08:05:00Z',
-    description: 'Stonewashed European linen, 50 x 70 cm.',
-  },
-  {
-    id: 'p-1044',
-    sku: 'BRD-OAK-LRG',
-    name: 'Oak serving board, large',
-    category: 'Kitchen',
-    priceCents: 8900,
-    stock: 11,
-    status: 'draft',
-    updatedAt: '2026-09-05T16:20:00Z',
-    description: 'Single-piece oak board finished with food-safe oil.',
-  },
-  {
-    id: 'p-1045',
-    sku: 'CDL-BEE-SET',
-    name: 'Beeswax candles, set of six',
-    category: 'Home',
-    priceCents: 3200,
-    stock: 42,
-    status: 'active',
-    updatedAt: '2026-09-02T11:00:00Z',
-    description: 'Pure beeswax dinner candles, eight-hour burn time.',
-  },
-  {
-    id: 'p-1046',
-    sku: 'APR-CAN-BLK',
-    name: 'Canvas apron, black',
-    category: 'Textiles',
-    priceCents: 5600,
-    stock: 7,
-    status: 'discontinued',
-    updatedAt: '2026-08-21T10:30:00Z',
-    description: 'Heavy cotton canvas with adjustable neck strap.',
-  },
-]
-
-export function listProducts(): Promise<Product[]> {
-  return respond(PRODUCTS, [])
-}
-
-export function getProduct(id: string): Promise<Product | undefined> {
-  return respond(PRODUCTS.find((product) => product.id === id))
+export type ProductPage = {
+  items: Product[]
+  page: number
+  pageSize: number
+  total: number
 }
 
 export const productStatusLabels: Record<ProductStatus, string> = {
-  active: 'Active',
   draft: 'Draft',
-  discontinued: 'Discontinued',
+  active: 'Active',
+  archived: 'Archived',
+}
+
+// A draft product cannot be ordered. Orders refuses anything that is not
+// active, so the distinction is operational rather than cosmetic.
+export const productStatusHelp: Record<ProductStatus, string> = {
+  draft: 'Not yet on sale. Activate it before it can be ordered.',
+  active: 'On sale and available to order.',
+  archived: 'Withdrawn from sale. Past orders keep what they bought.',
+}
+
+export type ProductQuery = {
+  q?: string
+  status?: ProductStatus
+  sort?: string
+  page?: number
+  pageSize?: number
+}
+
+function queryString(query: ProductQuery): string {
+  const params = new URLSearchParams()
+  if (query.q) params.set('q', query.q)
+  if (query.status) params.set('status', query.status)
+  if (query.sort) params.set('sort', query.sort)
+  if (query.page && query.page > 1) params.set('page', String(query.page))
+  if (query.pageSize) params.set('pageSize', String(query.pageSize))
+  const encoded = params.toString()
+  return encoded ? `?${encoded}` : ''
+}
+
+const emptyPage: ProductPage = { items: [], page: 1, pageSize: 20, total: 0 }
+
+// Search is its own endpoint with a required q: an optional q on the list would
+// make an empty search indistinguishable from a full listing.
+export function listProducts(query: ProductQuery = {}): Promise<ProductPage> {
+  const path = query.q
+    ? `/api/v1/products/search${queryString(query)}`
+    : `/api/v1/products${queryString(query)}`
+  return withScenario(() => api.get<ProductPage>(path), emptyPage)
+}
+
+export function getProduct(id: string): Promise<Product> {
+  return withScenario(() => api.get<Product>(`/api/v1/products/${id}`))
+}
+
+export function createProduct(body: CreateProductRequest): Promise<Product> {
+  return api.post<Product>('/api/v1/products', body)
+}
+
+export function updateProduct(id: string, body: UpdateProductRequest): Promise<Product> {
+  return api.patch<Product>(`/api/v1/products/${id}`, body)
+}
+
+export function activateProduct(id: string): Promise<Product> {
+  return api.post<Product>(`/api/v1/products/${id}/activate`)
+}
+
+export function archiveProduct(id: string): Promise<Product> {
+  return api.post<Product>(`/api/v1/products/${id}/archive`)
+}
+
+// Presigned URLs expire, so this is called when a product is shown rather than
+// cached alongside it.
+export function listProductImages(id: string): Promise<ProductImage[]> {
+  return withScenario(
+    async () => (await api.get<{ images: ProductImage[] }>(`/api/v1/products/${id}/images`)).images,
+    [],
+  )
+}
+
+export function uploadProductImage(id: string, file: File): Promise<ProductImage> {
+  const body = new FormData()
+  body.append('file', file)
+  return api.post<ProductImage>(`/api/v1/products/${id}/images`, body)
+}
+
+export function deleteProductImage(productId: string, imageId: string): Promise<void> {
+  return api.delete<void>(`/api/v1/products/${productId}/images/${imageId}`)
 }

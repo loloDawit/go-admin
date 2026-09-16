@@ -73,87 +73,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/login": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Exchange credentials for a session cookie.
-         * @description An unknown email, a wrong password and a deactivated account are indistinguishable in both the response and its timing.
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["LoginRequest"];
-                };
-            };
-            responses: {
-                /** @description Signed in; the session cookie is set HttpOnly */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Auth"];
-                    };
-                };
-                401: components["responses"]["Error"];
-                422: components["responses"]["Error"];
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/logout": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Revoke the caller's session. */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Revoked */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                401: components["responses"]["Error"];
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/me": {
+    "/api/v1/customers": {
         parameters: {
             query?: never;
             header?: never;
@@ -161,52 +81,40 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * The caller's own record.
-         * @description Returns 403 password_change_required while the caller's mustChangePassword is set: the gate covers every authenticated route except changing that password and logging out, this one included. A client bootstrapping its session from here must treat that as its own state rather than as an error.
+         * List customers, or look one up by email. Requires view_orders.
+         * @description With no email, a page of customers. With email, the single matching customer, or 404. An unparseable page or pageSize is 400.
          */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    email?: string;
+                    page?: number;
+                    /** @description Clamped to the service's configured maximum; the response states the effective size. */
+                    pageSize?: number;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
             };
             requestBody?: never;
             responses: {
-                /** @description The caller */
+                /** @description A page of customers, or the single customer matching email */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Auth"];
+                        "application/json": components["schemas"]["CustomerPage"] | components["schemas"]["Customer"];
                     };
                 };
+                400: components["responses"]["Error"];
                 401: components["responses"]["Error"];
                 403: components["responses"]["Error"];
+                404: components["responses"]["Error"];
             };
         };
         put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/me/password": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Change the caller's own password.
-         * @description Reachable while mustChangePassword is set; every other route is refused until it clears.
-         */
+        /** Create a customer. Requires edit_orders. */
         post: {
             parameters: {
                 query?: never;
@@ -216,74 +124,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["ChangePasswordRequest"];
-                };
-            };
-            responses: {
-                /** @description Changed */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                401: components["responses"]["Error"];
-                422: components["responses"]["Error"];
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/staff": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List staff. Requires view_staff. */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Staff */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            staff: components["schemas"]["Staff"][];
-                        };
-                    };
-                };
-                401: components["responses"]["Error"];
-                403: components["responses"]["Error"];
-            };
-        };
-        put?: never;
-        /**
-         * Create a staff member. Requires edit_staff.
-         * @description The generated password is returned exactly once, here. It is stored only as a hash and no later response repeats it. The account is created with mustChangePassword set.
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["CreateStaffRequest"];
+                    "application/json": components["schemas"]["CreateCustomerRequest"];
                 };
             };
             responses: {
@@ -293,16 +134,13 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            staff: components["schemas"]["Staff"];
-                            password: string;
-                        };
+                        "application/json": components["schemas"]["Customer"];
                     };
                 };
+                400: components["responses"]["Error"];
                 401: components["responses"]["Error"];
                 403: components["responses"]["Error"];
                 409: components["responses"]["Error"];
-                422: components["responses"]["Error"];
             };
         };
         delete?: never;
@@ -311,7 +149,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/staff/{id}": {
+    "/api/v1/customers/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -320,7 +158,7 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** One staff member. Requires view_staff. */
+        /** One customer. Requires view_orders. */
         get: {
             parameters: {
                 query?: never;
@@ -332,13 +170,13 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description The staff member */
+                /** @description The customer */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Staff"];
+                        "application/json": components["schemas"]["Customer"];
                     };
                 };
                 401: components["responses"]["Error"];
@@ -351,43 +189,10 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /**
-         * Update a staff member. Requires edit_staff.
-         * @description Every field is optional; an omitted field leaves that column unchanged. A caller editing their own record may change only their name and email — roleId and isActive are not accepted, so nobody can promote themselves.
-         */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["UpdateStaffRequest"];
-                };
-            };
-            responses: {
-                /** @description Updated */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Staff"];
-                    };
-                };
-                401: components["responses"]["Error"];
-                403: components["responses"]["Error"];
-                404: components["responses"]["Error"];
-                409: components["responses"]["Error"];
-            };
-        };
+        patch?: never;
         trace?: never;
     };
-    "/api/v1/staff/{id}/deactivate": {
+    "/api/v1/customers/{id}/lifetime-value": {
         parameters: {
             query?: never;
             header?: never;
@@ -396,13 +201,11 @@ export interface paths {
             };
             cookie?: never;
         };
-        get?: never;
-        put?: never;
         /**
-         * Deactivate a staff member. Requires edit_staff.
-         * @description Revokes their live sessions. Refused with last_admin when no other active staff member would still hold edit_staff.
+         * A customer's lifetime spend. Requires view_orders.
+         * @description Cancelled and refunded orders are excluded. Refused when the customer's orders span more than one currency: a total summed across currencies is a number that means nothing.
          */
-        post: {
+        get: {
             parameters: {
                 query?: never;
                 header?: never;
@@ -413,61 +216,118 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Deactivated */
+                /** @description Lifetime value */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Staff"];
+                        "application/json": components["schemas"]["LifetimeValue"];
                     };
                 };
                 401: components["responses"]["Error"];
                 403: components["responses"]["Error"];
                 404: components["responses"]["Error"];
-                409: components["responses"]["Error"];
+                422: components["responses"]["Error"];
             };
         };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/roles": {
+    "/api/v1/customers/{id}/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** A customer's order history. Requires view_orders. */
+        get: {
+            parameters: {
+                query?: {
+                    page?: number;
+                    pageSize?: number;
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description A page of the customer's past orders */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OrderHistoryPage"];
+                    };
+                };
+                401: components["responses"]["Error"];
+                403: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orders": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List roles. Requires view_roles. */
+        /** List orders. Requires view_orders. */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    status?: components["schemas"]["OrderStatus"];
+                    customerId?: string;
+                    /** @description A column from the server's sort allowlist; an unrecognized value is refused. */
+                    sort?: string;
+                    page?: number;
+                    pageSize?: number;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
             };
             requestBody?: never;
             responses: {
-                /** @description Roles */
+                /** @description A page of orders */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            roles: components["schemas"]["Role"][];
-                        };
+                        "application/json": components["schemas"]["OrderPage"];
                     };
                 };
                 401: components["responses"]["Error"];
                 403: components["responses"]["Error"];
+                422: components["responses"]["Error"];
             };
         };
         put?: never;
-        /** Create a role. Requires edit_roles. */
+        /**
+         * Create an order. Requires edit_orders.
+         * @description Each line is resolved against Catalog at creation time and its title and price are snapshotted onto the order; a later change to the product never changes what was bought. Every line must name an active product and quote one currency.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -477,7 +337,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["CreateRoleRequest"];
+                    "application/json": components["schemas"]["CreateOrderRequest"];
                 };
             };
             responses: {
@@ -487,13 +347,17 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Role"];
+                        "application/json": components["schemas"]["Order"];
                     };
                 };
+                400: components["responses"]["Error"];
                 401: components["responses"]["Error"];
                 403: components["responses"]["Error"];
-                409: components["responses"]["Error"];
                 422: components["responses"]["Error"];
+                /** @description The client disconnected before Catalog answered */
+                499: components["responses"]["Error"];
+                502: components["responses"]["Error"];
+                504: components["responses"]["Error"];
             };
         };
         delete?: never;
@@ -502,7 +366,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/roles/{id}": {
+    "/api/v1/orders/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -511,7 +375,7 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** One role. Requires view_roles. */
+        /** One order, with its lines. Requires view_orders. */
         get: {
             parameters: {
                 query?: never;
@@ -523,13 +387,13 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description The role */
+                /** @description The order */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Role"];
+                        "application/json": components["schemas"]["Order"];
                     };
                 };
                 401: components["responses"]["Error"];
@@ -539,11 +403,26 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orders/{id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
         /**
-         * Delete a role. Requires edit_roles.
-         * @description Refused with role_in_use while any staff member still holds it. The foreign key refuses first, so this is a guarantee rather than a check that could be raced.
+         * An order's recorded transitions. Requires view_orders.
+         * @description Every transition writes one event with the acting staff member and any reason given; this is the only way to read them. Oldest first. An order with no events does not exist — creation records one.
          */
-        delete: {
+        get: {
             parameters: {
                 query?: never;
                 header?: never;
@@ -554,26 +433,46 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Deleted */
-                204: {
+                /** @description The order's events, oldest first */
+                200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            events: components["schemas"]["OrderEvent"][];
+                        };
+                    };
                 };
                 401: components["responses"]["Error"];
                 403: components["responses"]["Error"];
                 404: components["responses"]["Error"];
-                409: components["responses"]["Error"];
             };
         };
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orders/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
         /**
-         * Update a role. Requires edit_roles.
-         * @description Refused with last_admin when it would remove edit_staff from the only role granting it to an active staff member.
+         * Transition an order's status. Requires edit_orders.
+         * @description Refuses cancelled and refunded as targets; use /cancel and /refund for those. Refuses any target not reachable from the order's current status per the fixed transition table.
          */
-        patch: {
+        post: {
             parameters: {
                 query?: never;
                 header?: never;
@@ -584,7 +483,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["UpdateRoleRequest"];
+                    "application/json": components["schemas"]["SetStatusRequest"];
                 };
             };
             responses: {
@@ -594,100 +493,116 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Role"];
+                        "application/json": components["schemas"]["Order"];
                     };
                 };
+                400: components["responses"]["Error"];
                 401: components["responses"]["Error"];
                 403: components["responses"]["Error"];
                 404: components["responses"]["Error"];
                 409: components["responses"]["Error"];
-                422: components["responses"]["Error"];
             };
         };
-        trace?: never;
-    };
-    "/api/v1/permissions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** The canonical permission vocabulary. Requires view_roles. */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Permissions */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            permissions: components["schemas"]["Permission"][];
-                        };
-                    };
-                };
-                401: components["responses"]["Error"];
-                403: components["responses"]["Error"];
-            };
-        };
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/internal/sessions/validate": {
+    "/api/v1/orders/{id}/cancel": {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                id: string;
+            };
             cookie?: never;
         };
         get?: never;
         put?: never;
         /**
-         * Resolve a session token. Gateway only.
-         * @description Not routed through the gateway and reachable on the container network only. A client that could call it could validate arbitrary tokens. The token travels in the body, never a query string, which would reach access logs.
+         * Cancel an order. Requires edit_orders.
+         * @description Reachable from pending, paid, or packed; refused once the order has shipped.
          */
         post: {
             parameters: {
                 query?: never;
                 header?: never;
-                path?: never;
+                path: {
+                    id: string;
+                };
                 cookie?: never;
             };
             requestBody: {
                 content: {
-                    "application/json": {
-                        token: string;
-                    };
+                    "application/json": components["schemas"]["TransitionRequest"];
                 };
             };
             responses: {
-                /** @description The resolved caller */
+                /** @description Cancelled */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            staffId: string;
-                            permissions: components["schemas"]["Permission"][];
-                            mustChangePassword: boolean;
-                        };
+                        "application/json": components["schemas"]["Order"];
                     };
                 };
                 401: components["responses"]["Error"];
+                403: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orders/{id}/refund": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refund an order. Requires edit_orders.
+         * @description Reachable from paid, packed, shipped or delivered; refused once already cancelled or refunded.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TransitionRequest"];
+                };
+            };
+            responses: {
+                /** @description Refunded */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Order"];
+                    };
+                };
+                401: components["responses"]["Error"];
+                403: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+                409: components["responses"]["Error"];
             };
         };
         delete?: never;
@@ -702,67 +617,110 @@ export interface components {
     schemas: {
         Error: {
             /** @enum {string} */
-            code: "invalid_credentials" | "unauthenticated" | "forbidden" | "password_change_required" | "not_found" | "conflict" | "last_admin" | "role_in_use" | "validation_failed" | "internal" | "schema_dirty" | "schema_not_migrated" | "database_unavailable";
+            code: "unauthenticated" | "forbidden" | "not_found" | "email_taken" | "mixed_currency_history" | "product_unavailable" | "currency_mismatch" | "invalid_transition" | "validation_failed" | "malformed_body" | "request_cancelled" | "catalog_timeout" | "catalog_unavailable" | "catalog_rejected" | "internal" | "schema_dirty" | "schema_not_migrated" | "database_unavailable";
             message: string;
         };
         /**
-         * @description The canonical permission vocabulary. Identity owns this list; Catalog and Orders generate typed constants from it rather than hand-writing permission strings.
+         * @description The canonical permission vocabulary. Identity owns this list (see services/identity/openapi/identity.yaml#/components/schemas/Permission); Orders generates typed constants from it rather than hand-writing permission strings. Every route on this contract requires view_orders or edit_orders.
          * @enum {string}
          */
         Permission: "view_staff" | "edit_staff" | "view_roles" | "edit_roles" | "view_products" | "edit_products" | "view_orders" | "edit_orders";
-        LoginRequest: {
-            /** Format: email */
-            email: string;
-            password: string;
-        };
-        ChangePasswordRequest: {
-            currentPassword: string;
-            newPassword: string;
-        };
-        Auth: {
-            staffId: string;
-            /** Format: email */
-            email: string;
-            permissions: components["schemas"]["Permission"][];
-            mustChangePassword: boolean;
-        };
-        Staff: {
+        Customer: {
             id: string;
-            /** Format: email */
             email: string;
-            firstName: string;
-            lastName: string;
-            roleId: string;
-            isActive: boolean;
-            mustChangePassword: boolean;
+            name: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
         };
-        CreateStaffRequest: {
-            /** Format: email */
+        CreateCustomerRequest: {
             email: string;
-            firstName: string;
-            lastName: string;
-            roleId: string;
+            name: string;
         };
-        UpdateStaffRequest: {
-            firstName?: string;
-            lastName?: string;
-            /** Format: email */
-            email?: string;
-            roleId?: string;
-            isActive?: boolean;
+        CustomerPage: {
+            items: components["schemas"]["Customer"][];
+            page: number;
+            /** @description The effective size after clamping */
+            pageSize: number;
+            total: number;
         };
-        Role: {
+        LifetimeValue: {
+            lifetimeValueMinor: number;
+            currency: string;
+        };
+        OrderSummary: {
             id: string;
-            name: string;
-            permissions: components["schemas"]["Permission"][];
+            number: string;
+            status: components["schemas"]["OrderStatus"];
+            totalMinor: number;
+            currency: string;
+            /** Format: date-time */
+            placedAt: string;
         };
-        CreateRoleRequest: {
-            name: string;
-            permissions: components["schemas"]["Permission"][];
+        OrderPage: {
+            items: components["schemas"]["OrderSummary"][];
+            page: number;
+            pageSize: number;
+            total: number;
         };
-        UpdateRoleRequest: {
-            name?: string;
-            permissions?: components["schemas"]["Permission"][];
+        OrderHistoryPage: {
+            items: components["schemas"]["OrderSummary"][];
+            page: number;
+            pageSize: number;
+            total: number;
+        };
+        /**
+         * @description pending -> paid -> packed -> shipped -> delivered is the forward path. cancelled is reachable from pending, paid, or packed; refunded from paid, packed, shipped or delivered. Neither moves again once reached.
+         * @enum {string}
+         */
+        OrderStatus: "pending" | "paid" | "packed" | "shipped" | "delivered" | "cancelled" | "refunded";
+        OrderEvent: {
+            id: string;
+            /** @description Null for the order's creation, which has no prior status. */
+            fromStatus: components["schemas"]["OrderStatus"] | null;
+            toStatus: components["schemas"]["OrderStatus"];
+            /** @description The staff member who made the transition */
+            actorId: string;
+            reason: string;
+            /** Format: date-time */
+            at: string;
+        };
+        OrderItem: {
+            productId: string;
+            /** @description The product's title at purchase time; unaffected by a later rename. */
+            titleSnapshot: string;
+            /** @description The price paid; unaffected by a later price change. */
+            unitPriceMinor: number;
+            currency: string;
+            quantity: number;
+            lineTotalMinor: number;
+        };
+        Order: {
+            id: string;
+            /** @description Looks like ORD-2026-000034. */
+            number: string;
+            customerId: string;
+            status: components["schemas"]["OrderStatus"];
+            totalMinor: number;
+            currency: string;
+            /** Format: date-time */
+            placedAt: string;
+            items: components["schemas"]["OrderItem"][];
+        };
+        CreateOrderItemRequest: {
+            productId: string;
+            quantity: number;
+        };
+        CreateOrderRequest: {
+            customerId: string;
+            items: components["schemas"]["CreateOrderItemRequest"][];
+        };
+        SetStatusRequest: {
+            status: components["schemas"]["OrderStatus"];
+        };
+        TransitionRequest: {
+            reason?: string;
         };
     };
     responses: {

@@ -163,6 +163,10 @@ test('a session that dies mid-visit sends the next action to login, not a crash'
   await page.getByRole('link', { name: 'Orders' }).click()
   await expect(page.getByRole('heading', { name: 'Orders' })).toBeVisible()
   await context.clearCookies()
-  await page.getByRole('link', { name: 'Staff' }).click()
+  // The next thing to touch the API sends the app to /login. Usually that is this click; a
+  // request still in flight when the session died gets there first and unmounts the link
+  // under it. Both are the behaviour under test, so the assertion is the destination rather
+  // than the route to it — reaching /login is still required, so this cannot pass vacuously.
+  await page.getByRole('link', { name: 'Staff' }).click({ timeout: 2000 }).catch(() => {})
   await expect(page).toHaveURL(/\/login$/)
 })

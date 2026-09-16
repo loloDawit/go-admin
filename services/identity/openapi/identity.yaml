@@ -55,6 +55,12 @@ paths:
   /api/v1/me:
     get:
       summary: The caller's own record.
+      description: >
+        Returns 403 password_change_required while the caller's
+        mustChangePassword is set: the gate covers every authenticated route
+        except changing that password and logging out, this one included. A
+        client bootstrapping its session from here must treat that as its own
+        state rather than as an error.
       responses:
         "200":
           content:
@@ -62,6 +68,7 @@ paths:
               schema: { $ref: "#/components/schemas/Auth" }
           description: The caller
         "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
   /api/v1/me/password:
     post:
       summary: Change the caller's own password.
@@ -246,7 +253,10 @@ paths:
         "422": { $ref: "#/components/responses/Error" }
     delete:
       summary: Delete a role. Requires edit_roles.
-      description: Refused with conflict while any staff member still holds it.
+      description: >
+        Refused with role_in_use while any staff member still holds it. The
+        foreign key refuses first, so this is a guarantee rather than a check
+        that could be raced.
       responses:
         "204": { description: Deleted }
         "401": { $ref: "#/components/responses/Error" }
@@ -326,6 +336,7 @@ components:
             - not_found
             - conflict
             - last_admin
+            - role_in_use
             - validation_failed
             - internal
             - schema_dirty

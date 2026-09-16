@@ -17,6 +17,7 @@ import (
 	"github.com/loloDawit/go-admin/services/gateway/internal/config"
 	"github.com/loloDawit/go-admin/services/gateway/internal/httperr"
 	"github.com/loloDawit/go-admin/services/gateway/internal/routing"
+	"github.com/loloDawit/go-admin/services/gateway/internal/web"
 )
 
 const serviceName = "gateway"
@@ -39,7 +40,17 @@ func main() {
 	logger := observability.NewLogger(serviceName, os.Stdout)
 	slog.SetDefault(logger)
 
-	upstreams, err := routing.New(logger, cfg.Upstreams, cfg.UpstreamTimeout)
+	var spa http.Handler
+	if cfg.WebRoot != "" {
+		spa, err = web.Handler(cfg.WebRoot)
+		if err != nil {
+			logger.Error("web root", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		logger.Info("serving the frontend", slog.String("web_root", cfg.WebRoot))
+	}
+
+	upstreams, err := routing.New(logger, cfg.Upstreams, cfg.UpstreamTimeout, spa)
 	if err != nil {
 		logger.Error("routing", slog.String("error", err.Error()))
 		os.Exit(1)

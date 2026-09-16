@@ -53,6 +53,9 @@ type fakeRepo struct {
 	listTotal  int
 	listErr    error
 	lastListQ  order.ListQuery
+
+	listEventsResult []order.Event
+	listEventsErr    error
 }
 
 func (f *fakeRepo) RunInTx(_ context.Context, fn func(order.Repository) error) error {
@@ -115,6 +118,10 @@ func (f *fakeRepo) UpdateStatus(_ context.Context, id int64, from, to order.Stat
 func (f *fakeRepo) ListOrders(_ context.Context, q order.ListQuery) ([]order.Order, int, error) {
 	f.lastListQ = q
 	return f.listResult, f.listTotal, f.listErr
+}
+
+func (f *fakeRepo) ListEvents(context.Context, int64) ([]order.Event, error) {
+	return f.listEventsResult, f.listEventsErr
 }
 
 func newActiveProduct(id, title, currency string, priceMinor int64) catalog.Product {
@@ -292,5 +299,37 @@ func TestGetWrapsRepositoryNotFound(t *testing.T) {
 	_, err := svc.Get(context.Background(), 99)
 	if !errors.Is(err, order.ErrOrderNotFound) {
 		t.Fatalf("want ErrOrderNotFound, got %v", err)
+	}
+}
+
+// An order with no recorded transitions and an order that does not exist both
+// produce an empty slice from ListEvents; only the GetByID call distinguishes
+// them. Without it this returns 200 and an empty history for any id at all.
+func TestEventsOnMissingOrderIsNotFound(t *testing.T) {
+	repo := &fakeRepo{getByIDErr: order.ErrOrderNotFound}
+	svc := order.NewService(repo, nil, 0)
+
+	if _, err := svc.Events(t.Context(), 404); !errors.Is(err, order.ErrOrderNotFound) {
+		t.Fatalf("Events on a missing order = %v, want ErrOrderNotFound", err)
+	}
+}
+
+func TestEventsReturnsTheRecordedTransitions(t *testing.T) {
+	packed := order.StatusPacked
+	repo := &fakeRepo{
+		getByIDResult: order.Order{ID: 7},
+		listEventsResult: []order.Event{
+			{ID: 1, ToStatus: order.StatusPending, ActorID: "3"},
+			{ID: 2, FromStatus: &packed, ToStatus: order.StatusShipped, ActorID: "3"},
+		},
+	}
+	svc := order.NewService(repo, nil, 0)
+
+	events, err := svc.Events(t.Context(), 7)
+	if err != nil {
+		t.Fatalf("Events: %v", err)
+	}
+	if len(events) != 2 || events[0].FromStatus != nil || events[1].ToStatus != order.StatusShipped {
+		t.Fatalf("Events = %+v", events)
 	}
 }

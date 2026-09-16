@@ -150,6 +150,23 @@ func (s *Service) transition(ctx context.Context, id int64, actorID string, to S
 	return updated, nil
 }
 
+// Events reads the order first so a missing order is a 404 rather than an
+// empty list, which would claim an order exists and has no history.
+func (s *Service) Events(ctx context.Context, id int64) ([]Event, error) {
+	if _, err := s.repo.GetByID(ctx, id); err != nil {
+		if errors.Is(err, ErrOrderNotFound) {
+			return nil, err
+		}
+		return nil, errs.Wrap(errs.OpListOrderEvents, err)
+	}
+
+	events, err := s.repo.ListEvents(ctx, id)
+	if err != nil {
+		return nil, errs.Wrap(errs.OpListOrderEvents, err)
+	}
+	return events, nil
+}
+
 func (s *Service) List(ctx context.Context, q ListQuery) (Page, error) {
 	q.Page, q.PageSize = normalizePage(q.Page, q.PageSize, s.pageSizeMax)
 

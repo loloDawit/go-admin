@@ -57,6 +57,7 @@ func newRouter(
 		r.With(authz.Require(permission.EditOrders, writeErr)).Post("/api/v1/orders", orderHandler.Create)
 		r.With(authz.Require(permission.ViewOrders, writeErr)).Get("/api/v1/orders", orderHandler.List)
 		r.With(authz.Require(permission.ViewOrders, writeErr)).Get("/api/v1/orders/{id}", orderHandler.Get)
+		r.With(authz.Require(permission.ViewOrders, writeErr)).Get("/api/v1/orders/{id}/events", orderHandler.Events)
 		r.With(authz.Require(permission.EditOrders, writeErr)).Post("/api/v1/orders/{id}/status", orderHandler.SetStatus)
 		r.With(authz.Require(permission.EditOrders, writeErr)).Post("/api/v1/orders/{id}/cancel", orderHandler.Cancel)
 		r.With(authz.Require(permission.EditOrders, writeErr)).Post("/api/v1/orders/{id}/refund", orderHandler.Refund)

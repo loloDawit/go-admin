@@ -232,6 +232,31 @@ func (r *PostgresRepository) GetByID(ctx context.Context, id int64) (Order, erro
 	return o, nil
 }
 
+func (r *PostgresRepository) ListEvents(ctx context.Context, orderID int64) ([]Event, error) {
+	rows, err := r.q.Query(ctx, listOrderEventsQuery, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	events := []Event{}
+	for rows.Next() {
+		var e Event
+		var from *string
+		var to string
+		if err := rows.Scan(&e.ID, &from, &to, &e.ActorID, &e.Reason, &e.At); err != nil {
+			return nil, err
+		}
+		if from != nil {
+			s := Status(*from)
+			e.FromStatus = &s
+		}
+		e.ToStatus = Status(to)
+		events = append(events, e)
+	}
+	return events, rows.Err()
+}
+
 func (r *PostgresRepository) itemsForOrder(ctx context.Context, orderID int64) ([]Item, error) {
 	rows, err := r.q.Query(ctx, listOrderItemsQuery, orderID)
 	if err != nil {

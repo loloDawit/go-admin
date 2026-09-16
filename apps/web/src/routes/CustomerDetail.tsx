@@ -1,18 +1,28 @@
 import { Link, useParams } from 'react-router-dom'
-import { Button, DataTable, DefinitionList, PageHeader, PageStack, Section, StateBlock, Status } from '../ui'
+import {
+  Button,
+  DataTable,
+  DefinitionList,
+  PageHeader,
+  PageStack,
+  Section,
+  StateBlock,
+  Status,
+} from '../ui'
 import type { Column } from '../ui'
-import { getCustomer } from '../api/customers'
-import { listOrders, orderStatusLabels } from '../api/orders'
-import type { Order } from '../api/orders'
+import { getCustomer, getLifetimeValue, listCustomerOrders } from '../api/customers'
+import { orderStatusLabels } from '../api/orders'
+import type { OrderSummary } from '../api/orders'
+import { isApiError } from '../api/client'
 import { formatDate, formatDateTime, formatMoney } from '../api/format'
 import { useResource } from '../api/useResource'
 import { orderStatusTones } from '../app/statusTones'
 
-const columns: Column<Order>[] = [
+const columns: Column<OrderSummary>[] = [
   {
-    key: 'reference',
+    key: 'number',
     header: 'Order',
-    cell: (order) => <Link to={`/orders/${order.id}`}>{order.reference}</Link>,
+    cell: (order) => <Link to={`/orders/${order.id}`}>{order.number}</Link>,
   },
   { key: 'placed', header: 'Placed', cell: (order) => formatDateTime(order.placedAt) },
   {
@@ -22,19 +32,25 @@ const columns: Column<Order>[] = [
       <Status tone={orderStatusTones[order.status]}>{orderStatusLabels[order.status]}</Status>
     ),
   },
-  { key: 'total', header: 'Total', numeric: true, cell: (order) => formatMoney(order.totalCents) },
+  {
+    key: 'total',
+    header: 'Total',
+    numeric: true,
+    cell: (order) => formatMoney(order.totalMinor, order.currency),
+  },
 ]
 
 export function CustomerDetail() {
   const { customerId = '' } = useParams()
   const customer = useResource(`customer:${customerId}`, () => getCustomer(customerId))
-  const orders = useResource('orders', listOrders)
+  const orders = useResource(`customer-orders:${customerId}`, () => listCustomerOrders(customerId))
+  const lifetime = useResource(`customer-ltv:${customerId}`, () => getLifetimeValue(customerId))
 
   if (customer.status === 'loading') {
     return <StateBlock title="Loading customer" description="Fetching their order history." />
   }
 
-  if (customer.status === 'error') {
+  if (customer.status === 'error' || !customer.data) {
     return (
       <StateBlock
         tone="error"
@@ -49,18 +65,7 @@ export function CustomerDetail() {
     )
   }
 
-  if (!customer.data) {
-    return (
-      <StateBlock
-        title="No such customer"
-        description="The record may have been removed."
-        action={<Link to="/customers">Back to customers</Link>}
-      />
-    )
-  }
-
   const current = customer.data
-  const theirOrders = (orders.data ?? []).filter((order) => order.customerEmail === current.email)
 
   return (
     <PageStack>
@@ -72,25 +77,45 @@ export function CustomerDetail() {
 
       <DefinitionList
         items={[
-          { term: 'Location', value: current.location },
-          { term: 'Orders', value: String(current.orderCount) },
-          { term: 'Lifetime value', value: formatMoney(current.lifetimeCents) },
-          { term: 'Last order', value: formatDate(current.lastOrderAt) },
+          { term: 'Customer since', value: formatDate(current.createdAt) },
+          { term: 'Orders', value: orders.data ? String(orders.data.total) : '—' },
+          { term: 'Lifetime value', value: <LifetimeValue resource={lifetime} /> },
         ]}
       />
 
-      <Section title="Recent orders">
+      <Section title="Orders">
         <DataTable
           columns={columns}
-          rows={theirOrders}
+          rows={orders.data?.items ?? []}
           rowKey={(order) => order.id}
           status={orders.status}
-          emptyTitle="No orders in the current window"
-          emptyDescription="Older orders are not loaded here yet."
+          emptyTitle="No orders yet"
+          emptyDescription="Their first order will appear here."
           errorDescription={orders.error?.message}
           onRetry={orders.reload}
         />
       </Section>
     </PageStack>
   )
+}
+
+// A customer whose orders span more than one currency has no single lifetime
+// value; the service says so rather than summing figures that do not add up.
+function LifetimeValue({
+  resource,
+}: {
+  resource: ReturnType<typeof useResource<{ lifetimeValueMinor: number; currency: string }>>
+}) {
+  if (resource.status === 'loading') return <>—</>
+  if (resource.status === 'error') {
+    return (
+      <>
+        {isApiError(resource.error) && resource.error.code === 'mixed_currency_history'
+          ? 'Orders in more than one currency'
+          : 'Unavailable'}
+      </>
+    )
+  }
+  if (!resource.data) return <>—</>
+  return <>{formatMoney(resource.data.lifetimeValueMinor, resource.data.currency)}</>
 }

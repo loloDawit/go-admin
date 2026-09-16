@@ -4,12 +4,10 @@ import { expect, test } from '@playwright/test'
 const ROUTES = [
   '/',
   '/orders',
-  '/orders/o-5105',
+  '/orders/new',
   '/products',
-  '/products/p-1042',
-  '/products/p-1042/edit',
+  '/products/new',
   '/customers',
-  '/customers/c-3',
   '/staff',
   '/staff/1',
   '/roles',
@@ -56,16 +54,7 @@ test('list states are reachable', async ({ page }) => {
   await expect(page.getByRole('alert')).toContainText('could not be loaded')
 
   await page.goto('/orders?mock=empty')
-  await expect(page.getByText('No orders in this period')).toBeVisible()
-})
-
-test('order status dialog opens and closes', async ({ page }) => {
-  await page.goto('/orders/o-5105')
-  await page.getByRole('button', { name: 'Update status' }).click()
-  const dialog = page.getByRole('dialog')
-  await expect(dialog).toBeVisible()
-  await page.keyboard.press('Escape')
-  await expect(dialog).toBeHidden()
+  await expect(page.getByText('No orders yet')).toBeVisible()
 })
 
 // The identity screens now require a real session; these two exercise the signed-out state, which

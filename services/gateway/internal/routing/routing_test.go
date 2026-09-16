@@ -2,8 +2,12 @@ package routing_test
 
 import (
 	"encoding/json"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +16,7 @@ import (
 	"github.com/loloDawit/go-admin/platform/observability"
 	"github.com/loloDawit/go-admin/platform/requestid"
 	"github.com/loloDawit/go-admin/services/gateway/internal/routing"
+	"github.com/loloDawit/go-admin/services/gateway/internal/web"
 )
 
 func TestRoutesToTheNamedUpstream(t *testing.T) {
@@ -24,7 +29,7 @@ func TestRoutesToTheNamedUpstream(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	h, err := routing.New(logger, map[string]string{"orders": upstream.URL}, time.Second)
+	h, err := routing.New(logger, map[string]string{"orders": upstream.URL}, time.Second, nil)
 	if err != nil {
 		t.Fatalf("routing.New: %v", err)
 	}
@@ -45,7 +50,7 @@ func TestRoutesToTheNamedUpstream(t *testing.T) {
 // An upstream that is down must not leak its address to the client.
 func TestUnreachableUpstreamReturns502WithoutLeakingTheAddress(t *testing.T) {
 	logger, _ := observability.NewCaptured()
-	h, _ := routing.New(logger, map[string]string{"orders": "http://127.0.0.1:1"}, time.Second)
+	h, _ := routing.New(logger, map[string]string{"orders": "http://127.0.0.1:1"}, time.Second, nil)
 
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/orders", nil))
@@ -73,7 +78,7 @@ func TestUnreachableUpstreamReturns502WithoutLeakingTheAddress(t *testing.T) {
 // response body, so it must log the dial error itself instead.
 func TestUnreachableUpstreamLogsTheCauseWithUpstreamNameAndRequestID(t *testing.T) {
 	logger, captured := observability.NewCaptured()
-	h, _ := routing.New(logger, map[string]string{"orders": "http://127.0.0.1:1"}, time.Second)
+	h, _ := routing.New(logger, map[string]string{"orders": "http://127.0.0.1:1"}, time.Second, nil)
 	wrapped := requestid.Middleware(h)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/orders", nil)
@@ -118,7 +123,7 @@ func TestSlowUpstreamTripsTheDeadlineAndReturnsGatewayTimeout(t *testing.T) {
 	defer upstream.Close()
 
 	logger, _ := observability.NewCaptured()
-	h, err := routing.New(logger, map[string]string{"orders": upstream.URL}, timeout)
+	h, err := routing.New(logger, map[string]string{"orders": upstream.URL}, timeout, nil)
 	if err != nil {
 		t.Fatalf("routing.New: %v", err)
 	}
@@ -162,7 +167,7 @@ func TestAPIV1RoutesToIdentityPreservingThePath(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	h, err := routing.New(logger, map[string]string{"identity": upstream.URL}, time.Second)
+	h, err := routing.New(logger, map[string]string{"identity": upstream.URL}, time.Second, nil)
 	if err != nil {
 		t.Fatalf("routing.New: %v", err)
 	}
@@ -185,7 +190,7 @@ func TestInternalRoutesAreNotProxied(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	h, err := routing.New(logger, map[string]string{"identity": upstream.URL}, time.Second)
+	h, err := routing.New(logger, map[string]string{"identity": upstream.URL}, time.Second, nil)
 	if err != nil {
 		t.Fatalf("routing.New: %v", err)
 	}
@@ -210,7 +215,7 @@ func TestResolveIsNotReachableThroughTheGateway(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	h, err := routing.New(logger, map[string]string{"catalog": upstream.URL}, time.Second)
+	h, err := routing.New(logger, map[string]string{"catalog": upstream.URL}, time.Second, nil)
 	if err != nil {
 		t.Fatalf("routing.New: %v", err)
 	}
@@ -225,7 +230,7 @@ func TestResolveIsNotReachableThroughTheGateway(t *testing.T) {
 
 func TestRejectsAnUnparseableUpstream(t *testing.T) {
 	logger, _ := observability.NewCaptured()
-	if _, err := routing.New(logger, map[string]string{"identity": "://bad"}, time.Second); err == nil {
+	if _, err := routing.New(logger, map[string]string{"identity": "://bad"}, time.Second, nil); err == nil {
 		t.Fatal("a malformed upstream URL must be rejected at construction")
 	}
 }
@@ -242,7 +247,7 @@ func TestProxiedResponseHasExactlyOneRequestIDHeader(t *testing.T) {
 	defer upstream.Close()
 
 	logger, _ := observability.NewCaptured()
-	h, err := routing.New(logger, map[string]string{"orders": upstream.URL}, time.Second)
+	h, err := routing.New(logger, map[string]string{"orders": upstream.URL}, time.Second, nil)
 	if err != nil {
 		t.Fatalf("routing.New: %v", err)
 	}
@@ -260,5 +265,36 @@ func TestProxiedResponseHasExactlyOneRequestIDHeader(t *testing.T) {
 	}
 	if seenByUpstream != values[0] {
 		t.Errorf("request ID mismatch: gateway response has %q, upstream saw %q", values[0], seenByUpstream)
+	}
+}
+
+// The SPA owns the paths the API does not, but an unknown /api path has to stay
+// a JSON error: a page answering 200 there would make a broken client look fine.
+func TestSPAServesUnknownPathsButNotUnknownAPIPaths(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "index.html"), []byte("<title>app</title>"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	spa, err := web.Handler(root)
+	if err != nil {
+		t.Fatalf("web.Handler: %v", err)
+	}
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	h, err := routing.New(logger, map[string]string{"identity": "http://127.0.0.1:1"}, time.Second, spa)
+	if err != nil {
+		t.Fatalf("routing.New: %v", err)
+	}
+
+	page := httptest.NewRecorder()
+	h.ServeHTTP(page, httptest.NewRequest(http.MethodGet, "/products/42", nil))
+	if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), "<title>app</title>") {
+		t.Fatalf("a client route = %d %q, want the index", page.Code, page.Body.String())
+	}
+
+	api := httptest.NewRecorder()
+	h.ServeHTTP(api, httptest.NewRequest(http.MethodGet, "/api/nope", nil))
+	if api.Code != http.StatusNotFound || strings.Contains(api.Body.String(), "<title>") {
+		t.Fatalf("an unknown API path = %d %q, want a JSON 404", api.Code, api.Body.String())
 	}
 }

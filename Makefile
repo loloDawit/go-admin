@@ -35,6 +35,7 @@ down: ## Stop the stack (volumes preserved)
 generate: ## Regenerate code from published contracts
 	go run ./tools/permgen
 	go run ./tools/permgen -out services/orders/internal/permission/permission_gen.go -package permission
+	cd apps/web && npm ci && npm run generate
 
 seed: up ## Create the first owner account (idempotent)
 	$(COMPOSE) --profile seed run --rm identity-seed
@@ -51,7 +52,7 @@ dev: up ## Boot the stack and show gateway logs
 logs: ## Tail all service logs
 	$(COMPOSE) logs -f
 
-test: test-unit test-integration ## Run everything
+test: test-unit test-integration test-e2e ## Run everything
 
 test-unit: ## Unit tests, no stack required
 	go test $(GO_PKGS) ./test/arch/... -count=1
@@ -63,6 +64,12 @@ test-integration: seed ## Integration tests against the running stack
 	# would quietly run 0 integration tests and report ok, which is why the
 	# tag stays pinned to this exact target rather than something broader.
 	go test -tags integration ./test/integration/... -count=1
+
+test-e2e: seed ## Browser tests against the app the gateway serves
+	# BASE_URL points Playwright at the gateway's own build. Against the Vite
+	# dev server this proves only that the source compiles, not that what
+	# ships works.
+	cd apps/web && npm ci && npx playwright install --with-deps chromium && BASE_URL=http://localhost:8080 npx playwright test
 
 fmt: ## Format
 	gofmt -w services platform test

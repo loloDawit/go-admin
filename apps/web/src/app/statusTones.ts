@@ -6,7 +6,8 @@ export const orderStatusTones: Record<OrderStatus, StatusTone> = {
   pending: 'warning',
   paid: 'info',
   packed: 'info',
-  shipped: 'success',
+  shipped: 'info',
+  delivered: 'success',
   cancelled: 'neutral',
   refunded: 'danger',
 }
@@ -14,7 +15,7 @@ export const orderStatusTones: Record<OrderStatus, StatusTone> = {
 export const productStatusTones: Record<ProductStatus, StatusTone> = {
   active: 'success',
   draft: 'warning',
-  discontinued: 'neutral',
+  archived: 'neutral',
 }
 
 export const staffActiveTones: Record<'active' | 'inactive', StatusTone> = {

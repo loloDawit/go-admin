@@ -38,7 +38,7 @@ func TestRouterProxiesThroughTheFullMiddlewareStack(t *testing.T) {
 	defer upstream.Close()
 
 	logger, captured := observability.NewCaptured()
-	upstreams, err := routing.New(logger, map[string]string{"orders": upstream.URL}, time.Second)
+	upstreams, err := routing.New(logger, map[string]string{"orders": upstream.URL}, time.Second, nil)
 	if err != nil {
 		t.Fatalf("routing.New: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestRouterStripsAClientSuppliedPrincipal(t *testing.T) {
 	defer upstream.Close()
 
 	logger, _ := observability.NewCaptured()
-	upstreams, err := routing.New(logger, map[string]string{"identity": upstream.URL}, time.Second)
+	upstreams, err := routing.New(logger, map[string]string{"identity": upstream.URL}, time.Second, nil)
 	if err != nil {
 		t.Fatalf("routing.New: %v", err)
 	}
@@ -103,7 +103,7 @@ func TestRouterStripsAClientSuppliedPrincipal(t *testing.T) {
 
 func TestRouterRecoversFromAPanicAndStillLogs(t *testing.T) {
 	logger, captured := observability.NewCaptured()
-	upstreams, err := routing.New(logger, map[string]string{"identity": "http://127.0.0.1:1"}, time.Second)
+	upstreams, err := routing.New(logger, map[string]string{"identity": "http://127.0.0.1:1"}, time.Second, nil)
 	if err != nil {
 		t.Fatalf("routing.New: %v", err)
 	}
@@ -130,7 +130,7 @@ func TestRouterRecoversFromAPanicAndStillLogs(t *testing.T) {
 
 func TestHealthzReturns200(t *testing.T) {
 	logger, _ := observability.NewCaptured()
-	upstreams, err := routing.New(logger, map[string]string{"identity": "http://127.0.0.1:1"}, time.Second)
+	upstreams, err := routing.New(logger, map[string]string{"identity": "http://127.0.0.1:1"}, time.Second, nil)
 	if err != nil {
 		t.Fatalf("routing.New: %v", err)
 	}
@@ -146,7 +146,7 @@ func TestHealthzReturns200(t *testing.T) {
 
 func TestReadyzReturns200(t *testing.T) {
 	logger, _ := observability.NewCaptured()
-	upstreams, err := routing.New(logger, map[string]string{"identity": "http://127.0.0.1:1"}, time.Second)
+	upstreams, err := routing.New(logger, map[string]string{"identity": "http://127.0.0.1:1"}, time.Second, nil)
 	if err != nil {
 		t.Fatalf("routing.New: %v", err)
 	}
@@ -179,7 +179,7 @@ func TestRouterForwardsASignedPrincipalForAValidSession(t *testing.T) {
 	defer identityValidate.Close()
 
 	logger, _ := observability.NewCaptured()
-	upstreams, err := routing.New(logger, map[string]string{"identity": upstream.URL}, time.Second)
+	upstreams, err := routing.New(logger, map[string]string{"identity": upstream.URL}, time.Second, nil)
 	if err != nil {
 		t.Fatalf("routing.New: %v", err)
 	}

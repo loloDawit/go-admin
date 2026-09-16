@@ -58,6 +58,17 @@ type Item struct {
 	LineTotalMinor int64
 }
 
+// Event is one recorded transition. FromStatus nil is the order coming into
+// existence, which has no prior status.
+type Event struct {
+	ID         int64
+	FromStatus *Status
+	ToStatus   Status
+	ActorID    string
+	Reason     string
+	At         time.Time
+}
+
 // CreateOrder is Create's input. ActorID is set by the handler from the
 // verified principal, never decoded from the request body.
 type CreateOrder struct {
