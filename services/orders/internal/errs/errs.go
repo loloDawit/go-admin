@@ -70,6 +70,7 @@ const (
 	OpEnsureConsumer = "ensure the event consumer"
 	OpReadOutbox     = "read the outbox"
 	OpMarkPublished  = "mark an outbox row published"
+	OpPublishEvent   = "publish an outbox event"
 	OpCustomerOrderHistory = "look up customer order history"
 )
 
