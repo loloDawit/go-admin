@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -74,7 +75,7 @@ var apiOwners = map[string]string{
 }
 
 // "/api/v1/*" is the only surface proxied here. "/internal/*" is never routed here.
-func New(logger *slog.Logger, upstreams map[string]string, timeout time.Duration) (http.Handler, error) {
+func New(logger *slog.Logger, upstreams map[string]string, timeout time.Duration, spa http.Handler) (http.Handler, error) {
 	targets := make(map[string]*url.URL, len(upstreams))
 	for name, raw := range upstreams {
 		target, err := url.Parse(raw)
@@ -104,7 +105,15 @@ func New(logger *slog.Logger, upstreams map[string]string, timeout time.Duration
 		r.Handle("/api/v1/*", withTimeout(identityAPI, timeout))
 	}
 
-	r.NotFound(func(w http.ResponseWriter, _ *http.Request) { httperr.WriteUnknownRoute(w) })
+	// The SPA owns every path the API does not; an unknown API path stays a
+	// JSON error rather than becoming a page that answers 200.
+	r.NotFound(func(w http.ResponseWriter, req *http.Request) {
+		if spa == nil || strings.HasPrefix(req.URL.Path, "/api/") || strings.HasPrefix(req.URL.Path, "/internal/") {
+			httperr.WriteUnknownRoute(w)
+			return
+		}
+		spa.ServeHTTP(w, req)
+	})
 
 	return r, nil
 }

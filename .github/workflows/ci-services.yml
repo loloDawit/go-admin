@@ -52,3 +52,24 @@ jobs:
       - run: make test-integration
       - if: failure()
         run: docker compose -f deploy/compose/docker-compose.yml logs
+
+  e2e:
+    name: End to end
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: docker compose -f deploy/compose/docker-compose.yml down -v
+      # The gateway image builds the frontend into itself, so `make up` is what
+      # publishes the app under test; there is no separate frontend server.
+      - run: make up
+      - run: make test-e2e
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report
+      - if: failure()
+        run: docker compose -f deploy/compose/docker-compose.yml logs

@@ -1,3 +1,10 @@
+FROM node:24 AS web
+WORKDIR /web
+COPY apps/web/package.json apps/web/package-lock.json apps/web/.npmrc ./
+RUN npm ci
+COPY apps/web ./
+RUN npm run build
+
 FROM golang:1.27 AS build
 WORKDIR /src
 COPY go.mod go.sum ./
@@ -7,6 +14,7 @@ RUN CGO_ENABLED=0 go build -o /out/gateway ./services/gateway/cmd/gateway
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/gateway /gateway
+COPY --from=web /web/dist /web
 EXPOSE 8080
 # Distroless: no shell, curl, or wget, so the health check runs the binary
 # itself against its own /healthz rather than an external HTTP client.

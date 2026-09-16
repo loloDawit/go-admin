@@ -18,6 +18,10 @@ type Config struct {
 	// SessionCacheTTL is the revocation-latency budget: a revoked session can
 	// still be honored for up to this long.
 	SessionCacheTTL time.Duration
+
+	// WebRoot is the built frontend's directory. Empty serves no frontend,
+	// which is how the API-only tests and a dev-server frontend both run.
+	WebRoot string
 }
 
 // Any error here is fatal: a misconfigured gateway must fail at startup, not at
@@ -32,6 +36,7 @@ func Load() (*Config, error) {
 			"orders":   os.Getenv("ORDERS_URL"),
 		},
 		PrincipalKey: []byte(os.Getenv("PRINCIPAL_SIGNING_KEY")),
+		WebRoot:      os.Getenv("WEB_ROOT"),
 	}
 	for name, url := range cfg.Upstreams {
 		if url == "" {
