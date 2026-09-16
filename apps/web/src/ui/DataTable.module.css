@@ -81,3 +81,27 @@
   font-size: var(--text-sm);
   color: var(--color-text-subtle);
 }
+
+/* The header's own typography, not the Button primitive's: this is a column
+   affordance, not an action, and must not read as one. */
+.sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+
+.sort:hover {
+  color: var(--color-text);
+}
+
+.sortMark {
+  min-width: 0.75em;
+  font-size: var(--text-xs);
+}

@@ -23,9 +23,10 @@ const columns: Column<Product>[] = [
   {
     key: 'title',
     header: 'Product',
+    sortKey: 'title',
     cell: (product) => <Link to={`/products/${product.id}`}>{product.title}</Link>,
   },
-  { key: 'sku', header: 'SKU', cell: (product) => product.sku },
+  { key: 'sku', header: 'SKU', sortKey: 'sku', cell: (product) => product.sku },
   {
     key: 'status',
     header: 'Status',
@@ -39,10 +40,20 @@ const columns: Column<Product>[] = [
     key: 'price',
     header: 'Price',
     numeric: true,
+    sortKey: 'price',
     cell: (product) => formatMoney(product.priceMinor, product.currency),
   },
-  { key: 'updated', header: 'Updated', cell: (product) => formatDate(product.updatedAt) },
+  // Added, not Updated: catalog allowlists created_at, so updated_at would be the
+  // one column here that cannot be sorted.
+  {
+    key: 'added',
+    header: 'Added',
+    sortKey: 'created_at',
+    cell: (product) => formatDate(product.createdAt),
+  },
 ]
+
+const PRODUCT_SORTS = ['title', 'sku', 'price', 'created_at'] as const
 
 const STATUS_FILTERS: ProductStatus[] = ['draft', 'active', 'archived']
 
@@ -50,14 +61,20 @@ export function Products() {
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
 
-  const query: ProductQuery = useMemo(
-    () => ({
-      q: text(params, 'q'),
+  const query: ProductQuery = useMemo(() => {
+    const raw = params.get('sort') ?? ''
+    const descending = raw.startsWith('-')
+    const key = oneOf(new URLSearchParams({ sort: raw.replace(/^-/, '') }), 'sort', PRODUCT_SORTS)
+    const q = text(params, 'q')
+    return {
+      q,
       status: oneOf(params, 'status', STATUS_FILTERS),
+      // The search endpoint ranks by relevance and takes no sort, so a sort
+      // alongside a search term would be a control that silently does nothing.
+      sort: q || !key ? undefined : descending ? `-${key}` : key,
       page: positiveInt(params, 'page') ?? 1,
-    }),
-    [params],
-  )
+    }
+  }, [params])
 
   const products = useResource(`products:${params.toString()}`, () => listProducts(query))
   const page = products.data
@@ -68,6 +85,7 @@ export function Products() {
       toSearchParams({
         q: next.q,
         status: next.status,
+        sort: next.q ? undefined : next.sort,
         page: next.page === 1 ? undefined : next.page,
       }),
     )
@@ -126,6 +144,12 @@ export function Products() {
         <Button type="submit">Search</Button>
       </form>
 
+      {query.q && (
+        <p className={styles.note}>
+          Search results are ranked by how well they match, so they are not sorted by column.
+        </p>
+      )}
+
       <DataTable
         columns={columns}
         rows={page?.items ?? []}
@@ -146,6 +170,8 @@ export function Products() {
         }
         errorDescription={products.error?.message}
         onRetry={products.reload}
+        sort={query.sort}
+        onSort={query.q ? undefined : (next) => apply({ ...query, sort: next, page: 1 })}
       />
 
       {page && (

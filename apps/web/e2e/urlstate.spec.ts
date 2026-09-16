@@ -96,3 +96,86 @@ test('the customer list page is in the URL', async ({ page }) => {
   await expect(page.locator('[aria-busy="true"]')).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Previous' })).toBeEnabled()
 })
+
+test('a product column sorts, says so, and cycles back off', async ({ page }) => {
+  await page.goto('/products')
+  const header = page.getByRole('columnheader', { name: 'Product' })
+
+  await header.getByRole('button').click()
+  await expect(page).toHaveURL(/\/products\?sort=title$/)
+  await expect(header).toHaveAttribute('aria-sort', 'ascending')
+
+  await header.getByRole('button').click()
+  await expect(page).toHaveURL(/\/products\?sort=-title$/)
+  await expect(header).toHaveAttribute('aria-sort', 'descending')
+
+  await header.getByRole('button').click()
+  await expect(page).toHaveURL(/\/products$/)
+  await expect(header).toHaveAttribute('aria-sort', 'none')
+})
+
+test('a sorted list is recoverable from its URL', async ({ page }) => {
+  await page.goto('/products?sort=-price')
+  await expect(page.locator('[aria-busy="true"]')).toHaveCount(0)
+  await expect(page.getByRole('columnheader', { name: 'Price' })).toHaveAttribute(
+    'aria-sort',
+    'descending',
+  )
+})
+
+test('an unrecognised sort in the URL is dropped', async ({ page }) => {
+  await page.goto('/products?sort=whatever')
+  await expect(page.locator('[aria-busy="true"]')).toHaveCount(0)
+  await expect(page.getByText('could not be loaded')).toHaveCount(0)
+})
+
+test('orders sort by the columns their service allowlists', async ({ page }) => {
+  await page.goto('/orders')
+  await page.getByRole('columnheader', { name: 'Total' }).getByRole('button').click()
+  await expect(page).toHaveURL(/\/orders\?sort=total_minor$/)
+
+  await page.reload()
+  await expect(page.getByRole('columnheader', { name: 'Total' })).toHaveAttribute(
+    'aria-sort',
+    'ascending',
+  )
+})
+
+// A column the service will not sort by must not offer to.
+test('a column with no server-side sort is not a button', async ({ page }) => {
+  await page.goto('/products')
+  await expect(page.getByRole('columnheader', { name: 'Status' }).getByRole('button')).toHaveCount(
+    0,
+  )
+})
+
+// Read the titles only once the skeleton is gone: six empty placeholder rows
+// reverse to themselves, so this assertion cannot fail against them.
+async function productTitles(page: Page): Promise<string[]> {
+  await expect(page.locator('[aria-busy="true"]')).toHaveCount(0)
+  return page.locator('tbody tr td:first-child a').allInnerTexts()
+}
+
+// Page one descending is the last page ascending, not page one reversed, so the
+// two pages are compared by their first row rather than element by element.
+test('sorting reorders the rows, not just the header', async ({ page }) => {
+  await page.goto('/products?sort=title')
+  const ascending = await productTitles(page)
+
+  await page.goto('/products?sort=-title')
+  const descending = await productTitles(page)
+
+  expect(ascending.length).toBeGreaterThan(1)
+  expect(descending[0]).not.toEqual(ascending[0])
+})
+
+// The search endpoint ranks by relevance and takes no sort. Leaving the headers
+// clickable there would be a control that silently does nothing.
+test('a searched list does not offer a sort it cannot apply', async ({ page }) => {
+  await page.goto('/products?q=a&sort=title')
+  await expect(page).toHaveURL(/\?q=a&sort=title$/)
+  await expect(page.getByRole('columnheader', { name: 'Product' }).getByRole('button')).toHaveCount(
+    0,
+  )
+  await expect(page.getByText('ranked by how well they match')).toBeVisible()
+})

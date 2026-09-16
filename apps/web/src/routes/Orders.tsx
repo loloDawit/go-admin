@@ -22,12 +22,19 @@ const columns: Column<OrderSummary>[] = [
   {
     key: 'number',
     header: 'Order',
+    sortKey: 'number',
     cell: (order) => <Link to={`/orders/${order.id}`}>{order.number}</Link>,
   },
-  { key: 'placed', header: 'Placed', cell: (order) => formatDateTime(order.placedAt) },
+  {
+    key: 'placed',
+    header: 'Placed',
+    sortKey: 'placed_at',
+    cell: (order) => formatDateTime(order.placedAt),
+  },
   {
     key: 'status',
     header: 'Status',
+    sortKey: 'status',
     cell: (order) => (
       <Status tone={orderStatusTones[order.status]}>{orderStatusLabels[order.status]}</Status>
     ),
@@ -36,9 +43,12 @@ const columns: Column<OrderSummary>[] = [
     key: 'total',
     header: 'Total',
     numeric: true,
+    sortKey: 'total_minor',
     cell: (order) => formatMoney(order.totalMinor, order.currency),
   },
 ]
+
+const ORDER_SORTS = ['number', 'placed_at', 'status', 'total_minor'] as const
 
 const STATUSES = Object.keys(orderStatusLabels) as OrderStatus[]
 
@@ -46,13 +56,16 @@ export function Orders() {
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
 
-  const query: OrderQuery = useMemo(
-    () => ({
+  const query: OrderQuery = useMemo(() => {
+    const raw = params.get('sort') ?? ''
+    const descending = raw.startsWith('-')
+    const key = oneOf(new URLSearchParams({ sort: raw.replace(/^-/, '') }), 'sort', ORDER_SORTS)
+    return {
       status: oneOf(params, 'status', STATUSES),
+      sort: key ? (descending ? `-${key}` : key) : undefined,
       page: positiveInt(params, 'page') ?? 1,
-    }),
-    [params],
-  )
+    }
+  }, [params])
 
   const orders = useResource(`orders:${params.toString()}`, () => listOrders(query))
   const page = orders.data
@@ -61,6 +74,7 @@ export function Orders() {
     setParams(
       toSearchParams({
         status: next.status,
+        sort: next.sort,
         page: next.page === 1 ? undefined : next.page,
       }),
     )
@@ -120,6 +134,8 @@ export function Orders() {
         }
         errorDescription={orders.error?.message}
         onRetry={orders.reload}
+        sort={query.sort}
+        onSort={(next) => apply({ ...query, sort: next, page: 1 })}
       />
 
       {page && (
