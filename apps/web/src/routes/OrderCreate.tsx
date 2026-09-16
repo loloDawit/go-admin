@@ -7,14 +7,14 @@ import {
   PageHeader,
   PageStack,
   Section,
-  SelectField,
   StateBlock,
   TextField,
 } from '../ui'
 import type { Column } from '../ui'
 import { listProducts } from '../api/catalog'
 import type { Product } from '../api/catalog'
-import { listCustomers } from '../api/customers'
+import { getCustomerByEmail } from '../api/customers'
+import type { Customer } from '../api/customers'
 import { createOrder } from '../api/orders'
 import { isApiError } from '../api/client'
 import { formatMoney } from '../api/format'
@@ -31,8 +31,9 @@ type Line = {
 
 export function OrderCreate() {
   const navigate = useNavigate()
-  const customers = useResource('customers:all', () => listCustomers())
-  const [customerId, setCustomerId] = useState('')
+  const [email, setEmail] = useState('')
+  const [customer, setCustomer] = useState<Customer>()
+  const [lookupError, setLookupError] = useState<string>()
   const [term, setTerm] = useState('')
   const [search, setSearch] = useState<string>()
   const [lines, setLines] = useState<Line[]>([])
@@ -90,12 +91,27 @@ export function OrderCreate() {
     },
   ]
 
+  async function findCustomer(value: string) {
+    setLookupError(undefined)
+    try {
+      setCustomer(await getCustomerByEmail(value.trim()))
+    } catch (cause) {
+      setCustomer(undefined)
+      setLookupError(
+        isApiError(cause) && cause.code === 'not_found'
+          ? 'No customer with that email. Add them on the Customers screen first.'
+          : 'The customer could not be looked up.',
+      )
+    }
+  }
+
   async function place() {
+    if (!customer) return
     setPlacing(true)
     setFailure(undefined)
     try {
       const order = await createOrder(
-        customerId,
+        customer.id,
         lines.map((line) => ({ productId: line.productId, quantity: line.quantity })),
       )
       navigate(`/orders/${order.id}`)
@@ -161,25 +177,21 @@ export function OrderCreate() {
         </Section>
 
         <Section title="This order">
-          <SelectField
-            label="Customer"
-            value={customerId}
-            onChange={(event) => setCustomerId(event.target.value)}
+          <form
+            onSubmit={(event) => {
+              event.preventDefault()
+              void findCustomer(email)
+            }}
           >
-            <option value="">Choose a customer</option>
-            {customers.data?.items.map((customer) => (
-              <option key={customer.id} value={customer.id}>
-                {customer.name}
-              </option>
-            ))}
-          </SelectField>
-
-          {customers.data && customers.data.total > customers.data.items.length && (
-            <Alert tone="warning" title="Not every customer is listed">
-              This list shows the first {customers.data.items.length} of{' '}
-              {customers.data.total}. Searching by email is not built yet.
-            </Alert>
-          )}
+            <TextField
+              label="Customer email"
+              type="email"
+              value={email}
+              error={lookupError}
+              help={customer ? `Ordering for ${customer.name}` : undefined}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+          </form>
 
           {lines.length === 0 ? (
             <StateBlock title="No lines yet" description="Add a product to start the order." />
@@ -236,7 +248,7 @@ export function OrderCreate() {
             variant="primary"
             block
             loading={placing}
-            disabled={lines.length === 0 || customerId === '' || mixedCurrency}
+            disabled={lines.length === 0 || !customer || mixedCurrency}
             onClick={() => void place()}
           >
             Place order

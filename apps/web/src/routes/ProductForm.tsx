@@ -17,13 +17,15 @@ import { moneyInputValue, parseMoney } from '../api/money'
 import { useResource } from '../api/useResource'
 import styles from './ProductForm.module.css'
 
-const DEFAULT_CURRENCY = 'USD'
+// A display default only, for the price field's label and decimal places before
+// a product exists. It is not sent: catalog's configured DEFAULT_CURRENCY decides.
+const FALLBACK_CURRENCY = 'USD'
 
 type Errors = { sku?: string; title?: string; price?: string }
 
 function Fields({ product }: { product?: Product }) {
   const navigate = useNavigate()
-  const currency = product?.currency ?? DEFAULT_CURRENCY
+  const currency = product?.currency ?? FALLBACK_CURRENCY
   const [sku, setSku] = useState(product?.sku ?? '')
   const [title, setTitle] = useState(product?.title ?? '')
   const [description, setDescription] = useState(product?.description ?? '')
@@ -48,7 +50,7 @@ function Fields({ product }: { product?: Product }) {
     try {
       const saved = product
         ? await updateProduct(product.id, { title, description, priceMinor })
-        : await createProduct({ sku, title, description, priceMinor, currency })
+        : await createProduct({ sku, title, description, priceMinor })
       navigate(`/products/${saved.id}`)
     } catch (cause) {
       if (isApiError(cause) && cause.code === 'sku_taken') {

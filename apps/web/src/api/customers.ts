@@ -17,6 +17,12 @@ export function getCustomer(id: string): Promise<Customer> {
   return withScenario(() => api.get<Customer>(`/api/v1/customers/${id}`))
 }
 
+// The list is one page; an order can be for any customer, so it is looked up by
+// the email the contract already indexes rather than picked from that page.
+export function getCustomerByEmail(email: string): Promise<Customer> {
+  return api.get<Customer>(`/api/v1/customers?email=${encodeURIComponent(email)}`)
+}
+
 export function createCustomer(email: string, name: string): Promise<Customer> {
   return api.post<Customer>('/api/v1/customers', { email, name })
 }
