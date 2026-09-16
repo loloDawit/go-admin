@@ -1,6 +1,15 @@
-import type { components } from './generated/identity'
+import type { components as catalog } from './generated/catalog'
+import type { components as identity } from './generated/identity'
+import type { components as orders } from './generated/orders'
 
-export type ApiErrorCode = components['schemas']['Error']['code'] | 'network' | 'unknown'
+// Every service's error codes, so a caller can discriminate on one without
+// casting. 'network' and 'unknown' are this client's own.
+export type ApiErrorCode =
+  | identity['schemas']['Error']['code']
+  | catalog['schemas']['Error']['code']
+  | orders['schemas']['Error']['code']
+  | 'network'
+  | 'unknown'
 
 export type ApiError = {
   code: ApiErrorCode
@@ -43,14 +52,22 @@ const UNKNOWN_ERROR: ApiError = {
   message: 'Something went wrong.',
 }
 
+// A FormData body carries its own multipart boundary in the header the browser
+// writes; setting Content-Type here would omit the boundary and the server's
+// multipart parser would reject the request.
+function encode(body: unknown): Pick<RequestInit, 'headers' | 'body'> {
+  if (body === undefined) return {}
+  if (body instanceof FormData) return { body }
+  return { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   let response: Response
   try {
     response = await fetch(path, {
       method: options.method ?? 'GET',
       credentials: 'include',
-      headers: options.body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
-      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+      ...encode(options.body),
     })
   } catch {
     throw NETWORK_ERROR

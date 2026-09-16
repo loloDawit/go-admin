@@ -1,28 +1,63 @@
+import { useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
+  Alert,
   Button,
   DefinitionList,
+  Dialog,
   PageHeader,
   PageStack,
   Section,
   StateBlock,
   Status,
 } from '../ui'
-import { getProduct, productStatusLabels } from '../api/catalog'
+import {
+  activateProduct,
+  archiveProduct,
+  deleteProductImage,
+  getProduct,
+  listProductImages,
+  productStatusHelp,
+  productStatusLabels,
+  uploadProductImage,
+} from '../api/catalog'
+import type { ProductImage } from '../api/catalog'
+import { isApiError } from '../api/client'
 import { formatDate, formatMoney } from '../api/format'
 import { useResource } from '../api/useResource'
 import { productStatusTones } from '../app/statusTones'
+import styles from './ProductDetail.module.css'
 
 export function ProductDetail() {
   const navigate = useNavigate()
   const { productId = '' } = useParams()
   const product = useResource(`product:${productId}`, () => getProduct(productId))
+  const images = useResource(`images:${productId}`, () => listProductImages(productId))
+  const fileInput = useRef<HTMLInputElement>(null)
+  const [busy, setBusy] = useState(false)
+  const [failure, setFailure] = useState<string>()
+  const [confirmArchive, setConfirmArchive] = useState(false)
+  const retried = useRef(new Set<string>())
+
+  async function run(action: () => Promise<unknown>) {
+    setBusy(true)
+    setFailure(undefined)
+    try {
+      await action()
+      product.reload()
+      images.reload()
+    } catch (cause) {
+      setFailure(isApiError(cause) ? cause.message : 'The change could not be saved.')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   if (product.status === 'loading') {
     return <StateBlock title="Loading product" description="Fetching the catalog entry." />
   }
 
-  if (product.status === 'error') {
+  if (product.status === 'error' || !product.data) {
     return (
       <StateBlock
         tone="error"
@@ -37,58 +72,149 @@ export function ProductDetail() {
     )
   }
 
-  if (!product.data) {
-    return (
-      <StateBlock
-        title="No such product"
-        description="It may have been removed from the catalog."
-        action={<Link to="/products">Back to products</Link>}
-      />
-    )
-  }
-
   const current = product.data
+  const editable = current.status !== 'archived'
+
+  // A presigned URL expires, so a page left open eventually serves broken images.
+  // The first failure per image refetches the list rather than showing a gap.
+  function refreshOnce(image: ProductImage) {
+    if (retried.current.has(image.id)) return
+    retried.current.add(image.id)
+    images.reload()
+  }
 
   return (
     <PageStack>
       <PageHeader
         breadcrumb={<Link to="/products">Products</Link>}
-        title={current.name}
-        description={current.description}
+        title={current.title}
+        description={current.description || undefined}
         actions={
-          <Button variant="primary" onClick={() => navigate(`/products/${current.id}/edit`)}>
-            Edit product
-          </Button>
+          <>
+            {editable && (
+              <Button onClick={() => navigate(`/products/${current.id}/edit`)}>Edit</Button>
+            )}
+            {current.status === 'draft' && (
+              <Button variant="primary" loading={busy} onClick={() => run(() => activateProduct(current.id))}>
+                Activate
+              </Button>
+            )}
+            {current.status === 'active' && (
+              <Button variant="danger" onClick={() => setConfirmArchive(true)}>
+                Archive
+              </Button>
+            )}
+          </>
         }
       />
+
+      {failure && <Alert tone="danger" title={failure} />}
 
       <DefinitionList
         items={[
           { term: 'SKU', value: current.sku },
-          { term: 'Category', value: current.category },
           {
             term: 'Status',
             value: (
-              <Status tone={productStatusTones[current.status]}>
-                {productStatusLabels[current.status]}
-              </Status>
+              <div className={styles.status}>
+                <Status tone={productStatusTones[current.status]}>
+                  {productStatusLabels[current.status]}
+                </Status>
+                <p className={styles.statusHelp}>{productStatusHelp[current.status]}</p>
+              </div>
             ),
           },
-          { term: 'Price', value: formatMoney(current.priceCents) },
-          {
-            term: 'In stock',
-            value: current.stock === 0 ? 'Out of stock' : String(current.stock),
-          },
+          { term: 'Price', value: formatMoney(current.priceMinor, current.currency) },
+          { term: 'Added', value: formatDate(current.createdAt) },
           { term: 'Last updated', value: formatDate(current.updatedAt) },
         ]}
       />
 
-      <Section title="Stock movements" description="Available once the catalog service reports them.">
-        <StateBlock
-          title="No movements recorded"
-          description="Adjustments made in this back office will be listed here."
-        />
+      <Section
+        title="Images"
+        actions={
+          editable && (
+            <>
+              <input
+                ref={fileInput}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                hidden
+                onChange={(event) => {
+                  const file = event.target.files?.[0]
+                  event.target.value = ''
+                  if (file) void run(() => uploadProductImage(current.id, file))
+                }}
+              />
+              <Button loading={busy} onClick={() => fileInput.current?.click()}>
+                Upload image
+              </Button>
+            </>
+          )
+        }
+      >
+        {images.status === 'error' && (
+          <StateBlock
+            tone="error"
+            title="The images could not be loaded"
+            description={images.error?.message}
+            action={
+              <Button variant="secondary" onClick={images.reload}>
+                Try again
+              </Button>
+            }
+          />
+        )}
+        {images.status === 'ready' && images.data?.length === 0 && (
+          <StateBlock title="No images yet" description="Upload one to show the product." />
+        )}
+        {images.status === 'ready' && (images.data?.length ?? 0) > 0 && (
+          <ul className={styles.images}>
+            {images.data?.map((image) => (
+              <li key={image.id} className={styles.image}>
+                <img
+                  className={styles.thumbnail}
+                  src={image.url}
+                  alt={image.alt}
+                  onError={() => refreshOnce(image)}
+                />
+                {editable && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    loading={busy}
+                    onClick={() => void run(() => deleteProductImage(current.id, image.id))}
+                  >
+                    Remove
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </Section>
+
+      <Dialog
+        open={confirmArchive}
+        title="Archive this product?"
+        description="It stops being orderable and disappears from the default list. There is no way to bring it back."
+        onClose={() => setConfirmArchive(false)}
+        footer={
+          <>
+            <Button onClick={() => setConfirmArchive(false)}>Cancel</Button>
+            <Button
+              variant="danger"
+              loading={busy}
+              onClick={() => {
+                setConfirmArchive(false)
+                void run(() => archiveProduct(current.id))
+              }}
+            >
+              Archive
+            </Button>
+          </>
+        }
+      />
     </PageStack>
   )
 }

@@ -1,4 +1,3 @@
-const money = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' })
 const dateTime = new Intl.DateTimeFormat('en-GB', {
   day: '2-digit',
   month: 'short',
@@ -7,8 +6,30 @@ const dateTime = new Intl.DateTimeFormat('en-GB', {
 })
 const date = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 
-export function formatMoney(cents: number): string {
-  return money.format(cents / 100)
+const moneyFormats = new Map<string, Intl.NumberFormat>()
+
+function moneyFormat(currency: string): Intl.NumberFormat {
+  let format = moneyFormats.get(currency)
+  if (!format) {
+    format = new Intl.NumberFormat('en-US', { style: 'currency', currency })
+    moneyFormats.set(currency, format)
+  }
+  return format
+}
+
+// Money is an integer count of the currency's smallest unit; dividing would make
+// it a float. formatToParts lets the fraction be assembled as digits.
+export function formatMoney(minor: number, currency: string): string {
+  const format = moneyFormat(currency)
+  const digits = format.resolvedOptions().maximumFractionDigits ?? 0
+  const scale = 10 ** digits
+  const negative = minor < 0
+  const absolute = Math.abs(minor)
+  const whole = Math.floor(absolute / scale)
+  const fraction = absolute % scale
+
+  const rendered = format.format(whole + fraction / scale)
+  return negative && !rendered.startsWith('-') ? `-${rendered}` : rendered
 }
 
 export function formatDateTime(iso: string): string {

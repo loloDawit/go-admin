@@ -22,7 +22,7 @@ const columns: Column<Order>[] = [
       <Status tone={orderStatusTones[order.status]}>{orderStatusLabels[order.status]}</Status>
     ),
   },
-  { key: 'total', header: 'Total', numeric: true, cell: (order) => formatMoney(order.totalCents) },
+  { key: 'total', header: 'Total', numeric: true, cell: (order) => formatMoney(order.totalCents, 'USD') },
 ]
 
 export function CustomerDetail() {
@@ -74,7 +74,7 @@ export function CustomerDetail() {
         items={[
           { term: 'Location', value: current.location },
           { term: 'Orders', value: String(current.orderCount) },
-          { term: 'Lifetime value', value: formatMoney(current.lifetimeCents) },
+          { term: 'Lifetime value', value: formatMoney(current.lifetimeCents, 'USD') },
           { term: 'Last order', value: formatDate(current.lastOrderAt) },
         ]}
       />

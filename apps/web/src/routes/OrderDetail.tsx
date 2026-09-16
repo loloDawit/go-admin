@@ -30,13 +30,13 @@ const lineColumns: Column<OrderLine>[] = [
     key: 'unit',
     header: 'Unit price',
     numeric: true,
-    cell: (line) => formatMoney(line.unitPriceCents),
+    cell: (line) => formatMoney(line.unitPriceCents, 'USD'),
   },
   {
     key: 'total',
     header: 'Line total',
     numeric: true,
-    cell: (line) => formatMoney(line.unitPriceCents * line.quantity),
+    cell: (line) => formatMoney(line.unitPriceCents * line.quantity, 'USD'),
   },
 ]
 
@@ -111,7 +111,7 @@ export function OrderDetail() {
               </Status>
             ),
           },
-          { term: 'Total', value: formatMoney(current.totalCents) },
+          { term: 'Total', value: formatMoney(current.totalCents, 'USD') },
           { term: 'Customer', value: current.customerEmail },
           { term: 'Ship to', value: current.shippingAddress },
         ]}

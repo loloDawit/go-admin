@@ -19,7 +19,7 @@ const columns: Column<Customer>[] = [
     key: 'lifetime',
     header: 'Lifetime value',
     numeric: true,
-    cell: (customer) => formatMoney(customer.lifetimeCents),
+    cell: (customer) => formatMoney(customer.lifetimeCents, 'USD'),
   },
   { key: 'last', header: 'Last order', cell: (customer) => formatDate(customer.lastOrderAt) },
 ]

@@ -1,4 +1,10 @@
-import { respond } from './client'
+import { withScenario } from './client'
+
+// Slice B/C replace this file with a generated client; until then respond keeps
+// the mock screens on the same scenario knob as the real ones.
+function respond<T>(data: T, emptyValue?: T): Promise<T> {
+  return withScenario(async () => data, emptyValue)
+}
 
 export type OrderStatus = 'pending' | 'paid' | 'packed' | 'shipped' | 'cancelled' | 'refunded'
 

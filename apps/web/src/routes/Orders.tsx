@@ -23,7 +23,7 @@ const columns: Column<Order>[] = [
     ),
   },
   { key: 'items', header: 'Items', numeric: true, cell: (order) => order.itemCount },
-  { key: 'total', header: 'Total', numeric: true, cell: (order) => formatMoney(order.totalCents) },
+  { key: 'total', header: 'Total', numeric: true, cell: (order) => formatMoney(order.totalCents, 'USD') },
 ]
 
 export function Orders() {

@@ -14,7 +14,7 @@ export const orderStatusTones: Record<OrderStatus, StatusTone> = {
 export const productStatusTones: Record<ProductStatus, StatusTone> = {
   active: 'success',
   draft: 'warning',
-  discontinued: 'neutral',
+  archived: 'neutral',
 }
 
 export const staffActiveTones: Record<'active' | 'inactive', StatusTone> = {
