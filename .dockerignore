@@ -3,3 +3,10 @@ uploads
 test
 docs
 *.md
+apps/web/node_modules
+apps/web/dist
+apps/web/test-results
+apps/web/screenshots
+apps/web/playwright-report
+# A live session cookie from a local Playwright run; never a build input.
+apps/web/playwright/.auth

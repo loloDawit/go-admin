@@ -174,6 +174,13 @@ export function OrderCreate() {
             ))}
           </SelectField>
 
+          {customers.data && customers.data.total > customers.data.items.length && (
+            <Alert tone="warning" title="Not every customer is listed">
+              This list shows the first {customers.data.items.length} of{' '}
+              {customers.data.total}. Searching by email is not built yet.
+            </Alert>
+          )}
+
           {lines.length === 0 ? (
             <StateBlock title="No lines yet" description="Add a product to start the order." />
           ) : (
@@ -216,10 +223,12 @@ export function OrderCreate() {
                   </li>
                 ))}
               </ul>
-              <p className={styles.total}>
-                <span>Total</span>
-                <span>{formatMoney(total, currency ?? 'USD')}</span>
-              </p>
+              {!mixedCurrency && currency && (
+                <p className={styles.total}>
+                  <span>Total</span>
+                  <span>{formatMoney(total, currency)}</span>
+                </p>
+              )}
             </>
           )}
 

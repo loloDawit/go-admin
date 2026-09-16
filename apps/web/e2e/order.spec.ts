@@ -104,8 +104,23 @@ test.describe('narrow', () => {
   test.use({ viewport: { width: 400, height: 900 } })
 
   test('the order screens hold at 400px', async ({ page }) => {
+    const id = unique()
+    const title = `Narrow ${id}`
+    const buyer = `Narrow buyer ${id}`
+
+    await activeProduct(page, title, '7.25')
+    await customer(page, buyer)
+
     await page.goto('/orders/new')
     await expect(page.getByRole('heading', { name: 'New order' })).toBeVisible()
+    await page.getByLabel('Customer').selectOption({ label: buyer })
+    await page.getByRole('searchbox', { name: 'Search the catalog' }).fill(title)
+    await page.getByRole('button', { name: 'Search' }).click()
+    await page.getByRole('button', { name: 'Add' }).click()
     await page.screenshot({ path: 'screenshots/narrow_order_create.png', fullPage: true })
+
+    await page.getByRole('button', { name: 'Place order' }).click()
+    await expect(page.getByRole('heading', { name: /^ORD-/ })).toBeVisible()
+    await page.screenshot({ path: 'screenshots/narrow_order_detail.png', fullPage: true })
   })
 })
