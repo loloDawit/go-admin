@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/loloDawit/go-admin/services/orders/internal/catalog"
-	"github.com/loloDawit/go-admin/services/orders/internal/outbox"
 	"github.com/loloDawit/go-admin/services/orders/internal/order"
+	"github.com/loloDawit/go-admin/services/orders/internal/outbox"
 )
 
 const testPageSizeMax = 50
