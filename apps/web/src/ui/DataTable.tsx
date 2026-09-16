@@ -7,6 +7,8 @@ export type Column<T> = {
   key: string
   header: string
   numeric?: boolean
+  // The server's allowlisted column name. A column without one is not sortable.
+  sortKey?: string
   cell: (row: T) => ReactNode
 }
 
@@ -22,9 +24,22 @@ export type DataTableProps<T> = {
   errorTitle?: string
   errorDescription?: string
   onRetry?: () => void
+  sort?: string
+  onSort?: (sort: string | undefined) => void
 }
 
 const SKELETON_ROWS = 6
+
+function activeKey(sort: string | undefined): string | undefined {
+  return sort ? sort.replace(/^-/, '') : undefined
+}
+
+// Ascending, then descending, then off: a third click has to be able to undo the
+// sort, or the default ordering becomes unreachable.
+function cycle(sort: string | undefined, key: string): string | undefined {
+  if (activeKey(sort) !== key) return key
+  return sort?.startsWith('-') ? undefined : `-${key}`
+}
 
 export function DataTable<T>({
   columns,
@@ -38,6 +53,8 @@ export function DataTable<T>({
   errorTitle = 'This list could not be loaded',
   errorDescription = 'The service did not respond. Try again in a moment.',
   onRetry,
+  sort,
+  onSort,
 }: DataTableProps<T>) {
   const colCount = columns.length
 
@@ -53,15 +70,41 @@ export function DataTable<T>({
         <table className={styles.table}>
           <thead>
             <tr>
-              {columns.map((column) => (
-                <th
-                  key={column.key}
-                  scope="col"
-                  className={column.numeric ? styles.numeric : undefined}
-                >
-                  {column.header}
-                </th>
-              ))}
+              {columns.map((column) => {
+                const sortable = column.sortKey !== undefined && onSort !== undefined
+                const active = sortable && activeKey(sort) === column.sortKey
+                const direction = active
+                  ? sort?.startsWith('-')
+                    ? 'descending'
+                    : 'ascending'
+                  : 'none'
+                return (
+                  <th
+                    key={column.key}
+                    scope="col"
+                    aria-sort={sortable ? direction : undefined}
+                    className={column.numeric ? styles.numeric : undefined}
+                  >
+                    {sortable ? (
+                      <button
+                        type="button"
+                        className={styles.sort}
+                        onClick={() => onSort(cycle(sort, column.sortKey as string))}
+                      >
+                        {column.header}
+                        <span
+                          aria-hidden="true"
+                          className={active ? styles.sortMark : styles.sortHint}
+                        >
+                          {active ? (direction === 'ascending' ? '↑' : '↓') : '↕'}
+                        </span>
+                      </button>
+                    ) : (
+                      column.header
+                    )}
+                  </th>
+                )
+              })}
             </tr>
           </thead>
           <tbody aria-busy={status === 'loading' || undefined}>

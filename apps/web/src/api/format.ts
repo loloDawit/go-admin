@@ -8,6 +8,12 @@ const date = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', 
 
 const moneyFormats = new Map<string, Intl.NumberFormat>()
 
+// Intl.NumberFormat throws a RangeError on a code it does not recognise, which
+// unmounts the tree above it. A formatter must not be able to take down a page.
+function isCurrencyCode(currency: string): boolean {
+  return /^[A-Za-z]{3}$/.test(currency)
+}
+
 function moneyFormat(currency: string): Intl.NumberFormat {
   let format = moneyFormats.get(currency)
   if (!format) {
@@ -20,6 +26,8 @@ function moneyFormat(currency: string): Intl.NumberFormat {
 // Money is an integer count of the currency's smallest unit; dividing would make
 // it a float. formatToParts lets the fraction be assembled as digits.
 export function formatMoney(minor: number, currency: string): string {
+  if (!isCurrencyCode(currency)) return `${minor} ${currency}`.trim()
+
   const format = moneyFormat(currency)
   const digits = format.resolvedOptions().maximumFractionDigits ?? 0
   const scale = 10 ** digits

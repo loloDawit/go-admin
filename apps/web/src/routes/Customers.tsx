@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   Alert,
   Button,
@@ -15,6 +15,7 @@ import { createCustomer, listCustomers } from '../api/customers'
 import type { Customer } from '../api/customers'
 import { isApiError } from '../api/client'
 import { formatDate } from '../api/format'
+import { positiveInt, toSearchParams } from '../api/listQuery'
 import { useResource } from '../api/useResource'
 
 const columns: Column<Customer>[] = [
@@ -28,7 +29,8 @@ const columns: Column<Customer>[] = [
 ]
 
 export function Customers() {
-  const [page, setPage] = useState(1)
+  const [params, setParams] = useSearchParams()
+  const page = positiveInt(params, 'page') ?? 1
   const customers = useResource(`customers:${page}`, () => listCustomers(page))
   const [adding, setAdding] = useState(false)
   const [name, setName] = useState('')
@@ -94,7 +96,7 @@ export function Customers() {
           page={result.page}
           pageSize={result.pageSize}
           total={result.total}
-          onChange={setPage}
+          onChange={(next) => setParams(toSearchParams({ page: next === 1 ? undefined : next }))}
         />
       )}
 

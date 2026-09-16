@@ -13,3 +13,9 @@
 .status {
   flex: 0 0 11rem;
 }
+
+.note {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}

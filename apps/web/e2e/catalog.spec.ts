@@ -100,3 +100,35 @@ test.describe('narrow', () => {
     await page.screenshot({ path: 'screenshots/narrow_catalog_list.png', fullPage: true })
   })
 })
+
+// A presigned URL expires. On a page left open the image then 403s, and the only
+// recovery is refetching the list for a freshly signed one.
+test('an image whose presigned URL has expired is refetched', async ({ page }) => {
+  const sku = uniqueSku()
+  await createProduct(page, sku, `Expiring ${sku}`, '5.00')
+  await page.setInputFiles('input[type=file]', {
+    name: 'mug.png',
+    mimeType: 'image/png',
+    buffer: PNG,
+  })
+  await expect(page.locator('img').first()).toBeVisible()
+
+  let listCalls = 0
+  await page.route('**/api/v1/products/*/images', async (route) => {
+    listCalls++
+    await route.continue()
+  })
+
+  let expired = false
+  await page.route(/:9000\//, async (route) => {
+    if (expired) {
+      await route.continue()
+      return
+    }
+    expired = true
+    await route.fulfill({ status: 403, body: '' })
+  })
+
+  await page.reload()
+  await expect.poll(() => listCalls).toBeGreaterThan(1)
+})
