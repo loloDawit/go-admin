@@ -92,8 +92,11 @@ export function DataTable<T>({
                         onClick={() => onSort(cycle(sort, column.sortKey as string))}
                       >
                         {column.header}
-                        <span aria-hidden="true" className={styles.sortMark}>
-                          {active ? (direction === 'ascending' ? '↑' : '↓') : ''}
+                        <span
+                          aria-hidden="true"
+                          className={active ? styles.sortMark : styles.sortHint}
+                        >
+                          {active ? (direction === 'ascending' ? '↑' : '↓') : '↕'}
                         </span>
                       </button>
                     ) : (

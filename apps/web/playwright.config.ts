@@ -9,6 +9,9 @@ const baseURL = process.env.BASE_URL ?? devServer
 
 export default defineConfig({
   testDir: './e2e',
+  // One worker: every spec drives the same stack and the same database, so
+  // parallel workers race over list contents that another worker is changing.
+  workers: 1,
   use: { baseURL, ...devices['Desktop Chrome'] },
   // BASE_URL points the suite at the gateway-served build instead. A login
   // against the dev server does not prove the app works where it is deployed.

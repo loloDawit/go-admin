@@ -15,7 +15,7 @@ async function draftProduct(page: Page, title: string): Promise<void> {
 
 async function addCustomer(page: Page, name: string, stamp: string): Promise<void> {
   await page.goto('/customers')
-  await page.getByRole('button', { name: 'Add customer' }).click()
+  await page.getByRole('button', { name: 'Add customer' }).first().click()
   await page.getByRole('textbox', { name: 'Name' }).fill(name)
   await page.getByRole('textbox', { name: 'Email' }).fill(`${stamp}@example.com`)
   await page.getByRole('dialog').getByRole('button', { name: 'Add customer' }).click()
@@ -40,7 +40,7 @@ test('escape closes the archive dialog and the product is not archived', async (
 test('escape closes the add-customer dialog and no customer is created', async ({ page }) => {
   const stamp = unique()
   await page.goto('/customers')
-  await page.getByRole('button', { name: 'Add customer' }).click()
+  await page.getByRole('button', { name: 'Add customer' }).first().click()
   await page.getByRole('textbox', { name: 'Name' }).fill(`Discarded ${stamp}`)
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog')).toBeHidden()
@@ -89,7 +89,7 @@ test('focus returns to the trigger when a dialog closes', async ({ page }) => {
 
 test('a dialog traps tab focus inside itself', async ({ page }) => {
   await page.goto('/customers')
-  await page.getByRole('button', { name: 'Add customer' }).click()
+  await page.getByRole('button', { name: 'Add customer' }).first().click()
   await expect(page.getByRole('dialog')).toBeVisible()
 
   for (let i = 0; i < 12; i++) await page.keyboard.press('Tab')

@@ -89,7 +89,14 @@ test('an unrecognised order status in the URL is dropped', async ({ page }) => {
 // Asserting the URL alone would pass against a screen that ignores it. Previous
 // is disabled on page one and enabled beyond it, so it observes the page in effect.
 test('the customer list page is in the URL', async ({ page }) => {
+  const stamp = unique()
   await page.goto('/customers')
+  await page.getByRole('button', { name: 'Add customer' }).first().click()
+  await page.getByRole('textbox', { name: 'Name' }).fill(`Paged ${stamp}`)
+  await page.getByRole('textbox', { name: 'Email' }).fill(`${stamp}@example.com`)
+  await page.getByRole('dialog').getByRole('button', { name: 'Add customer' }).click()
+  await expect(page.getByRole('link', { name: `Paged ${stamp}` })).toBeVisible()
+
   await expect(page.getByRole('button', { name: 'Previous' })).toBeDisabled()
 
   await page.goto('/customers?page=2')

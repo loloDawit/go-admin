@@ -17,7 +17,7 @@ async function activeProduct(page: Page, title: string, price: string) {
 
 async function customer(page: Page, name: string) {
   await page.goto('/customers')
-  await page.getByRole('button', { name: 'Add customer' }).click()
+  await page.getByRole('button', { name: 'Add customer' }).first().click()
   await page.getByRole('textbox', { name: 'Name' }).fill(name)
   await page.getByRole('textbox', { name: 'Email' }).fill(`${unique()}@example.com`)
   await page.getByRole('dialog').getByRole('button', { name: 'Add customer' }).click()
