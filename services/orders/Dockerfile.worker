@@ -1,0 +1,12 @@
+FROM golang:1.27 AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 go build -o /out/worker ./services/orders/cmd/worker
+
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=build /out/worker /worker
+# No health check: the worker serves no port. The failure tests stop and start
+# it deliberately, so compose must not second-guess its state.
+ENTRYPOINT ["/worker"]
