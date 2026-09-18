@@ -22,6 +22,11 @@ type Config struct {
 	OrderPageSizeMax    int
 	MaxRequestBodyBytes int64
 	PrincipalKey        []byte
+	NATSURL             string
+	NATSDuplicateWindow time.Duration
+	OutboxBatchSize     int
+	OutboxPollInterval  time.Duration
+	ReportWindowDays    int
 }
 
 // Any error here is fatal: a misconfigured service must fail at startup, not at
@@ -90,6 +95,52 @@ func Load() (*Config, error) {
 	}
 	cfg.PrincipalKey = []byte(principalKey)
 
+	natsURL, err := requireEnv("NATS_URL")
+	if err != nil {
+		return nil, err
+	}
+	cfg.NATSURL = natsURL
+
+	duplicateWindowRaw, err := requireEnv("NATS_DUPLICATE_WINDOW")
+	if err != nil {
+		return nil, err
+	}
+	duplicateWindow, err := time.ParseDuration(duplicateWindowRaw)
+	if err != nil {
+		return nil, fmt.Errorf("NATS_DUPLICATE_WINDOW: %w", err)
+	}
+	cfg.NATSDuplicateWindow = duplicateWindow
+
+	outboxBatchSizeRaw, err := requireEnv("OUTBOX_BATCH_SIZE")
+	if err != nil {
+		return nil, err
+	}
+	outboxBatchSize, err := strconv.Atoi(outboxBatchSizeRaw)
+	if err != nil {
+		return nil, fmt.Errorf("OUTBOX_BATCH_SIZE: %w", err)
+	}
+	cfg.OutboxBatchSize = outboxBatchSize
+
+	pollIntervalRaw, err := requireEnv("OUTBOX_POLL_INTERVAL")
+	if err != nil {
+		return nil, err
+	}
+	pollInterval, err := time.ParseDuration(pollIntervalRaw)
+	if err != nil {
+		return nil, fmt.Errorf("OUTBOX_POLL_INTERVAL: %w", err)
+	}
+	cfg.OutboxPollInterval = pollInterval
+
+	reportWindowDaysRaw, err := requireEnv("REPORT_WINDOW_DAYS")
+	if err != nil {
+		return nil, err
+	}
+	reportWindowDays, err := strconv.Atoi(reportWindowDaysRaw)
+	if err != nil {
+		return nil, fmt.Errorf("REPORT_WINDOW_DAYS: %w", err)
+	}
+	cfg.ReportWindowDays = reportWindowDays
+
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
@@ -111,6 +162,18 @@ func (c *Config) validate() error {
 	}
 	if len(c.PrincipalKey) < 32 {
 		return fmt.Errorf("PRINCIPAL_SIGNING_KEY must be at least 32 bytes")
+	}
+	if c.NATSDuplicateWindow <= 0 {
+		return fmt.Errorf("NATS_DUPLICATE_WINDOW must be positive")
+	}
+	if c.OutboxBatchSize <= 0 {
+		return fmt.Errorf("OUTBOX_BATCH_SIZE must be positive")
+	}
+	if c.OutboxPollInterval <= 0 {
+		return fmt.Errorf("OUTBOX_POLL_INTERVAL must be positive")
+	}
+	if c.ReportWindowDays <= 0 {
+		return fmt.Errorf("REPORT_WINDOW_DAYS must be positive")
 	}
 	return nil
 }

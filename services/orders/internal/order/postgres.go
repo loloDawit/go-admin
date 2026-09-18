@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/loloDawit/go-admin/services/orders/internal/errs"
+	"github.com/loloDawit/go-admin/services/orders/internal/outbox"
 )
 
 // orderSortColumns is the only place a caller's sort string reaches a
@@ -209,6 +210,11 @@ func scanOrders(rows pgx.Rows) ([]Order, error) {
 		items = append(items, o)
 	}
 	return items, rows.Err()
+}
+
+func (r *PostgresRepository) InsertOutbox(ctx context.Context, rec outbox.Record) error {
+	_, err := r.q.Exec(ctx, insertOutboxStmt, rec.EventID, rec.Subject, rec.Payload)
+	return err
 }
 
 func (r *PostgresRepository) GetByID(ctx context.Context, id int64) (Order, error) {

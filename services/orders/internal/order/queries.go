@@ -22,6 +22,9 @@ VALUES ($1, $2, $3, $4, $5)`
 const listOrderEventsQuery = `SELECT id, from_status, to_status, actor_id, reason, at
 FROM order_events WHERE order_id = $1 ORDER BY at, id`
 
+const insertOutboxStmt = `INSERT INTO outbox (event_id, subject, payload)
+VALUES ($1, $2, $3)`
+
 const getOrderByIDQuery = `SELECT ` + orderColumns + ` FROM orders WHERE id = $1`
 
 const listOrderItemsQuery = `SELECT id, product_id, title_snapshot, unit_price_minor, currency, quantity, line_total_minor

@@ -119,6 +119,22 @@ paths:
         "403": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
 
+  /api/v1/reports/dashboard:
+    get:
+      summary: The dashboard's figures. Requires view_orders.
+      description: >
+        Status counts and recent orders are read from orders directly. Revenue
+        is a projection maintained from the event stream, and therefore covers
+        only orders placed since that projection existed.
+      responses:
+        "200":
+          description: The report
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DashboardReport" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+
   /api/v1/orders:
     get:
       summary: List orders. Requires view_orders.
@@ -388,6 +404,30 @@ components:
         path. cancelled is reachable from pending, paid, or packed; refunded
         from paid, packed, shipped or delivered. Neither moves again once reached.
       enum: [pending, paid, packed, shipped, delivered, cancelled, refunded]
+    DashboardReport:
+      type: object
+      required: [counts, recent, revenue]
+      properties:
+        counts:
+          type: object
+          additionalProperties: { type: integer }
+        recent:
+          type: array
+          items: { $ref: "#/components/schemas/OrderSummary" }
+        revenue:
+          type: array
+          items: { $ref: "#/components/schemas/RevenueDay" }
+    RevenueDay:
+      type: object
+      required: [day, currency, placedCount, paidCount, recognisedMinor, refundedMinor, netMinor]
+      properties:
+        day: { type: string, format: date }
+        currency: { type: string }
+        placedCount: { type: integer }
+        paidCount: { type: integer }
+        recognisedMinor: { type: integer }
+        refundedMinor: { type: integer }
+        netMinor: { type: integer, description: recognisedMinor minus refundedMinor, never summed across currencies. }
     OrderEvent:
       type: object
       required: [id, fromStatus, toStatus, actorId, reason, at]

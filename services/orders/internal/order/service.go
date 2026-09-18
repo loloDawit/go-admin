@@ -7,7 +7,9 @@ import (
 	"strconv"
 
 	"github.com/loloDawit/go-admin/services/orders/internal/catalog"
+
 	"github.com/loloDawit/go-admin/services/orders/internal/errs"
+	"github.com/loloDawit/go-admin/services/orders/internal/outbox"
 )
 
 const defaultPageSize = 20
@@ -70,11 +72,23 @@ func (s *Service) Create(ctx context.Context, in CreateOrder) (Order, error) {
 		}
 		created.Items = insertedItems
 
-		return tx.InsertEvent(ctx, NewEvent{
+		if err := tx.InsertEvent(ctx, NewEvent{
 			OrderID:  created.ID,
 			ToStatus: created.Status,
 			ActorID:  in.ActorID,
+		}); err != nil {
+			return err
+		}
+
+		rec, err := outbox.New(outbox.TypeOrderCreated, strconv.FormatInt(created.ID, 10), in.ActorID, created.PlacedAt, map[string]any{
+			"totalMinor": created.TotalMinor,
+			"currency":   created.Currency,
+			"placedAt":   created.PlacedAt,
 		})
+		if err != nil {
+			return err
+		}
+		return tx.InsertOutbox(ctx, rec)
 	})
 	if err != nil {
 		if errors.Is(err, errs.ErrCustomerNotFound) {
@@ -139,7 +153,20 @@ func (s *Service) transition(ctx context.Context, id int64, actorID string, to S
 			return err
 		}
 		from := current
-		return tx.InsertEvent(ctx, NewEvent{OrderID: id, FromStatus: &from, ToStatus: to, ActorID: actorID, Reason: reason})
+		if err := tx.InsertEvent(ctx, NewEvent{OrderID: id, FromStatus: &from, ToStatus: to, ActorID: actorID, Reason: reason}); err != nil {
+			return err
+		}
+
+		rec, err := outbox.New(outbox.TypeOrderStatusChanged, strconv.FormatInt(id, 10), actorID, updated.UpdatedAt, map[string]any{
+			"from":       string(from),
+			"to":         string(to),
+			"totalMinor": updated.TotalMinor,
+			"currency":   updated.Currency,
+		})
+		if err != nil {
+			return err
+		}
+		return tx.InsertOutbox(ctx, rec)
 	})
 	if err != nil {
 		if errors.Is(err, ErrOrderNotFound) || errors.Is(err, ErrInvalidTransition) {

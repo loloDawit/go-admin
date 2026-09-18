@@ -59,11 +59,21 @@ const (
 	OpLookupCustomerByEmail = "look up customer by email"
 	OpCustomerLifetimeValue = "compute customer lifetime value"
 
-	OpCreateOrder          = "create order"
-	OpGetOrder             = "look up order by id"
-	OpTransitionOrder      = "transition order status"
-	OpListOrders           = "list orders"
-	OpListOrderEvents      = "list order events"
+	OpCreateOrder     = "create order"
+	OpGetOrder        = "look up order by id"
+	OpTransitionOrder = "transition order status"
+	OpListOrders      = "list orders"
+	OpListOrderEvents = "list order events"
+
+	OpConnectBroker  = "connect to the broker"
+	OpEnsureStream   = "ensure the event stream"
+	OpEnsureConsumer = "ensure the event consumer"
+	OpReadOutbox     = "read the outbox"
+	OpMarkPublished  = "mark an outbox row published"
+	OpPublishEvent   = "publish an outbox event"
+	OpProjectEvent   = "project an event"
+
+	OpDashboardReport      = "build the dashboard report"
 	OpCustomerOrderHistory = "look up customer order history"
 )
 

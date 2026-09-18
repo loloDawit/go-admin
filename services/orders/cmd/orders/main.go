@@ -20,6 +20,7 @@ import (
 	"github.com/loloDawit/go-admin/services/orders/internal/customer"
 	"github.com/loloDawit/go-admin/services/orders/internal/httperr"
 	"github.com/loloDawit/go-admin/services/orders/internal/order"
+	"github.com/loloDawit/go-admin/services/orders/internal/reporting"
 	"github.com/loloDawit/go-admin/services/orders/internal/schemacheck"
 )
 
@@ -64,7 +65,10 @@ func main() {
 	orderSvc := order.NewService(order.NewPostgresRepository(pool), catalogClient, cfg.OrderPageSizeMax)
 	orderHandler := order.NewHandler(orderSvc, cfg.MaxRequestBodyBytes, errWriter.Write)
 
-	r := newRouter(logger, ready, customerHandler, orderHandler, cfg.PrincipalKey, errWriter.Write)
+	reportingSvc := reporting.NewService(reporting.NewPostgresRepository(pool), cfg.ReportWindowDays)
+	reportingHandler := reporting.NewHandler(reportingSvc, errWriter.Write)
+
+	r := newRouter(logger, ready, customerHandler, orderHandler, reportingHandler, cfg.PrincipalKey, errWriter.Write)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

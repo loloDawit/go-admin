@@ -1,6 +1,12 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 
+async function selectCustomer(page: Page, name: string, stamp: string): Promise<void> {
+  await page.getByRole('textbox', { name: 'Customer email' }).fill(`${stamp}@example.com`)
+  await page.getByRole('textbox', { name: 'Customer email' }).press('Enter')
+  await expect(page.getByText(`Ordering for ${name}`)).toBeVisible()
+}
+
 function unique(): string {
   return String(Date.now())
 }
@@ -61,7 +67,7 @@ test('escape closes the cancel-order dialog and the order still moves', async ({
   await addCustomer(page, buyer, stamp)
 
   await page.goto('/orders/new')
-  await page.getByLabel('Customer').selectOption({ label: buyer })
+  await selectCustomer(page, buyer, stamp)
   await page.getByRole('searchbox', { name: 'Search the catalog' }).fill(title)
   await page.getByRole('button', { name: 'Search' }).click()
   await page.getByRole('button', { name: 'Add' }).click()
