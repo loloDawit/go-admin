@@ -1,1 +1,33 @@
-groups: []
+groups:
+  - name: go-admin
+    rules:
+      # The publisher being down is invisible from the API: orders keep
+      # succeeding. This is the only signal there is.
+      - alert: OutboxBacklogGrowing
+        expr: orders_outbox_unpublished > 100
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "The outbox is not draining"
+
+      - alert: HighErrorRate
+        expr: |
+          sum by (job, http_route) (rate(http_server_request_duration_seconds_count{http_response_status_code=~"5.."}[5m]))
+            /
+          sum by (job, http_route) (rate(http_server_request_duration_seconds_count[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "More than 5% of requests to {{ $labels.http_route }} are failing"
+
+      # Events publishing but not applying is the failure the ordering
+      # guarantee cannot detect by itself.
+      - alert: ProjectionStalled
+        expr: sum(rate(orders_projection_applied_total[10m])) == 0 and sum(orders_outbox_unpublished) > 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Events are published but the projection is not advancing"
