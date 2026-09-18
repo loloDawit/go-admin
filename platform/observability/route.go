@@ -48,3 +48,12 @@ func routePattern(r *http.Request) string {
 	}
 	return rctx.RoutePattern()
 }
+
+// HTTPMiddleware instruments inbound requests. Health and readiness probes are
+// excluded: compose polls them every few seconds per service, and at
+// AlwaysSample they would bury the traces an operator is looking for.
+func HTTPMiddleware(service string) func(http.Handler) http.Handler {
+	return otelhttp.NewMiddleware(service, otelhttp.WithFilter(func(r *http.Request) bool {
+		return r.URL.Path != "/healthz" && r.URL.Path != "/readyz"
+	}))
+}

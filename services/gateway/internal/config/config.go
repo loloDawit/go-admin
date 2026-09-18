@@ -9,6 +9,7 @@ import (
 
 type Config struct {
 	Port            string
+	OTLPEndpoint    string
 	Upstreams       map[string]string
 	UpstreamTimeout time.Duration
 
@@ -28,7 +29,10 @@ type Config struct {
 // the first request.
 func Load() (*Config, error) {
 	cfg := &Config{
-		Port:            withDefault("PORT", "8080"),
+		Port: withDefault("PORT", "8080"),
+		// Optional by design: an unconfigured collector means a no-op provider,
+		// not a failed boot.
+		OTLPEndpoint:    withDefault("OTEL_EXPORTER_OTLP_ENDPOINT", ""),
 		UpstreamTimeout: 5 * time.Second,
 		Upstreams: map[string]string{
 			"identity": os.Getenv("IDENTITY_URL"),

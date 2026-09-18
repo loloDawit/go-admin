@@ -15,6 +15,8 @@ import (
 func newRouter(logger *slog.Logger, upstreams http.Handler, validator *auth.Validator) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(requestid.Middleware)
+	r.Use(observability.HTTPMiddleware(serviceName))
+	r.Use(observability.RouteTagger())
 	r.Use(observability.RequestLogger(logger))
 	r.Use(chimiddleware.Recoverer)
 	r.Use(auth.Middleware(validator))

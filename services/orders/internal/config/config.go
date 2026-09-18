@@ -7,14 +7,16 @@ import (
 	"time"
 )
 
-const serviceName = "orders"
+// ServiceName is this service's identity in logs, traces and metrics.
+const ServiceName = "orders"
 
-// serviceName and DefaultPort are the two values a service-specific rename touches.
+// ServiceName and DefaultPort are the two values a service-specific rename touches.
 const DefaultPort = "8083"
 
 type Config struct {
 	ServiceName         string
 	Port                string
+	OTLPEndpoint        string
 	DatabaseURL         string
 	CatalogURL          string
 	CatalogTimeout      time.Duration
@@ -33,8 +35,11 @@ type Config struct {
 // the first request.
 func Load() (*Config, error) {
 	cfg := &Config{
-		ServiceName: serviceName,
+		ServiceName: ServiceName,
 		Port:        withDefault("PORT", DefaultPort),
+		// Optional by design: an unconfigured collector means a no-op provider,
+		// not a failed boot.
+		OTLPEndpoint: withDefault("OTEL_EXPORTER_OTLP_ENDPOINT", ""),
 	}
 
 	databaseURL, err := requireEnv("DATABASE_URL")

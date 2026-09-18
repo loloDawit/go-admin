@@ -48,6 +48,7 @@ services:
       SESSION_TTL: "24h"
       COOKIE_SECURE: "false"
       PRINCIPAL_SIGNING_KEY: "dev_only_principal_key_at_least_32_bytes"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector:4317"
       MAX_REQUEST_BODY_BYTES: "1048576"
     ports:
       - "8081:8081"
@@ -132,6 +133,7 @@ services:
       MAX_REQUEST_BODY_BYTES: "1048576"
       DEFAULT_CURRENCY: "USD"
       PRINCIPAL_SIGNING_KEY: "dev_only_principal_key_at_least_32_bytes"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector:4317"
     ports:
       - "8082:8082"
 
@@ -163,6 +165,7 @@ services:
       ORDER_PAGE_SIZE_MAX: "100"
       MAX_REQUEST_BODY_BYTES: "1048576"
       PRINCIPAL_SIGNING_KEY: "dev_only_principal_key_at_least_32_bytes"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector:4317"
       NATS_URL: "nats://nats:4222"
       NATS_DUPLICATE_WINDOW: "2m"
       OUTBOX_BATCH_SIZE: "100"
@@ -188,6 +191,7 @@ services:
       ORDER_PAGE_SIZE_MAX: "100"
       MAX_REQUEST_BODY_BYTES: "1048576"
       PRINCIPAL_SIGNING_KEY: "dev_only_principal_key_at_least_32_bytes"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector:4317"
       NATS_URL: "nats://nats:4222"
       NATS_DUPLICATE_WINDOW: "2m"
       OUTBOX_BATCH_SIZE: "100"
@@ -207,6 +211,24 @@ services:
     ports:
       - "4222:4222"
 
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.111.0
+    command: ["--config=/etc/collector.yaml"]
+    volumes:
+      - ../otel/collector.yaml:/etc/collector.yaml:ro
+    depends_on:
+      - jaeger
+    ports:
+      - "4317:4317"
+      - "8889:8889"
+
   gateway:
     build:
       context: ../..
@@ -221,6 +243,7 @@ services:
       CATALOG_URL: "http://catalog:8082"
       ORDERS_URL: "http://orders:8083"
       PRINCIPAL_SIGNING_KEY: "dev_only_principal_key_at_least_32_bytes"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector:4317"
       PRINCIPAL_TTL: "30s"
       SESSION_CACHE_TTL: "${SESSION_CACHE_TTL:-10s}"
       WEB_ROOT: "/web"
