@@ -1,6 +1,7 @@
 package routing_test
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -11,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/loloDawit/go-admin/platform/httpx"
 	"github.com/loloDawit/go-admin/platform/observability"
@@ -296,5 +299,47 @@ func TestSPAServesUnknownPathsButNotUnknownAPIPaths(t *testing.T) {
 	h.ServeHTTP(api, httptest.NewRequest(http.MethodGet, "/api/nope", nil))
 	if api.Code != http.StatusNotFound || strings.Contains(api.Body.String(), "<title>") {
 		t.Fatalf("an unknown API path = %d %q, want a JSON 404", api.Code, api.Body.String())
+	}
+}
+
+// A proxied request must arrive carrying a trace context, or the upstream
+// starts a second, unrelated trace and no single trace spans the request.
+func TestProxiedRequestCarriesTraceparent(t *testing.T) {
+	var got string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.Header.Get("traceparent")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	shutdown, err := observability.NewTracerProvider(context.Background(), "gateway-test", "")
+	if err != nil {
+		t.Fatalf("NewTracerProvider: %v", err)
+	}
+	defer func() { _ = shutdown(context.Background()) }()
+
+	logger, _ := observability.NewCaptured()
+	handler, err := routing.New(logger, map[string]string{"orders": upstream.URL}, time.Second, nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	traceID, err := trace.TraceIDFromHex("4bf92f3577b34da6a3ce929d0e0e4736")
+	if err != nil {
+		t.Fatalf("trace id: %v", err)
+	}
+	spanID, err := trace.SpanIDFromHex("00f067aa0ba902b7")
+	if err != nil {
+		t.Fatalf("span id: %v", err)
+	}
+	ctx := trace.ContextWithSpanContext(context.Background(), trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID: traceID, SpanID: spanID, TraceFlags: trace.FlagsSampled, Remote: true,
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/orders", nil).WithContext(ctx)
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+
+	if !strings.Contains(got, "4bf92f3577b34da6a3ce929d0e0e4736") {
+		t.Fatalf("upstream traceparent = %q, want the caller's trace id", got)
 	}
 }
