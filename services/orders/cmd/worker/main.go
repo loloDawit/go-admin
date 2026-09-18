@@ -40,6 +40,13 @@ func main() {
 	}
 	defer func() { _ = shutdownTracing(context.Background()) }()
 
+	shutdownMetrics, err := observability.NewMeterProvider(ctx, cfg.ServiceName+"-worker", cfg.OTLPEndpoint)
+	if err != nil {
+		logger.Error("metrics", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	defer func() { _ = shutdownMetrics(context.Background()) }()
+
 	pool, err := pgxplatform.NewPool(ctx, cfg.DatabaseURL)
 	if err != nil {
 		logger.Error("database pool", slog.String("error", err.Error()))
