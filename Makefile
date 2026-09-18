@@ -71,6 +71,15 @@ test-e2e: seed ## Browser tests against the app the gateway serves
 	# ships works.
 	cd apps/web && npm ci && npx playwright install --with-deps chromium && BASE_URL=http://localhost:8080 npx playwright test
 
+load: ## Run the k6 load test against the running stack
+	# Every VU is the same member of staff and the limiter is per principal,
+	# so this run raises it: the target being measured is the order path.
+	RATE_LIMIT_PER_SECOND=100000 RATE_LIMIT_BURST=100000 $(MAKE) up
+	docker run --rm --network host -v $(PWD)/deploy/k6:/scripts \
+		-e BASE_URL=http://localhost:8080 \
+		-e OWNER_EMAIL=$(OWNER_EMAIL) -e OWNER_PASSWORD=$(OWNER_PASSWORD) \
+		grafana/k6:0.54.0 run /scripts/order-path.js
+
 fmt: ## Format
 	gofmt -w services platform test
 

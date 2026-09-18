@@ -282,8 +282,10 @@ services:
       SESSION_CACHE_TTL: "${SESSION_CACHE_TTL:-10s}"
       WEB_ROOT: "/web"
       APP_PROFILE: "dev"
-      RATE_LIMIT_PER_SECOND: "50"
-      RATE_LIMIT_BURST: "100"
+      FAULT_LATENCY_MS: "${FAULT_LATENCY_MS:-0}"
+      FAULT_ERROR_RATE: "${FAULT_ERROR_RATE:-0}"
+      RATE_LIMIT_PER_SECOND: "${RATE_LIMIT_PER_SECOND:-50}"
+      RATE_LIMIT_BURST: "${RATE_LIMIT_BURST:-100}"
       # Looser than a real deployment would run: the test suite logs in once
       # per test from one address. A deployment tightens this to a fraction of
       # a request per second.
