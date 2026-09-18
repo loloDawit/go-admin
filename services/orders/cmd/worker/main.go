@@ -82,7 +82,12 @@ func main() {
 		outboxRepo, js,
 		cfg.OutboxBatchSize, cfg.OutboxPollInterval, logger, outboxMetrics,
 	)
-	projector := reporting.NewProjector(reporting.NewPostgresRepository(pool), consumer, logger)
+	reportingMetrics, err := reporting.NewMetrics()
+	if err != nil {
+		logger.Error("metrics", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	projector := reporting.NewProjector(reporting.NewPostgresRepository(pool), consumer, logger, reportingMetrics)
 
 	done := make(chan struct{}, 2)
 	go func() {
