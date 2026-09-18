@@ -3,6 +3,7 @@ module github.com/loloDawit/go-admin
 go 1.27
 
 require (
+	github.com/exaring/otelpgx v0.12.0
 	github.com/go-chi/chi/v5 v5.3.2
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.11.0
