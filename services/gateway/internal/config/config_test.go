@@ -94,3 +94,28 @@ func TestLoadAcceptsASessionCacheTTLLongerThanPrincipalTTL(t *testing.T) {
 		t.Fatalf("want success (the two TTLs are independent), got %v", err)
 	}
 }
+
+// The default profile is production, so an operator who sets neither
+// APP_PROFILE nor a fault knob gets a gateway that would refuse injection.
+func TestFaultInjectionIsRefusedOutsideDev(t *testing.T) {
+	setValidEnv(t)
+	t.Setenv("FAULT_ERROR_RATE", "0.5")
+
+	if _, err := config.Load(); err == nil {
+		t.Fatal("fault injection was accepted without APP_PROFILE=dev")
+	}
+}
+
+func TestFaultInjectionIsAcceptedInDev(t *testing.T) {
+	setValidEnv(t)
+	t.Setenv("APP_PROFILE", "dev")
+	t.Setenv("FAULT_LATENCY_MS", "200")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Faults.LatencyMS != 200 {
+		t.Fatalf("LatencyMS = %d", cfg.Faults.LatencyMS)
+	}
+}

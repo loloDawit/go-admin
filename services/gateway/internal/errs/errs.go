@@ -19,6 +19,13 @@ var ErrInvalidUpstreamURL = errors.New("upstream is not a valid URL")
 // an upstream.
 var ErrRateLimited = errors.New("too many requests")
 
+// ErrFaultsNotPermitted and ErrInvalidErrorRate are startup failures: a
+// misconfigured injector must never reach a request.
+var (
+	ErrFaultsNotPermitted = errors.New("fault injection is permitted only in the dev profile")
+	ErrInvalidErrorRate   = errors.New("FAULT_ERROR_RATE must be between 0 and 1")
+)
+
 const (
 	OpBuildValidateRequest   = "build session validate request"
 	OpCallIdentityValidate   = "call identity validate endpoint"

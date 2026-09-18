@@ -13,6 +13,7 @@ import (
 	"github.com/loloDawit/go-admin/platform/principal"
 	"github.com/loloDawit/go-admin/platform/requestid"
 	"github.com/loloDawit/go-admin/services/gateway/internal/auth"
+	"github.com/loloDawit/go-admin/services/gateway/internal/faults"
 	"github.com/loloDawit/go-admin/services/gateway/internal/httperr"
 	"github.com/loloDawit/go-admin/services/gateway/internal/ratelimit"
 	"github.com/loloDawit/go-admin/services/gateway/internal/routing"
@@ -44,7 +45,7 @@ func TestRouterProxiesThroughTheFullMiddlewareStack(t *testing.T) {
 		t.Fatalf("routing.New: %v", err)
 	}
 
-	r := newRouter(logger, upstreams, noSessionValidator(t, logger), testLimits)
+	r := newRouter(logger, upstreams, noSessionValidator(t, logger), testLimits, faults.Config{})
 
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/orders", nil))
@@ -85,7 +86,7 @@ func TestRouterStripsAClientSuppliedPrincipal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("routing.New: %v", err)
 	}
-	r := newRouter(logger, upstreams, noSessionValidator(t, logger), testLimits)
+	r := newRouter(logger, upstreams, noSessionValidator(t, logger), testLimits, faults.Config{})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
 	req.Header.Set(principal.HeaderPrincipal, "forged-principal")
@@ -109,7 +110,7 @@ func TestRouterRecoversFromAPanicAndStillLogs(t *testing.T) {
 		t.Fatalf("routing.New: %v", err)
 	}
 
-	r := newRouter(logger, upstreams, noSessionValidator(t, logger), testLimits)
+	r := newRouter(logger, upstreams, noSessionValidator(t, logger), testLimits, faults.Config{})
 	r.Get("/panics", func(http.ResponseWriter, *http.Request) { panic("boom") })
 
 	rec := httptest.NewRecorder()
@@ -135,7 +136,7 @@ func TestHealthzReturns200(t *testing.T) {
 	if err != nil {
 		t.Fatalf("routing.New: %v", err)
 	}
-	r := newRouter(logger, upstreams, noSessionValidator(t, logger), testLimits)
+	r := newRouter(logger, upstreams, noSessionValidator(t, logger), testLimits, faults.Config{})
 
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
@@ -151,7 +152,7 @@ func TestReadyzReturns200(t *testing.T) {
 	if err != nil {
 		t.Fatalf("routing.New: %v", err)
 	}
-	r := newRouter(logger, upstreams, noSessionValidator(t, logger), testLimits)
+	r := newRouter(logger, upstreams, noSessionValidator(t, logger), testLimits, faults.Config{})
 
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/readyz", nil))
@@ -187,7 +188,7 @@ func TestRouterForwardsASignedPrincipalForAValidSession(t *testing.T) {
 
 	key := []byte(testSigningKey)
 	validator := auth.NewValidator(identityValidate.Client(), identityValidate.URL+"/internal/sessions/validate", key, time.Minute, auth.NewCache(time.Minute), httperr.New(logger), logger)
-	r := newRouter(logger, upstreams, validator, testLimits)
+	r := newRouter(logger, upstreams, validator, testLimits, faults.Config{})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
 	req.AddCookie(&http.Cookie{Name: "session", Value: "a-live-session-token"})

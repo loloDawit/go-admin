@@ -281,6 +281,7 @@ services:
       PRINCIPAL_TTL: "30s"
       SESSION_CACHE_TTL: "${SESSION_CACHE_TTL:-10s}"
       WEB_ROOT: "/web"
+      APP_PROFILE: "dev"
       RATE_LIMIT_PER_SECOND: "50"
       RATE_LIMIT_BURST: "100"
       # Looser than a real deployment would run: the test suite logs in once
