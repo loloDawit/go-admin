@@ -20,6 +20,7 @@ import (
 	"github.com/loloDawit/go-admin/services/orders/internal/customer"
 	"github.com/loloDawit/go-admin/services/orders/internal/httperr"
 	"github.com/loloDawit/go-admin/services/orders/internal/order"
+	"github.com/loloDawit/go-admin/services/orders/internal/outbox"
 	"github.com/loloDawit/go-admin/services/orders/internal/reporting"
 	"github.com/loloDawit/go-admin/services/orders/internal/schemacheck"
 )
@@ -76,6 +77,19 @@ func main() {
 
 	orderSvc := order.NewService(order.NewPostgresRepository(pool), catalogClient, cfg.OrderPageSizeMax)
 	orderHandler := order.NewHandler(orderSvc, cfg.MaxRequestBodyBytes, errWriter.Write)
+
+	// The depth is observed here rather than in the worker: the worker being
+	// down is the failure this gauge exists to detect, and a gauge that
+	// disappears says less than one that climbs.
+	outboxMetrics, err := outbox.NewMetrics()
+	if err != nil {
+		logger.Error("metrics", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	if err := outboxMetrics.WatchDepth(outbox.NewPostgresRepository(pool)); err != nil {
+		logger.Error("metrics", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
 
 	reportingSvc := reporting.NewService(reporting.NewPostgresRepository(pool), cfg.ReportWindowDays)
 	reportingHandler := reporting.NewHandler(reportingSvc, errWriter.Write)

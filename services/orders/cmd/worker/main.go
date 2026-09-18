@@ -72,9 +72,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	outboxRepo := outbox.NewPostgresRepository(pool)
+	outboxMetrics, err := outbox.NewMetrics()
+	if err != nil {
+		logger.Error("metrics", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
 	publisher := outbox.NewPublisher(
-		outbox.NewPostgresRepository(pool), js,
-		cfg.OutboxBatchSize, cfg.OutboxPollInterval, logger,
+		outboxRepo, js,
+		cfg.OutboxBatchSize, cfg.OutboxPollInterval, logger, outboxMetrics,
 	)
 	projector := reporting.NewProjector(reporting.NewPostgresRepository(pool), consumer, logger)
 
