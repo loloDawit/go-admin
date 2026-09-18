@@ -15,6 +15,10 @@ var ErrSessionInvalid = errors.New("session is not authenticated")
 // malformed or incomplete upstream URL.
 var ErrInvalidUpstreamURL = errors.New("upstream is not a valid URL")
 
+// ErrRateLimited is answered by the gateway itself; the request never reaches
+// an upstream.
+var ErrRateLimited = errors.New("too many requests")
+
 const (
 	OpBuildValidateRequest   = "build session validate request"
 	OpCallIdentityValidate   = "call identity validate endpoint"

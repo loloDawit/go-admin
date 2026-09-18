@@ -16,6 +16,10 @@ func setValidEnv(t *testing.T) {
 	t.Setenv("PRINCIPAL_SIGNING_KEY", validSigningKey)
 	t.Setenv("PRINCIPAL_TTL", "30s")
 	t.Setenv("SESSION_CACHE_TTL", "10s")
+	t.Setenv("RATE_LIMIT_PER_SECOND", "50")
+	t.Setenv("RATE_LIMIT_BURST", "100")
+	t.Setenv("LOGIN_RATE_LIMIT_PER_SECOND", "0.2")
+	t.Setenv("LOGIN_RATE_LIMIT_BURST", "5")
 }
 
 func TestLoadRequiresEveryUpstream(t *testing.T) {

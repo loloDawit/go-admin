@@ -4,7 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
+
+	"github.com/loloDawit/go-admin/services/gateway/internal/ratelimit"
 )
 
 type Config struct {
@@ -19,6 +22,10 @@ type Config struct {
 	// SessionCacheTTL is the revocation-latency budget: a revoked session can
 	// still be honored for up to this long.
 	SessionCacheTTL time.Duration
+
+	// RateLimit bounds one member of staff, not one IP address: a shop behind
+	// one NAT address shares an IP.
+	RateLimit ratelimit.Config
 
 	// WebRoot is the built frontend's directory. Empty serves no frontend,
 	// which is how the API-only tests and a dev-server frontend both run.
@@ -68,10 +75,63 @@ func Load() (*Config, error) {
 	}
 	cfg.SessionCacheTTL = cacheTTL
 
+	limits, err := loadRateLimits()
+	if err != nil {
+		return nil, err
+	}
+	cfg.RateLimit = limits
+
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 	return cfg, nil
+}
+
+func loadRateLimits() (ratelimit.Config, error) {
+	perSecond, err := requireFloat("RATE_LIMIT_PER_SECOND")
+	if err != nil {
+		return ratelimit.Config{}, err
+	}
+	burst, err := requireInt("RATE_LIMIT_BURST")
+	if err != nil {
+		return ratelimit.Config{}, err
+	}
+	loginPerSecond, err := requireFloat("LOGIN_RATE_LIMIT_PER_SECOND")
+	if err != nil {
+		return ratelimit.Config{}, err
+	}
+	loginBurst, err := requireInt("LOGIN_RATE_LIMIT_BURST")
+	if err != nil {
+		return ratelimit.Config{}, err
+	}
+	return ratelimit.Config{
+		Rate: perSecond, Burst: burst,
+		LoginRate: loginPerSecond, LoginBurst: loginBurst,
+	}, nil
+}
+
+func requireFloat(key string) (float64, error) {
+	raw, err := requireEnv(key)
+	if err != nil {
+		return 0, err
+	}
+	v, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", key, err)
+	}
+	return v, nil
+}
+
+func requireInt(key string) (int, error) {
+	raw, err := requireEnv(key)
+	if err != nil {
+		return 0, err
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", key, err)
+	}
+	return v, nil
 }
 
 func (c *Config) validate() error {
@@ -83,6 +143,12 @@ func (c *Config) validate() error {
 	}
 	if c.SessionCacheTTL <= 0 {
 		return errors.New("SESSION_CACHE_TTL must be positive")
+	}
+	if c.RateLimit.Rate <= 0 || c.RateLimit.Burst <= 0 {
+		return errors.New("RATE_LIMIT_PER_SECOND and RATE_LIMIT_BURST must be positive")
+	}
+	if c.RateLimit.LoginRate <= 0 || c.RateLimit.LoginBurst <= 0 {
+		return errors.New("LOGIN_RATE_LIMIT_PER_SECOND and LOGIN_RATE_LIMIT_BURST must be positive")
 	}
 	return nil
 }

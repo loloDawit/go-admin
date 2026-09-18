@@ -83,7 +83,7 @@ func main() {
 		slog.Duration("session_cache_ttl", cfg.SessionCacheTTL),
 	)
 
-	r := newRouter(logger, upstreams, validator)
+	r := newRouter(logger, upstreams, validator, cfg.RateLimit)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
