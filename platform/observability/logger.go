@@ -10,8 +10,8 @@ import (
 )
 
 func NewLogger(service string, w io.Writer) *slog.Logger {
-	return slog.New(slog.NewJSONHandler(w, &slog.HandlerOptions{Level: slog.LevelInfo})).
-		With(slog.String("service", service))
+	base := slog.NewJSONHandler(w, &slog.HandlerOptions{Level: slog.LevelInfo})
+	return slog.New(traceHandler{Handler: base}).With(slog.String("service", service))
 }
 
 func RequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
