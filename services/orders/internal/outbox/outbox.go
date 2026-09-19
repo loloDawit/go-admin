@@ -46,10 +46,11 @@ type Record struct {
 
 // Stored is an unpublished row as the publisher reads it back.
 type Stored struct {
-	ID      int64
-	EventID string
-	Subject string
-	Payload []byte
+	ID        int64
+	EventID   string
+	Subject   string
+	Payload   []byte
+	CreatedAt time.Time
 }
 
 // Subject is derived from the type so the two cannot drift: order.created

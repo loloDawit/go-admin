@@ -26,7 +26,7 @@ func (r *PostgresRepository) Unpublished(ctx context.Context, limit int) ([]Stor
 	out := []Stored{}
 	for rows.Next() {
 		var s Stored
-		if err := rows.Scan(&s.ID, &s.EventID, &s.Subject, &s.Payload); err != nil {
+		if err := rows.Scan(&s.ID, &s.EventID, &s.Subject, &s.Payload, &s.CreatedAt); err != nil {
 			return nil, errs.Wrap(errs.OpReadOutbox, err)
 		}
 		out = append(out, s)
@@ -39,4 +39,12 @@ func (r *PostgresRepository) MarkPublished(ctx context.Context, id int64) error 
 		return errs.Wrap(errs.OpMarkPublished, err)
 	}
 	return nil
+}
+
+func (r *PostgresRepository) UnpublishedDepth(ctx context.Context) (int64, error) {
+	var depth int64
+	if err := r.pool.QueryRow(ctx, unpublishedDepthQuery).Scan(&depth); err != nil {
+		return 0, errs.Wrap(errs.OpReadOutbox, err)
+	}
+	return depth, nil
 }

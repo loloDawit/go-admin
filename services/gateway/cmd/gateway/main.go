@@ -47,6 +47,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	shutdownMetrics, err := observability.NewMeterProvider(ctx, serviceName, cfg.OTLPEndpoint)
+	if err != nil {
+		logger.Error("metrics", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
 	var spa http.Handler
 	if cfg.WebRoot != "" {
 		spa, err = web.Handler(cfg.WebRoot)
@@ -113,6 +119,7 @@ func main() {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	_ = srv.Shutdown(shutdownCtx)
 	_ = shutdownTracing(shutdownCtx)
+	_ = shutdownMetrics(shutdownCtx)
 	cancel()
 
 	os.Exit(exitCode)

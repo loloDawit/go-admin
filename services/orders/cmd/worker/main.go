@@ -40,6 +40,13 @@ func main() {
 	}
 	defer func() { _ = shutdownTracing(context.Background()) }()
 
+	shutdownMetrics, err := observability.NewMeterProvider(ctx, cfg.ServiceName+"-worker", cfg.OTLPEndpoint)
+	if err != nil {
+		logger.Error("metrics", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	defer func() { _ = shutdownMetrics(context.Background()) }()
+
 	pool, err := pgxplatform.NewPool(ctx, cfg.DatabaseURL)
 	if err != nil {
 		logger.Error("database pool", slog.String("error", err.Error()))
@@ -65,11 +72,22 @@ func main() {
 		os.Exit(1)
 	}
 
+	outboxRepo := outbox.NewPostgresRepository(pool)
+	outboxMetrics, err := outbox.NewMetrics()
+	if err != nil {
+		logger.Error("metrics", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
 	publisher := outbox.NewPublisher(
-		outbox.NewPostgresRepository(pool), js,
-		cfg.OutboxBatchSize, cfg.OutboxPollInterval, logger,
+		outboxRepo, js,
+		cfg.OutboxBatchSize, cfg.OutboxPollInterval, logger, outboxMetrics,
 	)
-	projector := reporting.NewProjector(reporting.NewPostgresRepository(pool), consumer, logger)
+	reportingMetrics, err := reporting.NewMetrics()
+	if err != nil {
+		logger.Error("metrics", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	projector := reporting.NewProjector(reporting.NewPostgresRepository(pool), consumer, logger, reportingMetrics)
 
 	done := make(chan struct{}, 2)
 	go func() {
