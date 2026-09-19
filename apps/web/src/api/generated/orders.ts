@@ -88,6 +88,10 @@ export interface paths {
             parameters: {
                 query?: {
                     email?: string;
+                    /** @description Matches against name or email; ignored when email is given. */
+                    q?: string;
+                    /** @description One of name */
+                    sort?: string;
                     page?: number;
                     /** @description Clamped to the service's configured maximum; the response states the effective size. */
                     pageSize?: number;
