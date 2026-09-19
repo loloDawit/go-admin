@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { DataTable, StatusBadge } from '../ui'
 import { PageBlock, PageHeader, SectionCard, StatCard } from '../patterns'
 import type { Column } from '../ui'
+import { RevenueChart } from '../components/RevenueChart'
 import { getDashboard } from '../api/reports'
 import type { RevenueDay } from '../api/reports'
 import { orderStatusLabels } from '../api/orders'
@@ -89,6 +90,12 @@ export function Dashboard() {
           context="Packed and waiting to go"
         />
       </div>
+
+      <RevenueChart
+        revenue={report.data?.revenue ?? []}
+        status={report.status}
+        errorDescription={report.error?.message}
+      />
 
       <SectionCard title="Latest orders" bleed>
         <DataTable
