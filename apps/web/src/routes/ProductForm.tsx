@@ -1,16 +1,8 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import {
-  Alert,
-  Button,
-  PageHeader,
-  PageStack,
-  Section,
-  StateBlock,
-  TextField,
-  TextareaField,
-} from '../ui'
+import { Button, PageHeader, PageStack, Section, StateBlock, TextField, TextareaField } from '../ui'
+import { FieldGrid, FormPage } from '../patterns'
 import { createProduct, getProduct, updateProduct } from '../api/catalog'
 import type { Product } from '../api/catalog'
 import { isApiError } from '../api/client'
@@ -64,17 +56,15 @@ function Fields({ product }: { product?: Product }) {
   }
 
   return (
-    <form
-      className="flex max-w-[46rem] flex-col gap-6"
-      onSubmit={(event) => {
-        event.preventDefault()
-        void submit()
-      }}
+    <FormPage
+      failure={failure}
+      onSubmit={() => void submit()}
+      submitLabel={product ? 'Save changes' : 'Create product'}
+      saving={saving}
+      onCancel={() => navigate(product ? `/products/${product.id}` : '/products')}
     >
-      {failure && <Alert tone="danger" title={failure} />}
-
       <Section title="Details">
-        <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(13rem,1fr))]">
+        <FieldGrid>
           {product ? (
             <TextField label="SKU" value={product.sku} readOnly help="A SKU cannot be changed." />
           ) : (
@@ -102,7 +92,7 @@ function Fields({ product }: { product?: Product }) {
             onChange={(event) => setPrice(event.target.value)}
             placeholder="22.00"
           />
-        </div>
+        </FieldGrid>
         <TextareaField
           label="Description"
           optional
@@ -110,16 +100,7 @@ function Fields({ product }: { product?: Product }) {
           onChange={(event) => setDescription(event.target.value)}
         />
       </Section>
-
-      <div className="flex gap-2 border-t border-border pt-4">
-        <Button type="submit" variant="primary" loading={saving}>
-          {product ? 'Save changes' : 'Create product'}
-        </Button>
-        <Button variant="ghost" onClick={() => navigate(product ? `/products/${product.id}` : '/products')}>
-          Cancel
-        </Button>
-      </div>
-    </form>
+    </FormPage>
   )
 }
 

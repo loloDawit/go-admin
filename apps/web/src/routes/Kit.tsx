@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Inbox, MoreHorizontal, SearchX } from 'lucide-react'
 import { EmptyState, Money, StatusBadge } from '../ui'
+import { StatCard } from '../patterns'
 import type { StatusTone } from '../ui'
 import { Button } from '@/ui/shadcn/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/ui/shadcn/card'
@@ -166,6 +167,14 @@ export function Kit() {
             <Label htmlFor="kit-disabled">Disabled</Label>
             <Input id="kit-disabled" disabled defaultValue="Cannot be changed" />
           </div>
+        </div>
+      </Panel>
+
+      <Panel title="Stat cards">
+        <div className="grid w-full gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <StatCard label="Orders to handle" value={87} context="Placed, paid or packed" />
+          <StatCard label="Revenue today" value="$12,480.00" context="Net of refunds" />
+          <StatCard label="Still loading" value={undefined} context="No figure yet" />
         </div>
       </Panel>
 
