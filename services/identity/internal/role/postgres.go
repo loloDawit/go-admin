@@ -3,6 +3,7 @@ package role
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -10,6 +11,13 @@ import (
 
 	"github.com/loloDawit/go-admin/services/identity/internal/permission"
 )
+
+// roleSortColumns is the only place a caller's sort string reaches a column
+// name: anything absent here is refused rather than interpolated.
+var roleSortColumns = map[string]string{
+	"name":    "r.name",
+	"members": "member_count",
+}
 
 // execer is what *pgxpool.Pool and pgx.Tx both satisfy.
 type execer interface {
@@ -196,7 +204,18 @@ func (r *PostgresRepository) GetByID(ctx context.Context, id int64) (Role, error
 }
 
 func (r *PostgresRepository) List(ctx context.Context, q ListQuery) ([]Role, int, error) {
-	rows, err := r.q.Query(ctx, listRolesWithPermissionsQuery, q.PageSize, roleOffset(q.Page, q.PageSize))
+	col, desc, err := resolveRoleSort(q.Sort)
+	if err != nil {
+		return nil, 0, err
+	}
+	direction := "ASC"
+	if desc {
+		direction = "DESC"
+	}
+	search := searchParam(q.Q)
+
+	stmt := listRolesWithPermissionsQueryPrefix + col + " " + direction + listRolesWithPermissionsQuerySuffix
+	rows, err := r.q.Query(ctx, stmt, search, q.PageSize, roleOffset(q.Page, q.PageSize))
 	if err != nil {
 		return nil, 0, err
 	}
@@ -215,10 +234,36 @@ func (r *PostgresRepository) List(ctx context.Context, q ListQuery) ([]Role, int
 	}
 
 	var total int
-	if err := r.q.QueryRow(ctx, countRolesQuery).Scan(&total); err != nil {
+	if err := r.q.QueryRow(ctx, countRolesQuery, search).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 	return list, total, nil
+}
+
+// resolveRoleSort maps a caller's sort string to a fixed column via
+// roleSortColumns; anything absent from the map is refused, never
+// interpolated. An empty sort keeps the historical newest-first order, which
+// is not itself a caller-reachable sort key.
+func resolveRoleSort(sort string) (string, bool, error) {
+	if sort == "" {
+		return "r.id", true, nil
+	}
+	desc := strings.HasPrefix(sort, "-")
+	key := strings.TrimPrefix(sort, "-")
+
+	col, ok := roleSortColumns[key]
+	if !ok {
+		return "", false, ErrInvalidSort
+	}
+	return col, desc, nil
+}
+
+// searchParam is nil for an empty query, which roleFilterClause reads as no filter.
+func searchParam(q string) *string {
+	if q == "" {
+		return nil
+	}
+	return &q
 }
 
 func roleOffset(page, pageSize int) int {

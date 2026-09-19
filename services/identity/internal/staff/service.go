@@ -99,6 +99,9 @@ func (s *Service) List(ctx context.Context, q ListQuery) (Page, error) {
 
 	list, total, err := s.repo.List(ctx, q)
 	if err != nil {
+		if errors.Is(err, ErrInvalidSort) {
+			return Page{}, err
+		}
 		return Page{}, errs.Wrap(errs.OpListStaff, err)
 	}
 	return Page{Items: list, Page: q.Page, PageSize: q.PageSize, Total: total}, nil

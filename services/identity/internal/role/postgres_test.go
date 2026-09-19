@@ -43,6 +43,33 @@ func TestIsForeignKeyViolationMatchesOnlyCode23503(t *testing.T) {
 	}
 }
 
+// A sort column cannot be a bind parameter, so this is the one place
+// injection is structurally possible: anything absent from the allowlist
+// must be refused rather than interpolated into the ORDER BY clause.
+func TestRoleSortColumnIsAnAllowlistNotAString(t *testing.T) {
+	if _, _, err := resolveRoleSort("name; DROP TABLE roles"); !errors.Is(err, ErrInvalidSort) {
+		t.Fatalf("want ErrInvalidSort for an unknown sort key, got %v", err)
+	}
+
+	col, desc, err := resolveRoleSort("members")
+	if err != nil {
+		t.Fatalf("resolveRoleSort(members): %v", err)
+	}
+	if col != "member_count" || desc {
+		t.Fatalf("got col=%q desc=%v, want member_count ascending", col, desc)
+	}
+}
+
+func TestRoleSortColumnPrefixMeansDescending(t *testing.T) {
+	col, desc, err := resolveRoleSort("-name")
+	if err != nil {
+		t.Fatalf("resolveRoleSort(-name): %v", err)
+	}
+	if col != "r.name" || !desc {
+		t.Fatalf("got col=%q desc=%v, want r.name descending", col, desc)
+	}
+}
+
 // fakeExecer stands in for *pgxpool.Pool/pgx.Tx with a caller-set affected count.
 type fakeExecer struct {
 	affected int64

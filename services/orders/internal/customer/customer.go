@@ -13,6 +13,7 @@ var (
 	ErrCustomerEmailTaken   = errs.ErrCustomerEmailTaken
 	ErrInvalidCustomerEmail = errs.ErrInvalidCustomerEmail
 	ErrMixedCurrencyHistory = errs.ErrMixedCurrencyHistory
+	ErrInvalidSort          = errs.ErrInvalidSort
 )
 
 type Customer struct {
@@ -28,8 +29,11 @@ type CreateCustomer struct {
 	Name  string
 }
 
-// ListQuery carries a listing request; a zero PageSize means the service's default.
+// ListQuery carries a listing request; a zero PageSize means the service's
+// default. An empty Q means no search filter.
 type ListQuery struct {
+	Q        string
+	Sort     string
 	Page     int
 	PageSize int
 }

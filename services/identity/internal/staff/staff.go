@@ -8,6 +8,7 @@ var (
 	ErrEmailTaken   = errs.ErrEmailTaken
 	ErrLastAdmin    = errs.ErrLastAdmin
 	ErrRoleNotFound = errs.ErrRoleNotFound
+	ErrInvalidSort  = errs.ErrInvalidSort
 )
 
 // Staff never carries a password hash; that stays inside the repository, reachable only through ChangePassword.
@@ -25,8 +26,10 @@ type Staff struct {
 const DefaultPageSize = 20
 
 // ListQuery carries a listing request; a zero PageSize means the default and a
-// zero Page means the first.
+// zero Page means the first. An empty Q means no search filter.
 type ListQuery struct {
+	Q        string
+	Sort     string
 	Page     int
 	PageSize int
 }

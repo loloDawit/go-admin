@@ -36,6 +36,8 @@ paths:
         customer, or 404. An unparseable page or pageSize is 400.
       parameters:
         - { name: email, in: query, schema: { type: string } }
+        - { name: q, in: query, schema: { type: string }, description: Matches against name or email; ignored when email is given. }
+        - { name: sort, in: query, schema: { type: string }, description: One of name, email or created_at, optionally prefixed with - for descending; anything else is refused. }
         - { name: page, in: query, schema: { type: integer, minimum: 1 } }
         - { name: pageSize, in: query, schema: { type: integer, minimum: 1 }, description: Clamped to the service's configured maximum; the response states the effective size. }
       responses:

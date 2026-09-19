@@ -89,6 +89,8 @@ paths:
     get:
       summary: List staff. Requires view_staff.
       parameters:
+        - { name: q, in: query, schema: { type: string }, description: Matches against first name, last name or email. }
+        - { name: sort, in: query, schema: { type: string }, description: One of name, email or created, optionally prefixed with - for descending; anything else is refused. }
         - { name: page, in: query, schema: { type: integer, minimum: 1 } }
         - { name: pageSize, in: query, schema: { type: integer, minimum: 1 } }
       responses:
@@ -183,6 +185,8 @@ paths:
     get:
       summary: List roles. Requires view_roles.
       parameters:
+        - { name: q, in: query, schema: { type: string }, description: Matches against the role name. }
+        - { name: sort, in: query, schema: { type: string }, description: One of name or members, optionally prefixed with - for descending; anything else is refused. }
         - { name: page, in: query, schema: { type: integer, minimum: 1 } }
         - { name: pageSize, in: query, schema: { type: integer, minimum: 1 } }
       responses:

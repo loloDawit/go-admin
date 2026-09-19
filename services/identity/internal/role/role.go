@@ -10,6 +10,7 @@ var (
 	ErrLastAdmin             = errs.ErrLastAdmin
 	ErrUnknownPermission     = errs.ErrUnknownPermission
 	ErrPermissionRowMismatch = errs.ErrPermissionRowMismatch
+	ErrInvalidSort           = errs.ErrInvalidSort
 )
 
 type Role struct {
@@ -24,8 +25,11 @@ type Role struct {
 // DefaultPageSize is the page a caller gets when it asks for no particular size.
 const DefaultPageSize = 20
 
-// ListQuery carries a listing request; a zero PageSize means the default.
+// ListQuery carries a listing request; a zero PageSize means the default. An
+// empty Q means no search filter.
 type ListQuery struct {
+	Q        string
+	Sort     string
 	Page     int
 	PageSize int
 }

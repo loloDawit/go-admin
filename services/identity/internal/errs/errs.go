@@ -58,6 +58,9 @@ var (
 
 	// ErrPermissionRowMismatch means a name valid per permission.All() matched no row in permissions: a deployment inconsistency, not a client mistake.
 	ErrPermissionRowMismatch = errors.New("a permission name matched no row in permissions")
+
+	// ErrInvalidSort: a caller's sort key is absent from the fixed column allowlist.
+	ErrInvalidSort = errors.New("sort is not supported")
 )
 
 // Operations name the step that failed. Wrap puts one of these ahead of the

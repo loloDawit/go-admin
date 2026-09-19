@@ -35,6 +35,8 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	page, err := h.svc.List(r.Context(), ListQuery{
+		Q:        r.URL.Query().Get("q"),
+		Sort:     r.URL.Query().Get("sort"),
 		Page:     positiveIntParam(r, "page"),
 		PageSize: positiveIntParam(r, "pageSize"),
 	})
