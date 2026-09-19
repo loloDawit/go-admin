@@ -128,10 +128,10 @@ func (r *PostgresRepository) GetByID(ctx context.Context, id int64) (Staff, erro
 	return st, nil
 }
 
-func (r *PostgresRepository) List(ctx context.Context) ([]Staff, error) {
-	rows, err := r.q.Query(ctx, listStaffQuery)
+func (r *PostgresRepository) List(ctx context.Context, q ListQuery) ([]Staff, int, error) {
+	rows, err := r.q.Query(ctx, listStaffQuery, q.PageSize, offset(q.Page, q.PageSize))
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -139,11 +139,23 @@ func (r *PostgresRepository) List(ctx context.Context) ([]Staff, error) {
 	for rows.Next() {
 		var st Staff
 		if err := rows.Scan(&st.ID, &st.Email, &st.FirstName, &st.LastName, &st.RoleID, &st.IsActive, &st.MustChangePassword); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		list = append(list, st)
 	}
-	return list, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+
+	var total int
+	if err := r.q.QueryRow(ctx, countStaffQuery).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	return list, total, nil
+}
+
+func offset(page, pageSize int) int {
+	return (page - 1) * pageSize
 }
 
 func (r *PostgresRepository) PasswordHash(ctx context.Context, id int64) (string, error) {

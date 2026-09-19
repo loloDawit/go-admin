@@ -81,12 +81,20 @@ func (f *fakeRepository) GetByID(_ context.Context, id int64) (role.Role, error)
 	return rl, nil
 }
 
-func (f *fakeRepository) List(context.Context) ([]role.Role, error) {
-	var out []role.Role
+func (f *fakeRepository) List(_ context.Context, q role.ListQuery) ([]role.Role, int, error) {
+	var all []role.Role
 	for _, rl := range f.byID {
-		out = append(out, rl)
+		all = append(all, rl)
 	}
-	return out, nil
+	start := (q.Page - 1) * q.PageSize
+	if start > len(all) {
+		start = len(all)
+	}
+	end := start + q.PageSize
+	if end > len(all) {
+		end = len(all)
+	}
+	return all[start:end], len(all), nil
 }
 
 func (f *fakeRepository) HasEditStaffPermission(_ context.Context, roleID int64) (bool, error) {
@@ -105,9 +113,11 @@ func (f *fakeRepository) RunInTx(ctx context.Context, fn func(role.Repository) e
 	return fn(f)
 }
 
+const testRolePageSizeMax = 100
+
 func newTestService() (*role.Service, *fakeRepository) {
 	repo := newFakeRepository()
-	return role.NewService(repo), repo
+	return role.NewService(repo, testRolePageSizeMax), repo
 }
 
 func TestCreateRejectsADuplicateName(t *testing.T) {

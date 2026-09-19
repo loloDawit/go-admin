@@ -21,13 +21,22 @@ LEFT JOIN permissions p ON p.id = rp.permission_id
 WHERE r.id = $1
 GROUP BY r.id, r.name`
 
+// The member count is a scalar subquery rather than another LEFT JOIN: joining
+// staff as well would multiply the permission rows before the aggregate.
 const listRolesWithPermissionsQuery = `
-SELECT r.id, r.name, COALESCE(array_agg(p.name ORDER BY p.name) FILTER (WHERE p.name IS NOT NULL), '{}')
+SELECT r.id, r.name,
+       COALESCE(array_agg(p.name ORDER BY p.name) FILTER (WHERE p.name IS NOT NULL), '{}'),
+       (SELECT COUNT(*) FROM staff s WHERE s.role_id = r.id)
 FROM roles r
 LEFT JOIN role_permissions rp ON rp.role_id = r.id
 LEFT JOIN permissions p ON p.id = rp.permission_id
 GROUP BY r.id, r.name
-ORDER BY r.id`
+-- Newest first: a role created from this screen has to land where the person
+-- who created it is looking, not on the last page.
+ORDER BY r.id DESC
+LIMIT $1 OFFSET $2`
+
+const countRolesQuery = `SELECT COUNT(*) FROM roles`
 
 const hasEditStaffPermissionQuery = `SELECT EXISTS(
     SELECT 1 FROM role_permissions rp

@@ -1,10 +1,12 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Alert, Button, CheckboxField, Dialog, SelectField, Status, TextField } from '../ui'
+import { Alert, Button, CheckboxField, Dialog, Pagination, SelectField, Status, TextField } from '../ui'
+import { positiveInt, toSearchParams } from '../api/listQuery'
 import { ListPage, SectionCard } from '../patterns'
 import type { Column } from '../ui'
-import { createStaff, listRoles, listStaff } from '../api/identity'
+import { createStaff, listAllRoles, listStaff } from '../api/identity'
 import type { Staff as StaffMember } from '../api/identity'
 import { useResource } from '../api/useResource'
 import { useAuth } from '../api/auth'
@@ -14,8 +16,11 @@ import { staffActiveTones } from '../app/statusTones'
 type Step = 'form' | 'password'
 
 export function Staff() {
-  const staff = useResource('staff', listStaff)
-  const roles = useResource('roles', listRoles)
+  const [params, setParams] = useSearchParams()
+  const page = positiveInt(params, 'page') ?? 1
+  const staff = useResource(`staff:${page}`, () => listStaff(page))
+  const result = staff.data
+  const roles = useResource('roles', listAllRoles)
   const auth = useAuth()
   const canEdit = auth.hasPermission('edit_staff')
 
@@ -127,7 +132,7 @@ export function Staff() {
           ) : undefined
         }
         columns={columns}
-        rows={staff.data ?? []}
+        rows={result?.items ?? []}
         rowKey={(member) => member.id}
         status={staff.status}
         emptyTitle="No colleagues yet"
@@ -135,6 +140,16 @@ export function Staff() {
         emptyAction={addAction}
         errorDescription={staff.error?.message}
         onRetry={staff.reload}
+        pagination={
+          result && (
+            <Pagination
+              page={result.page}
+              pageSize={result.pageSize}
+              total={result.total}
+              onChange={(next) => setParams(toSearchParams({ page: next === 1 ? undefined : next }))}
+            />
+          )
+        }
       />
 
       <Dialog

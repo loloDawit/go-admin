@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { settled } from './select'
 
 // Each run gets its own email/role names so a rerun never collides with a previous run's row
 // (the create routes answer 409 on a repeat address, and a stale role would carry stale members).
@@ -173,4 +174,18 @@ test('a session that dies mid-visit sends the next action to login, not a crash'
   // than the route to it — reaching /login is still required, so this cannot pass vacuously.
   await page.getByRole('link', { name: 'Staff' }).click({ timeout: 2000 }).catch(() => {})
   await expect(page).toHaveURL(/\/login$/)
+})
+
+// An unbounded list is a list that gets slower every week. Staff and roles are
+// paged by the service, not sliced in the browser.
+test('staff and roles are paged', async ({ page }) => {
+  await loginAsOwner(page)
+
+  for (const route of ['/staff', '/roles']) {
+    await page.goto(route)
+    await settled(page)
+    const rows = await page.locator('tbody tr').count()
+    expect(rows).toBeLessThanOrEqual(20)
+    await expect(page.getByRole('button', { name: 'Next' })).toBeVisible()
+  }
 })

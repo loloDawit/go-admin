@@ -195,22 +195,34 @@ func (r *PostgresRepository) GetByID(ctx context.Context, id int64) (Role, error
 	return getRoleWithPermissions(ctx, r.q, id)
 }
 
-func (r *PostgresRepository) List(ctx context.Context) ([]Role, error) {
-	rows, err := r.q.Query(ctx, listRolesWithPermissionsQuery)
+func (r *PostgresRepository) List(ctx context.Context, q ListQuery) ([]Role, int, error) {
+	rows, err := r.q.Query(ctx, listRolesWithPermissionsQuery, q.PageSize, roleOffset(q.Page, q.PageSize))
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
 	list := []Role{}
 	for rows.Next() {
 		var rl Role
-		if err := rows.Scan(&rl.ID, &rl.Name, &rl.Permissions); err != nil {
-			return nil, err
+		if err := rows.Scan(&rl.ID, &rl.Name, &rl.Permissions, &rl.MemberCount); err != nil {
+			return nil, 0, err
 		}
 		list = append(list, rl)
 	}
-	return list, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+
+	var total int
+	if err := r.q.QueryRow(ctx, countRolesQuery).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	return list, total, nil
+}
+
+func roleOffset(page, pageSize int) int {
+	return (page - 1) * pageSize
 }
 
 func (r *PostgresRepository) HasEditStaffPermission(ctx context.Context, roleID int64) (bool, error) {

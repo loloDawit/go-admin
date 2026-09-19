@@ -52,6 +52,7 @@ services:
       # The SDK default is 60s, which is too slow to watch a gauge move by hand.
       OTEL_METRIC_EXPORT_INTERVAL: "10000"
       MAX_REQUEST_BODY_BYTES: "1048576"
+      PAGE_SIZE_MAX: "100"
     ports:
       - "8081:8081"
 

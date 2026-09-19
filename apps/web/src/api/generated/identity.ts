@@ -247,22 +247,23 @@ export interface paths {
         /** List staff. Requires view_staff. */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    page?: number;
+                    pageSize?: number;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
             };
             requestBody?: never;
             responses: {
-                /** @description Staff */
+                /** @description A page of staff */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            staff: components["schemas"]["Staff"][];
-                        };
+                        "application/json": components["schemas"]["StaffPage"];
                     };
                 };
                 401: components["responses"]["Error"];
@@ -444,22 +445,23 @@ export interface paths {
         /** List roles. Requires view_roles. */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    page?: number;
+                    pageSize?: number;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
             };
             requestBody?: never;
             responses: {
-                /** @description Roles */
+                /** @description A page of roles */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            roles: components["schemas"]["Role"][];
-                        };
+                        "application/json": components["schemas"]["RolePage"];
                     };
                 };
                 401: components["responses"]["Error"];
@@ -736,6 +738,12 @@ export interface components {
             isActive: boolean;
             mustChangePassword: boolean;
         };
+        StaffPage: {
+            items: components["schemas"]["Staff"][];
+            page: number;
+            pageSize: number;
+            total: number;
+        };
         CreateStaffRequest: {
             /** Format: email */
             email: string;
@@ -755,6 +763,13 @@ export interface components {
             id: string;
             name: string;
             permissions: components["schemas"]["Permission"][];
+            memberCount: number;
+        };
+        RolePage: {
+            items: components["schemas"]["Role"][];
+            page: number;
+            pageSize: number;
+            total: number;
         };
         CreateRoleRequest: {
             name: string;

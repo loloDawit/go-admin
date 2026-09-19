@@ -107,12 +107,20 @@ func (f *fakeRepository) GetByID(_ context.Context, id int64) (staff.Staff, erro
 	return r.Staff, nil
 }
 
-func (f *fakeRepository) List(context.Context) ([]staff.Staff, error) {
-	var out []staff.Staff
+func (f *fakeRepository) List(_ context.Context, q staff.ListQuery) ([]staff.Staff, int, error) {
+	var all []staff.Staff
 	for _, r := range f.byID {
-		out = append(out, r.Staff)
+		all = append(all, r.Staff)
 	}
-	return out, nil
+	start := (q.Page - 1) * q.PageSize
+	if start > len(all) {
+		start = len(all)
+	}
+	end := start + q.PageSize
+	if end > len(all) {
+		end = len(all)
+	}
+	return all[start:end], len(all), nil
 }
 
 func (f *fakeRepository) PasswordHash(_ context.Context, id int64) (string, error) {
@@ -159,7 +167,7 @@ func (f *fakeRepository) RunInTx(ctx context.Context, fn func(staff.Repository) 
 
 func newTestService() (*staff.Service, *fakeRepository) {
 	repo := newFakeRepository()
-	return staff.NewService(repo, session.NewHasher(testCost)), repo
+	return staff.NewService(repo, session.NewHasher(testCost), testStaffPageSizeMax), repo
 }
 
 func TestCreateReturnsAPasswordThatWorksExactlyOnce(t *testing.T) {

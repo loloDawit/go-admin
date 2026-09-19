@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Alert, Button, Dialog } from '../ui'
+import { Alert, Button, Dialog, Pagination } from '../ui'
+import { positiveInt, toSearchParams } from '../api/listQuery'
 import { Checkbox } from '@/ui/shadcn/checkbox'
 import { Input } from '@/ui/shadcn/input'
 import {
@@ -19,7 +21,6 @@ import {
   deleteRole,
   listPermissions,
   listRoles,
-  listStaff,
   permissionLabels,
   updateRole,
 } from '../api/identity'
@@ -31,9 +32,11 @@ import { isApiError } from '../api/http'
 type Editing = { mode: 'create' } | { mode: 'edit'; role: Role }
 
 export function Roles() {
-  const roles = useResource('roles', listRoles)
+  const [params, setParams] = useSearchParams()
+  const page = positiveInt(params, 'page') ?? 1
+  const roles = useResource(`roles:${page}`, () => listRoles(page))
+  const result = roles.data
   const permissions = useResource('permissions', listPermissions)
-  const staff = useResource('staff-for-roles', listStaff)
   const auth = useAuth()
   const canEdit = auth.hasPermission('edit_roles')
 
@@ -47,11 +50,6 @@ export function Roles() {
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string>()
 
-  const memberCounts = new Map<string, number>()
-  for (const member of staff.data ?? []) {
-    memberCounts.set(member.roleId, (memberCounts.get(member.roleId) ?? 0) + 1)
-  }
-
   const columns: Column<Role>[] = [
     { key: 'name', header: 'Role', width: '18rem', cell: (role) => role.name },
     {
@@ -59,7 +57,7 @@ export function Roles() {
       header: 'People',
       numeric: true,
       width: '8rem',
-      cell: (role) => (staff.status === 'ready' ? String(memberCounts.get(role.id) ?? 0) : '—'),
+      cell: (role) => String(role.memberCount),
     },
     {
       key: 'permissions',
@@ -135,7 +133,7 @@ export function Roles() {
           ) : undefined
         }
         columns={columns}
-        rows={roles.data ?? []}
+        rows={result?.items ?? []}
         rowKey={(role) => role.id}
         status={roles.status}
         emptyTitle="No roles defined"
@@ -143,6 +141,16 @@ export function Roles() {
         emptyAction={addAction}
         errorDescription={roles.error?.message}
         onRetry={roles.reload}
+        pagination={
+          result && (
+            <Pagination
+              page={result.page}
+              pageSize={result.pageSize}
+              total={result.total}
+              onChange={(next) => setParams(toSearchParams({ page: next === 1 ? undefined : next }))}
+            />
+          )
+        }
       />
 
       <Dialog

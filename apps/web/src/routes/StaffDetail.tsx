@@ -14,7 +14,7 @@ import {
   Status,
   TextField,
 } from '../ui'
-import { deactivateStaff, getStaff, listRoles, updateStaff } from '../api/identity'
+import { deactivateStaff, getStaff, listAllRoles, updateStaff } from '../api/identity'
 import { useResource } from '../api/useResource'
 import { useAuth } from '../api/auth'
 import { isApiError } from '../api/http'
@@ -24,7 +24,7 @@ export function StaffDetail() {
   const { staffId = '' } = useParams()
   const auth = useAuth()
   const member = useResource(`staff:${staffId}`, () => getStaff(staffId))
-  const roles = useResource('roles', listRoles)
+  const roles = useResource('roles', listAllRoles)
   const isSelf = auth.user?.staffId === staffId
   const canEdit = auth.hasPermission('edit_staff')
 

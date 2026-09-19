@@ -11,7 +11,12 @@ RETURNING ` + staffSelectColumns
 
 const getStaffByIDQuery = `SELECT ` + staffSelectColumns + ` FROM staff WHERE id = $1`
 
-const listStaffQuery = `SELECT ` + staffSelectColumns + ` FROM staff ORDER BY id`
+// Newest first, and by id so a page boundary is stable between requests: a
+// colleague added from this screen has to land where the person who added them
+// is looking, not on the last page.
+const listStaffQuery = `SELECT ` + staffSelectColumns + ` FROM staff ORDER BY id DESC LIMIT $1 OFFSET $2`
+
+const countStaffQuery = `SELECT COUNT(*) FROM staff`
 
 // updateStaffStmt's COALESCE pair on each column is what makes the update
 // partial: a nil parameter leaves that column exactly as it was.

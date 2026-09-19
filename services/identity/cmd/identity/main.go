@@ -76,10 +76,10 @@ func main() {
 	}
 	sessionHandler := session.NewHandler(sessionSvc, cfg.CookieSecure, cfg.SessionTTL, cfg.MaxRequestBodyBytes, errWriter.Write)
 
-	staffSvc := staff.NewService(staff.NewPostgresRepository(pool), session.NewHasher(cfg.BcryptCost))
+	staffSvc := staff.NewService(staff.NewPostgresRepository(pool), session.NewHasher(cfg.BcryptCost), cfg.PageSizeMax)
 	staffHandler := staff.NewHandler(staffSvc, cfg.MaxRequestBodyBytes, errWriter.Write)
 
-	roleSvc := role.NewService(role.NewPostgresRepository(pool))
+	roleSvc := role.NewService(role.NewPostgresRepository(pool), cfg.PageSizeMax)
 	roleHandler := role.NewHandler(roleSvc, cfg.MaxRequestBodyBytes, errWriter.Write)
 
 	permissionHandler := permission.NewHandler()

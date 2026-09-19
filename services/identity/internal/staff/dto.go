@@ -28,8 +28,13 @@ type CreateStaffResponse struct {
 	Password string        `json:"password"`
 }
 
-type ListStaffResponse struct {
-	Staff []StaffResponse `json:"staff"`
+// StaffPageResponse matches the shape every other paged list in the system
+// answers with: items plus the effective page, size and total.
+type StaffPageResponse struct {
+	Items    []StaffResponse `json:"items"`
+	Page     int             `json:"page"`
+	PageSize int             `json:"pageSize"`
+	Total    int             `json:"total"`
 }
 
 // AdminUpdateStaffRequest is PATCH /api/v1/staff/{id}'s body for updating someone other than the caller; every field is optional and a nil pointer leaves that column unchanged.
@@ -65,10 +70,10 @@ func newStaffResponse(st Staff) StaffResponse {
 	}
 }
 
-func newListStaffResponse(list []Staff) ListStaffResponse {
-	out := make([]StaffResponse, len(list))
-	for i, st := range list {
+func newStaffPageResponse(p Page) StaffPageResponse {
+	out := make([]StaffResponse, len(p.Items))
+	for i, st := range p.Items {
 		out[i] = newStaffResponse(st)
 	}
-	return ListStaffResponse{Staff: out}
+	return StaffPageResponse{Items: out, Page: p.Page, PageSize: p.PageSize, Total: p.Total}
 }

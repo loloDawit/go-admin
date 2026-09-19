@@ -1,7 +1,7 @@
 import { ListPage } from '../patterns'
 import { Badge } from '@/ui/shadcn/badge'
 import type { Column } from '../ui'
-import { listPermissions, listRoles, permissionLabels } from '../api/identity'
+import { listPermissions, listAllRoles, permissionLabels } from '../api/identity'
 import type { Permission } from '../api/identity'
 import { useResource } from '../api/useResource'
 
@@ -9,7 +9,7 @@ const SHOWN_HOLDERS = 4
 
 export function Permissions() {
   const permissions = useResource('permissions', listPermissions)
-  const roles = useResource('roles-for-permissions', listRoles)
+  const roles = useResource('roles-for-permissions', listAllRoles)
 
   const rolesByPermission = new Map<Permission, string[]>()
   for (const role of roles.data ?? []) {

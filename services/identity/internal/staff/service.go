@@ -15,12 +15,13 @@ import (
 const generatedPasswordBytes = 16
 
 type Service struct {
-	repo   Repository
-	hasher *session.Hasher
+	repo        Repository
+	hasher      *session.Hasher
+	pageSizeMax int
 }
 
-func NewService(repo Repository, hasher *session.Hasher) *Service {
-	return &Service{repo: repo, hasher: hasher}
+func NewService(repo Repository, hasher *session.Hasher, pageSizeMax int) *Service {
+	return &Service{repo: repo, hasher: hasher, pageSizeMax: pageSizeMax}
 }
 
 // Create generates a one-time password and returns it once; only its hash is stored.
@@ -83,12 +84,24 @@ func (s *Service) Deactivate(ctx context.Context, id int64) (Staff, error) {
 	return s.Update(ctx, id, UpdateStaff{IsActive: &inactive})
 }
 
-func (s *Service) List(ctx context.Context) ([]Staff, error) {
-	list, err := s.repo.List(ctx)
-	if err != nil {
-		return nil, errs.Wrap(errs.OpListStaff, err)
+// A page size past the configured maximum is clamped rather than refused, and
+// the response states the effective size.
+func (s *Service) List(ctx context.Context, q ListQuery) (Page, error) {
+	if q.Page < 1 {
+		q.Page = 1
 	}
-	return list, nil
+	if q.PageSize < 1 {
+		q.PageSize = DefaultPageSize
+	}
+	if q.PageSize > s.pageSizeMax {
+		q.PageSize = s.pageSizeMax
+	}
+
+	list, total, err := s.repo.List(ctx, q)
+	if err != nil {
+		return Page{}, errs.Wrap(errs.OpListStaff, err)
+	}
+	return Page{Items: list, Page: q.Page, PageSize: q.PageSize, Total: total}, nil
 }
 
 func (s *Service) Get(ctx context.Context, id int64) (Staff, error) {

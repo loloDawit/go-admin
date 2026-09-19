@@ -88,18 +88,15 @@ paths:
   /api/v1/staff:
     get:
       summary: List staff. Requires view_staff.
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1 } }
       responses:
         "200":
-          description: Staff
+          description: A page of staff
           content:
             application/json:
-              schema:
-                type: object
-                required: [staff]
-                properties:
-                  staff:
-                    type: array
-                    items: { $ref: "#/components/schemas/Staff" }
+              schema: { $ref: "#/components/schemas/StaffPage" }
         "401": { $ref: "#/components/responses/Error" }
         "403": { $ref: "#/components/responses/Error" }
     post:
@@ -185,18 +182,15 @@ paths:
   /api/v1/roles:
     get:
       summary: List roles. Requires view_roles.
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1 } }
       responses:
         "200":
-          description: Roles
+          description: A page of roles
           content:
             application/json:
-              schema:
-                type: object
-                required: [roles]
-                properties:
-                  roles:
-                    type: array
-                    items: { $ref: "#/components/schemas/Role" }
+              schema: { $ref: "#/components/schemas/RolePage" }
         "401": { $ref: "#/components/responses/Error" }
         "403": { $ref: "#/components/responses/Error" }
     post:
@@ -391,6 +385,17 @@ components:
         roleId: { type: string }
         isActive: { type: boolean }
         mustChangePassword: { type: boolean }
+    StaffPage:
+      type: object
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Staff" }
+        page: { type: integer }
+        # The effective size after clamping, not what the caller asked for.
+        pageSize: { type: integer }
+        total: { type: integer }
     CreateStaffRequest:
       type: object
       required: [email, firstName, lastName, roleId]
@@ -409,13 +414,27 @@ components:
         isActive: { type: boolean }
     Role:
       type: object
-      required: [id, name, permissions]
+      required: [id, name, permissions, memberCount]
       properties:
         id: { type: string }
         name: { type: string }
         permissions:
           type: array
           items: { $ref: "#/components/schemas/Permission" }
+        # Counted in SQL: the roles screen would otherwise fetch every staff
+        # row to total them in the browser.
+        memberCount: { type: integer }
+    RolePage:
+      type: object
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Role" }
+        page: { type: integer }
+        # The effective size after clamping, not what the caller asked for.
+        pageSize: { type: integer }
+        total: { type: integer }
     CreateRoleRequest:
       type: object
       required: [name, permissions]
