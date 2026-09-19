@@ -4,6 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Northgate Supply back office</title>
+    <script>
+      // Before the bundle paints: a dark-preferring visitor would otherwise
+      // see a light flash while React mounts and applies this class.
+      try {
+        var t = localStorage.getItem('go-admin-theme')
+        var dark = t === 'dark' || ((!t || t === 'system') &&
+          window.matchMedia('(prefers-color-scheme: dark)').matches)
+        if (dark) document.documentElement.classList.add('dark')
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

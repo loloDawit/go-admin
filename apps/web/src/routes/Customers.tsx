@@ -30,7 +30,8 @@ const columns: Column<Customer>[] = [
 export function Customers() {
   const [params, setParams] = useSearchParams()
   const page = positiveInt(params, 'page') ?? 1
-  const customers = useResource(`customers:${page}`, () => listCustomers(page))
+  const pageSize = positiveInt(params, 'pageSize')
+  const customers = useResource(`customers:${page}:${pageSize ?? ''}`, () => listCustomers(page, pageSize))
   const [adding, setAdding] = useState(false)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -88,7 +89,10 @@ export function Customers() {
               page={result.page}
               pageSize={result.pageSize}
               total={result.total}
-              onChange={(next) => setParams(toSearchParams({ page: next === 1 ? undefined : next }))}
+              onChange={(next) =>
+                setParams(toSearchParams({ page: next === 1 ? undefined : next, pageSize }))
+              }
+              onPageSizeChange={(size) => setParams(toSearchParams({ pageSize: size }))}
             />
           )
         }

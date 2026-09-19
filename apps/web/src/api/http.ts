@@ -3,12 +3,15 @@ import type { components as identity } from './generated/identity'
 import type { components as orders } from './generated/orders'
 
 // Every service's error codes, so a caller can discriminate on one without
-// casting. 'network' and 'unknown' are this client's own.
+// casting. 'network' and 'unknown' are this client's own, and 'rate_limited'
+// is the gateway's: it refuses before any service is reached, so no service
+// spec declares it.
 export type ApiErrorCode =
   | identity['schemas']['Error']['code']
   | catalog['schemas']['Error']['code']
   | orders['schemas']['Error']['code']
   | 'network'
+  | 'rate_limited'
   | 'unknown'
 
 export type ApiError = {

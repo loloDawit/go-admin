@@ -8,8 +8,11 @@ export type LifetimeValue = components['schemas']['LifetimeValue']
 
 const emptyPage: CustomerPage = { items: [], page: 1, pageSize: 20, total: 0 }
 
-export function listCustomers(page = 1): Promise<CustomerPage> {
-  const query = page > 1 ? `?page=${page}` : ''
+export function listCustomers(page = 1, pageSize?: number): Promise<CustomerPage> {
+  const params = new URLSearchParams()
+  if (page > 1) params.set('page', String(page))
+  if (pageSize) params.set('pageSize', String(pageSize))
+  const query = params.size > 0 ? `?${params}` : ''
   return withScenario(() => api.get<CustomerPage>(`/api/v1/customers${query}`), emptyPage)
 }
 

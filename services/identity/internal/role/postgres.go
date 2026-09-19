@@ -258,12 +258,16 @@ func resolveRoleSort(sort string) (string, bool, error) {
 	return col, desc, nil
 }
 
-// searchParam is nil for an empty query, which roleFilterClause reads as no filter.
+// searchParam turns a caller's term into an ILIKE pattern. The term is data,
+// not a pattern: % and _ are escaped so a search for "50%" matches a literal
+// "50%" rather than everything beginning "50".
 func searchParam(q string) *string {
 	if q == "" {
 		return nil
 	}
-	return &q
+	escaped := strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(q)
+	pattern := "%" + escaped + "%"
+	return &pattern
 }
 
 func roleOffset(page, pageSize int) int {

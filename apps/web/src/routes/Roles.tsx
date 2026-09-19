@@ -35,7 +35,8 @@ type Editing = { mode: 'create' } | { mode: 'edit'; role: Role }
 export function Roles() {
   const [params, setParams] = useSearchParams()
   const page = positiveInt(params, 'page') ?? 1
-  const roles = useResource(`roles:${page}`, () => listRoles(page))
+  const pageSize = positiveInt(params, 'pageSize')
+  const roles = useResource(`roles:${page}:${pageSize ?? ''}`, () => listRoles(page, pageSize))
   const result = roles.data
   const permissions = useResource('permissions', listPermissions)
   const auth = useAuth()
@@ -143,7 +144,10 @@ export function Roles() {
               page={result.page}
               pageSize={result.pageSize}
               total={result.total}
-              onChange={(next) => setParams(toSearchParams({ page: next === 1 ? undefined : next }))}
+              onChange={(next) =>
+                setParams(toSearchParams({ page: next === 1 ? undefined : next, pageSize }))
+              }
+              onPageSizeChange={(size) => setParams(toSearchParams({ pageSize: size }))}
             />
           )
         }

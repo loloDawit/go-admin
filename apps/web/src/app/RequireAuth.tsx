@@ -8,6 +8,23 @@ export function RequireAuth() {
 
   if (auth.status === 'loading') return null
 
+  if (auth.status === 'rate-limited') {
+    return (
+      <div className="grid min-h-dvh place-items-center bg-canvas p-6">
+        <StateBlock
+          tone="error"
+          title="Too many requests"
+          description="This account has made a lot of requests in a short time. Wait a moment and try again."
+          action={
+            <Button variant="secondary" onClick={auth.reloadBootstrap}>
+              Try again
+            </Button>
+          }
+        />
+      </div>
+    )
+  }
+
   if (auth.status === 'unreachable') {
     return (
       <div className="grid min-h-dvh place-items-center bg-canvas p-6">

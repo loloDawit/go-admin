@@ -1,35 +1,36 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
+@import '@fontsource-variable/geist';
 
-/*
- * Two layers by shadcn's contract: :root holds the bare names its components
- * reach for inside arbitrary values (var(--secondary), var(--radius-md)), and
- * @theme inline republishes them as Tailwind's --color-* scale.
- */
+/* shadcn's generated components carry dark: utilities bound to the media query
+   by default, which would ignore an explicit light or dark choice. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
-  --font-sans: 'IBM Plex Sans Variable', 'IBM Plex Sans', system-ui, sans-serif;
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
   --font-heading: var(--font-sans);
   --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
 
+  /* Tailwind's own scale, under this project's semantic names. */
   --text-caption: 0.75rem;
-  --text-caption--line-height: 1.4;
-  --text-label: 0.8125rem;
-  --text-label--line-height: 1.4;
+  --text-caption--line-height: 1rem;
+  --text-label: 0.875rem;
+  --text-label--line-height: 1.25rem;
   --text-body: 0.875rem;
-  --text-body--line-height: 1.55;
+  --text-body--line-height: 1.25rem;
   --text-section: 1.125rem;
-  --text-section--line-height: 1.35;
+  --text-section--line-height: 1.75rem;
   --text-title: 1.5rem;
-  --text-title--line-height: 1.2;
+  --text-title--line-height: 2rem;
   --text-display: 1.875rem;
-  --text-display--line-height: 1.15;
+  --text-display--line-height: 2.25rem;
 
-  /* One scale, stated outright rather than derived: the steps are 2/4/6/8. */
-  --radius-sm: 2px;
-  --radius-md: 4px;
-  --radius-lg: 6px;
-  --radius-xl: 8px;
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -64,7 +65,11 @@
   --color-border-strong: var(--border-strong);
   --color-input: var(--input);
   --color-ring: var(--ring);
-
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -73,85 +78,142 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-
-  --shadow-raised: 0 6px 24px rgba(21, 24, 27, 0.14);
 }
 
 :root {
-  --radius: 6px;
+  --radius: 0.625rem;
 
-  --canvas: #eff1f2;
-  --background: #ffffff;
-  --foreground: #15181b;
-  --card: #ffffff;
-  --card-foreground: #15181b;
-  --popover: #ffffff;
-  --popover-foreground: #15181b;
+  --background: oklch(1 0 0);
+  --canvas: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --primary-hover: oklch(0.3 0 0);
+  --primary-active: oklch(0.145 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --subtle-foreground: oklch(0.65 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
 
-  --primary: #0f6e5c;
-  --primary-foreground: #ffffff;
-  --primary-hover: #0b5748;
-  --primary-active: #084638;
+  /* Status keeps its hues where the neutral palette does not: a colour that
+     tells a reader an order was refunded is information, not decoration. */
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --destructive-hover: oklch(0.51 0.23 27.325);
+  --destructive-soft: oklch(0.955 0.03 25);
+  --success: oklch(0.52 0.13 150);
+  --success-soft: oklch(0.96 0.03 150);
+  --warning: oklch(0.55 0.12 75);
+  --warning-soft: oklch(0.96 0.04 85);
+  --info: oklch(0.52 0.14 250);
+  --info-soft: oklch(0.96 0.03 250);
 
-  --secondary: #f7f8f9;
-  --secondary-foreground: #15181b;
+  --skeleton: oklch(0.92 0 0);
+  --border: oklch(0.922 0 0);
+  --border-strong: oklch(0.85 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
 
-  --muted: #f7f8f9;
-  --muted-foreground: #59626a;
-  --subtle-foreground: #7d868d;
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
 
-  --accent: #e3efec;
-  --accent-foreground: #0b5748;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
 
-  --destructive: #b3261e;
-  --destructive-foreground: #ffffff;
-  --destructive-hover: #8e1e17;
-  --destructive-soft: #f7e7e6;
+.dark {
+  --background: oklch(0.145 0 0);
+  --canvas: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --primary-hover: oklch(0.85 0 0);
+  --primary-active: oklch(0.78 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --subtle-foreground: oklch(0.62 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
 
-  --success: #1c6b3e;
-  --success-soft: #e5f0e9;
-  --warning: #8a5a00;
-  --warning-soft: #f6eedd;
-  --info: #1e5a8a;
-  --info-soft: #e5eef5;
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.205 0 0);
+  --destructive-hover: oklch(0.64 0.19 22.216);
+  --destructive-soft: oklch(0.3 0.07 25);
+  --success: oklch(0.75 0.15 155);
+  --success-soft: oklch(0.3 0.06 155);
+  --warning: oklch(0.8 0.13 85);
+  --warning-soft: oklch(0.32 0.06 85);
+  --info: oklch(0.72 0.13 250);
+  --info-soft: oklch(0.3 0.06 250);
 
-  --skeleton: #e6e9ec;
-  --border: #d8dcdf;
-  --border-strong: #b4babf;
-  --input: #d8dcdf;
-  --ring: #0f6e5c;
+  --skeleton: oklch(0.3 0 0);
+  --border: oklch(1 0 0 / 10%);
+  --border-strong: oklch(1 0 0 / 20%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
 
-  --sidebar: #ffffff;
-  --sidebar-foreground: #15181b;
-  --sidebar-primary: #0f6e5c;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e3efec;
-  --sidebar-accent-foreground: #0b5748;
-  --sidebar-border: #d8dcdf;
-  --sidebar-ring: #0f6e5c;
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.922 0 0);
+  --sidebar-primary-foreground: oklch(0.205 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
 }
 
 @layer base {
+  /* Tailwind's bare `border` sets a width and leaves the colour at
+     currentColor, so without this every border in the application painted
+     near-black instead of the border token. */
+  * {
+    @apply border-border outline-ring/50;
+  }
+
   body {
     background: var(--canvas);
     color: var(--foreground);
     font-family: var(--font-sans);
     font-size: var(--text-body);
-    line-height: 1.55;
-    letter-spacing: -0.011em;
     -webkit-font-smoothing: antialiased;
   }
 
   a {
-    color: var(--primary);
+    color: inherit;
   }
 
   a:hover {
     text-decoration: underline;
   }
 
-  /* shadcn's controls carry their own ring; this covers links, table headers
-     and anything else focusable that is not a library component. */
   :focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 2px;

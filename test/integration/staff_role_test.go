@@ -47,18 +47,26 @@ type createStaffResponse struct {
 	Password string        `json:"password"`
 }
 
+// Paged, like every other list: items plus the effective page, size and total.
 type listStaffResponse struct {
-	Staff []staffResponse `json:"staff"`
+	Items    []staffResponse `json:"items"`
+	Page     int             `json:"page"`
+	PageSize int             `json:"pageSize"`
+	Total    int             `json:"total"`
 }
 
 type roleResponse struct {
 	ID          string   `json:"id"`
 	Name        string   `json:"name"`
 	Permissions []string `json:"permissions"`
+	MemberCount int      `json:"memberCount"`
 }
 
 type listRoleResponse struct {
-	Roles []roleResponse `json:"roles"`
+	Items    []roleResponse `json:"items"`
+	Page     int            `json:"page"`
+	PageSize int            `json:"pageSize"`
+	Total    int            `json:"total"`
 }
 
 type errorEnvelope struct {
@@ -165,7 +173,7 @@ func TestStaffLifecycleThroughTheGateway(t *testing.T) {
 		t.Fatalf("list staff: want 200, got %d", status)
 	}
 	found := false
-	for _, s := range list.Staff {
+	for _, s := range list.Items {
 		if s.ID == created.Staff.ID {
 			found = true
 		}
@@ -243,7 +251,7 @@ func TestRoleLifecycleThroughTheGateway(t *testing.T) {
 		t.Fatalf("list roles: want 200, got %d", status)
 	}
 	found := false
-	for _, r := range list.Roles {
+	for _, r := range list.Items {
 		if r.ID == created.ID {
 			found = true
 		}

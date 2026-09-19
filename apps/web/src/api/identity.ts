@@ -39,8 +39,10 @@ export function changeMyPassword(currentPassword: string, newPassword: string): 
 
 export type StaffPage = components['schemas']['StaffPage']
 
-export function listStaff(page = 1): Promise<StaffPage> {
-  return api.get<StaffPage>(`/api/v1/staff?page=${page}`)
+export function listStaff(page = 1, pageSize?: number): Promise<StaffPage> {
+  const params = new URLSearchParams({ page: String(page) })
+  if (pageSize) params.set('pageSize', String(pageSize))
+  return api.get<StaffPage>(`/api/v1/staff?${params}`)
 }
 
 export function getStaff(id: string): Promise<Staff> {
@@ -61,8 +63,10 @@ export function deactivateStaff(id: string): Promise<Staff> {
 
 export type RolePage = components['schemas']['RolePage']
 
-export function listRoles(page = 1): Promise<RolePage> {
-  return api.get<RolePage>(`/api/v1/roles?page=${page}`)
+export function listRoles(page = 1, pageSize?: number): Promise<RolePage> {
+  const params = new URLSearchParams({ page: String(page) })
+  if (pageSize) params.set('pageSize', String(pageSize))
+  return api.get<RolePage>(`/api/v1/roles?${params}`)
 }
 
 // The role picker and the permissions screen need every role, not a page of

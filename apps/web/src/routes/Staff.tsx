@@ -1,12 +1,23 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Alert, Button, CheckboxField, Dialog, Pagination, SelectField, Status, TextField } from '../ui'
+import {
+  Alert,
+  Button,
+  CheckboxField,
+  Dialog,
+  Pagination,
+  SelectField,
+  Status,
+  TextField,
+  runBulk,
+  reportBulk,
+} from '../ui'
 import { positiveInt, toSearchParams } from '../api/listQuery'
 import { ListPage, SectionCard } from '../patterns'
-import type { Column } from '../ui'
-import { createStaff, listAllRoles, listStaff } from '../api/identity'
+import type { BulkAction, BulkProgress, Column } from '../ui'
+import { createStaff, deactivateStaff, listAllRoles, listStaff } from '../api/identity'
 import type { Staff as StaffMember } from '../api/identity'
 import { useResource } from '../api/useResource'
 import { useAuth } from '../api/auth'
@@ -18,7 +29,8 @@ type Step = 'form' | 'password'
 export function Staff() {
   const [params, setParams] = useSearchParams()
   const page = positiveInt(params, 'page') ?? 1
-  const staff = useResource(`staff:${page}`, () => listStaff(page))
+  const pageSize = positiveInt(params, 'pageSize')
+  const staff = useResource(`staff:${page}:${pageSize ?? ''}`, () => listStaff(page, pageSize))
   const result = staff.data
   const roles = useResource('roles', listAllRoles)
   const auth = useAuth()
@@ -36,6 +48,39 @@ export function Staff() {
   const [acknowledged, setAcknowledged] = useState(false)
 
   const roleNames = new Map((roles.data ?? []).map((role) => [role.id, role.name]))
+
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkProgress, setBulkProgress] = useState<BulkProgress>()
+
+  // Selection is per page: a new page is a different set of rows, so a stale
+  // selection never survives to act on rows the person can no longer see.
+  const paramsKey = `${page}:${pageSize ?? ''}`
+  useEffect(() => {
+    setSelected(new Set())
+  }, [paramsKey])
+
+  const selectedStaff = (result?.items ?? []).filter((member) => selected.has(member.id))
+  const canDeactivateSelection =
+    selectedStaff.length > 0 && selectedStaff.every((member) => member.isActive)
+
+  async function runStaffBulk(verb: string, action: (member: StaffMember) => Promise<unknown>) {
+    const rows = selectedStaff
+    setBulkProgress({ done: 0, total: rows.length })
+    const outcome = await runBulk(rows, action, (done) => setBulkProgress({ done, total: rows.length }))
+    setBulkProgress(undefined)
+    reportBulk(outcome, verb, (member) => member.email)
+    setSelected(new Set())
+    staff.reload()
+  }
+
+  const bulkActions: BulkAction[] = [
+    {
+      label: 'Deactivate',
+      disabled: !canDeactivateSelection,
+      reason: !canDeactivateSelection ? 'Already-deactivated staff cannot be deactivated again' : undefined,
+      onClick: () => runStaffBulk('deactivated', (member) => deactivateStaff(member.id)),
+    },
+  ]
 
   const columns: Column<StaffMember>[] = [
     {
@@ -141,13 +186,21 @@ export function Staff() {
         emptyAction={addAction}
         errorDescription={staff.error?.message}
         onRetry={staff.reload}
+        selection={
+          canEdit ? { selected, onChange: setSelected, label: (member) => member.email } : undefined
+        }
+        bulkActions={canEdit ? bulkActions : undefined}
+        bulkProgress={bulkProgress}
         pagination={
           result && (
             <Pagination
               page={result.page}
               pageSize={result.pageSize}
               total={result.total}
-              onChange={(next) => setParams(toSearchParams({ page: next === 1 ? undefined : next }))}
+              onChange={(next) =>
+                setParams(toSearchParams({ page: next === 1 ? undefined : next, pageSize }))
+              }
+              onPageSizeChange={(size) => setParams(toSearchParams({ pageSize: size }))}
             />
           )
         }

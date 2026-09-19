@@ -73,17 +73,23 @@ test('an unrecognised status in the URL is dropped, not forwarded', async ({ pag
 
 test('an order status filter is in the URL and survives a reload', async ({ page }) => {
   await page.goto('/orders')
-  await chooseOption(page, 'Status', 'Packed')
+  await page.getByRole('tab', { name: 'Packed', exact: true }).click()
   await expect(page).toHaveURL(/\/orders\?status=packed$/)
 
   await page.reload()
-  await expectChosen(page, 'Status', 'Packed')
+  await expect(page.getByRole('tab', { name: 'Packed', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
 })
 
 test('an unrecognised order status in the URL is dropped', async ({ page }) => {
   await page.goto('/orders?status=elsewhere')
   await settled(page)
-  await expectChosen(page, 'Status', 'All statuses')
+  await expect(page.getByRole('tab', { name: 'All', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
   await expect(page.getByText('could not be loaded')).toHaveCount(0)
 })
 
@@ -161,7 +167,9 @@ test('a column with no server-side sort is not a button', async ({ page }) => {
 // reverse to themselves, so this assertion cannot fail against them.
 async function productTitles(page: Page): Promise<string[]> {
   await settled(page)
-  return page.locator('tbody tr td:first-child a').allInnerTexts()
+  // Not td:first-child: the selection checkbox is the first cell now. A product
+  // row carries exactly one link, its title.
+  return page.locator('tbody tr td a').allInnerTexts()
 }
 
 // Page one descending is the last page ascending, not page one reversed, so the

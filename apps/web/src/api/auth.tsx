@@ -4,7 +4,13 @@ import * as identity from './identity'
 import type { Auth, Permission } from './identity'
 import { isApiError, onPasswordChangeRequired, onUnauthorized } from './http'
 
-type AuthStatus = 'loading' | 'anonymous' | 'must-change-password' | 'authenticated' | 'unreachable'
+type AuthStatus =
+  | 'loading'
+  | 'anonymous'
+  | 'must-change-password'
+  | 'authenticated'
+  | 'rate-limited'
+  | 'unreachable'
 
 type AuthState = {
   status: AuthStatus
@@ -67,6 +73,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         if (isApiError(cause) && cause.code === 'unauthenticated') {
           setStatus('anonymous')
+          return
+        }
+        // The service answered; it declined. Telling this person to check
+        // their connection sends them after a fault that is not there.
+        if (isApiError(cause) && cause.code === 'rate_limited') {
+          setStatus('rate-limited')
           return
         }
         setStatus('unreachable')
