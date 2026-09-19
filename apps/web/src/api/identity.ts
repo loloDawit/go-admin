@@ -37,9 +37,10 @@ export function changeMyPassword(currentPassword: string, newPassword: string): 
   return api.post<void>('/api/v1/me/password', { currentPassword, newPassword })
 }
 
-export async function listStaff(): Promise<Staff[]> {
-  const { staff } = await api.get<{ staff: Staff[] }>('/api/v1/staff')
-  return staff
+export type StaffPage = components['schemas']['StaffPage']
+
+export function listStaff(page = 1): Promise<StaffPage> {
+  return api.get<StaffPage>(`/api/v1/staff?page=${page}`)
 }
 
 export function getStaff(id: string): Promise<Staff> {
@@ -58,9 +59,18 @@ export function deactivateStaff(id: string): Promise<Staff> {
   return api.post<Staff>(`/api/v1/staff/${id}/deactivate`)
 }
 
-export async function listRoles(): Promise<Role[]> {
-  const { roles } = await api.get<{ roles: Role[] }>('/api/v1/roles')
-  return roles
+export type RolePage = components['schemas']['RolePage']
+
+export function listRoles(page = 1): Promise<RolePage> {
+  return api.get<RolePage>(`/api/v1/roles?page=${page}`)
+}
+
+// The role picker and the permissions screen need every role, not a page of
+// them. Roles are a bounded administrative vocabulary, so asking for the
+// service's maximum page is honest here in a way it would not be for staff.
+export async function listAllRoles(): Promise<Role[]> {
+  const { items } = await api.get<RolePage>('/api/v1/roles?pageSize=100')
+  return items
 }
 
 export function getRole(id: string): Promise<Role> {

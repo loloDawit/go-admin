@@ -8,6 +8,7 @@ var (
 	ErrEmailTaken   = errs.ErrEmailTaken
 	ErrLastAdmin    = errs.ErrLastAdmin
 	ErrRoleNotFound = errs.ErrRoleNotFound
+	ErrInvalidSort  = errs.ErrInvalidSort
 )
 
 // Staff never carries a password hash; that stays inside the repository, reachable only through ChangePassword.
@@ -19,6 +20,27 @@ type Staff struct {
 	RoleID             int64
 	IsActive           bool
 	MustChangePassword bool
+}
+
+// DefaultPageSize is the page a caller gets when it asks for no particular size.
+const DefaultPageSize = 20
+
+// ListQuery carries a listing request; a zero PageSize means the default and a
+// zero Page means the first. An empty Q means no search filter.
+type ListQuery struct {
+	Q        string
+	Sort     string
+	Page     int
+	PageSize int
+}
+
+// Page is List's response shape; Total comes from a separate count query,
+// never a window function over the paged rows.
+type Page struct {
+	Items    []Staff
+	Page     int
+	PageSize int
+	Total    int
 }
 
 // CreateStaff is Create's input. RoleID is required: every staff member has

@@ -1,7 +1,6 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../api/auth'
 import { Button, StateBlock } from '../ui'
-import styles from './RequireAuth.module.css'
 
 export function RequireAuth() {
   const auth = useAuth()
@@ -11,7 +10,7 @@ export function RequireAuth() {
 
   if (auth.status === 'unreachable') {
     return (
-      <div className={styles.page}>
+      <div className="grid min-h-dvh place-items-center bg-canvas p-6">
         <StateBlock
           tone="error"
           centered

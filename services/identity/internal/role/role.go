@@ -10,12 +10,36 @@ var (
 	ErrLastAdmin             = errs.ErrLastAdmin
 	ErrUnknownPermission     = errs.ErrUnknownPermission
 	ErrPermissionRowMismatch = errs.ErrPermissionRowMismatch
+	ErrInvalidSort           = errs.ErrInvalidSort
 )
 
 type Role struct {
 	ID          int64
 	Name        string
 	Permissions []string
+	// MemberCount is filled by the listing query. Counting in SQL keeps the
+	// roles screen from fetching every staff row to total them in the browser.
+	MemberCount int
+}
+
+// DefaultPageSize is the page a caller gets when it asks for no particular size.
+const DefaultPageSize = 20
+
+// ListQuery carries a listing request; a zero PageSize means the default. An
+// empty Q means no search filter.
+type ListQuery struct {
+	Q        string
+	Sort     string
+	Page     int
+	PageSize int
+}
+
+// Page is List's response shape.
+type Page struct {
+	Items    []Role
+	Page     int
+	PageSize int
+	Total    int
 }
 
 // CreateRole is Create's input.

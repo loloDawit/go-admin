@@ -100,8 +100,9 @@ test('a dialog traps tab focus inside itself', async ({ page }) => {
 
   for (let i = 0; i < 12; i++) await page.keyboard.press('Tab')
 
+  // Radix renders a div with role="dialog", not a native <dialog open>.
   const inside = await page.evaluate(() => {
-    const dialog = document.querySelector('dialog[open]')
+    const dialog = document.querySelector('[role="dialog"]')
     return (
       dialog !== null && document.activeElement !== null && dialog.contains(document.activeElement)
     )

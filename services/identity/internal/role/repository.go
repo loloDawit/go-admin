@@ -9,7 +9,7 @@ type Repository interface {
 	Update(ctx context.Context, id int64, in UpdateRole) (Role, error)
 	Delete(ctx context.Context, id int64) error
 	GetByID(ctx context.Context, id int64) (Role, error)
-	List(ctx context.Context) ([]Role, error)
+	List(ctx context.Context, q ListQuery) ([]Role, int, error)
 
 	// HasEditStaffPermission reports whether roleID currently carries
 	// edit_staff.

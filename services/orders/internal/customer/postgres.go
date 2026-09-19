@@ -3,6 +3,7 @@ package customer
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -11,6 +12,16 @@ import (
 
 // uniqueViolationCode is Postgres's SQLSTATE for a unique-constraint conflict.
 const uniqueViolationCode = "23505"
+
+// customerSortColumns is the only place a caller's sort string reaches a
+// column name: anything absent here is refused rather than interpolated.
+var customerSortColumns = map[string]string{
+	"name":       "name",
+	"email":      "email",
+	"created_at": "created_at",
+}
+
+const defaultCustomerSort = "-created_at"
 
 // querier is what *pgxpool.Pool and pgx.Tx both satisfy.
 type querier interface {
@@ -67,7 +78,18 @@ func (r *PostgresRepository) GetByEmail(ctx context.Context, email string) (Cust
 }
 
 func (r *PostgresRepository) List(ctx context.Context, q ListQuery) ([]Customer, int, error) {
-	rows, err := r.q.Query(ctx, listCustomersQuery, q.PageSize, offset(q.Page, q.PageSize))
+	col, desc, err := resolveCustomerSort(q.Sort)
+	if err != nil {
+		return nil, 0, err
+	}
+	direction := "ASC"
+	if desc {
+		direction = "DESC"
+	}
+	search := searchParam(q.Q)
+
+	stmt := listCustomersQueryPrefix + col + " " + direction + listCustomersQuerySuffix
+	rows, err := r.q.Query(ctx, stmt, search, q.PageSize, offset(q.Page, q.PageSize))
 	if err != nil {
 		return nil, 0, err
 	}
@@ -77,10 +99,35 @@ func (r *PostgresRepository) List(ctx context.Context, q ListQuery) ([]Customer,
 	}
 
 	var total int
-	if err := r.q.QueryRow(ctx, countCustomersQuery).Scan(&total); err != nil {
+	if err := r.q.QueryRow(ctx, countCustomersQuery, search).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 	return items, total, nil
+}
+
+// resolveCustomerSort maps a caller's sort string to a fixed column via
+// customerSortColumns; anything absent from the map is refused, never
+// interpolated.
+func resolveCustomerSort(sort string) (string, bool, error) {
+	if sort == "" {
+		sort = defaultCustomerSort
+	}
+	desc := strings.HasPrefix(sort, "-")
+	key := strings.TrimPrefix(sort, "-")
+
+	col, ok := customerSortColumns[key]
+	if !ok {
+		return "", false, ErrInvalidSort
+	}
+	return col, desc, nil
+}
+
+// searchParam is nil for an empty query, which customerFilterClause reads as no filter.
+func searchParam(q string) *string {
+	if q == "" {
+		return nil
+	}
+	return &q
 }
 
 func (r *PostgresRepository) LifetimeValueMinor(ctx context.Context, id int64) (int64, string, error) {

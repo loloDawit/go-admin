@@ -16,6 +16,7 @@ func setValidAuthEnv(t *testing.T) {
 	t.Setenv("SESSION_TTL", "24h")
 	t.Setenv("COOKIE_SECURE", "false")
 	t.Setenv("PRINCIPAL_SIGNING_KEY", validSigningKey)
+	t.Setenv("PAGE_SIZE_MAX", "100")
 	t.Setenv("MAX_REQUEST_BODY_BYTES", "1048576")
 }
 

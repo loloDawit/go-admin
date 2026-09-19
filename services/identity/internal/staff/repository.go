@@ -7,7 +7,7 @@ type Repository interface {
 	Create(ctx context.Context, in CreateStaff, passwordHash string) (Staff, error)
 	Update(ctx context.Context, id int64, in UpdateStaff) (Staff, error)
 	GetByID(ctx context.Context, id int64) (Staff, error)
-	List(ctx context.Context) ([]Staff, error)
+	List(ctx context.Context, q ListQuery) ([]Staff, int, error)
 
 	// PasswordHash returns the stored bcrypt hash for id, never exposed through Staff itself.
 	PasswordHash(ctx context.Context, id int64) (string, error)

@@ -3,6 +3,7 @@ package staff
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -16,6 +17,16 @@ const uniqueViolationCode = "23505"
 
 // foreignKeyViolationCode is Postgres's SQLSTATE for a reference to a row that does not exist.
 const foreignKeyViolationCode = "23503"
+
+// staffSortColumns is the only place a caller's sort string reaches a column
+// name: anything absent here is refused rather than interpolated. name sorts
+// by the whole displayed name as one expression, so ASC/DESC applies to last
+// name and first name together rather than only to the first column.
+var staffSortColumns = map[string]string{
+	"name":    "lower(last_name || ' ' || first_name)",
+	"email":   "email",
+	"created": "created_at",
+}
 
 // querier is what *pgxpool.Pool and pgx.Tx both satisfy.
 type querier interface {
@@ -128,10 +139,21 @@ func (r *PostgresRepository) GetByID(ctx context.Context, id int64) (Staff, erro
 	return st, nil
 }
 
-func (r *PostgresRepository) List(ctx context.Context) ([]Staff, error) {
-	rows, err := r.q.Query(ctx, listStaffQuery)
+func (r *PostgresRepository) List(ctx context.Context, q ListQuery) ([]Staff, int, error) {
+	col, desc, err := resolveStaffSort(q.Sort)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
+	}
+	direction := "ASC"
+	if desc {
+		direction = "DESC"
+	}
+	search := searchParam(q.Q)
+
+	stmt := listStaffQueryPrefix + col + " " + direction + listStaffQuerySuffix
+	rows, err := r.q.Query(ctx, stmt, search, q.PageSize, offset(q.Page, q.PageSize))
+	if err != nil {
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -139,11 +161,49 @@ func (r *PostgresRepository) List(ctx context.Context) ([]Staff, error) {
 	for rows.Next() {
 		var st Staff
 		if err := rows.Scan(&st.ID, &st.Email, &st.FirstName, &st.LastName, &st.RoleID, &st.IsActive, &st.MustChangePassword); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		list = append(list, st)
 	}
-	return list, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+
+	var total int
+	if err := r.q.QueryRow(ctx, countStaffQuery, search).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	return list, total, nil
+}
+
+// resolveStaffSort maps a caller's sort string to a fixed column via
+// staffSortColumns; anything absent from the map is refused, never
+// interpolated. An empty sort keeps the historical newest-first order, which
+// is not itself a caller-reachable sort key.
+func resolveStaffSort(sort string) (string, bool, error) {
+	if sort == "" {
+		return "id", true, nil
+	}
+	desc := strings.HasPrefix(sort, "-")
+	key := strings.TrimPrefix(sort, "-")
+
+	col, ok := staffSortColumns[key]
+	if !ok {
+		return "", false, ErrInvalidSort
+	}
+	return col, desc, nil
+}
+
+// searchParam is nil for an empty query, which staffFilterClause reads as no filter.
+func searchParam(q string) *string {
+	if q == "" {
+		return nil
+	}
+	return &q
+}
+
+func offset(page, pageSize int) int {
+	return (page - 1) * pageSize
 }
 
 func (r *PostgresRepository) PasswordHash(ctx context.Context, id int64) (string, error) {

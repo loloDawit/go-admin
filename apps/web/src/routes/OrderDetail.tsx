@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { toast } from 'sonner'
 import {
   Alert,
   Button,
@@ -31,7 +32,6 @@ import { isApiError } from '../api/client'
 import { formatDateTime, formatMoney } from '../api/format'
 import { useResource } from '../api/useResource'
 import { orderStatusTones } from '../app/statusTones'
-import styles from './OrderDetail.module.css'
 
 const itemColumns: Column<OrderItem>[] = [
   { key: 'title', header: 'Item', cell: (item) => item.titleSnapshot },
@@ -61,13 +61,15 @@ export function OrderDetail() {
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<string>()
 
-  async function run(action: () => Promise<unknown>) {
+  // The confirmation names what happened in the same words the button used.
+  async function run(action: () => Promise<unknown>, done: string) {
     setBusy(true)
     setFailure(undefined)
     try {
       await action()
       order.reload()
       events.reload()
+      toast.success(done)
     } catch (cause) {
       setFailure(isApiError(cause) ? cause.message : 'The order could not be updated.')
     } finally {
@@ -117,7 +119,12 @@ export function OrderDetail() {
               <Button
                 variant="primary"
                 loading={busy}
-                onClick={() => void run(() => setOrderStatus(current.id, advance))}
+                onClick={() =>
+                  void run(
+                    () => setOrderStatus(current.id, advance),
+                    `Order ${orderStatusLabels[advance].toLowerCase()}`,
+                  )
+                }
               >
                 Mark {orderStatusLabels[advance].toLowerCase()}
               </Button>
@@ -138,7 +145,11 @@ export function OrderDetail() {
               </Status>
             ),
           },
-          { term: 'Total', value: formatMoney(current.totalMinor, current.currency) },
+          {
+            term: 'Total',
+            value: formatMoney(current.totalMinor, current.currency),
+            lead: true,
+          },
           { term: 'Customer', value: <CustomerName id={current.customerId} /> },
         ]}
       />
@@ -169,17 +180,17 @@ export function OrderDetail() {
           />
         )}
         {events.status === 'ready' && (
-          <ol className={styles.timeline}>
+          <ol className="m-0 list-none p-0">
             {events.data?.map((event) => (
-              <li key={event.id} className={styles.event}>
-                <span className={styles.eventTime}>{formatDateTime(event.at)}</span>
-                <span className={styles.eventSummary}>
+              <li key={event.id} className="grid gap-3 border-b border-border py-2 last:border-b-0 max-sm:grid-cols-1 max-sm:gap-1 sm:grid-cols-[10rem_1fr_auto]">
+                <span className="text-muted-foreground tabular-nums">{formatDateTime(event.at)}</span>
+                <span className="text-foreground">
                   {event.fromStatus
                     ? `${orderStatusLabels[event.fromStatus]} → ${orderStatusLabels[event.toStatus]}`
                     : 'Order placed'}
                   {event.reason && ` — ${event.reason}`}
                 </span>
-                <span className={styles.eventActor}>Staff #{event.actorId}</span>
+                <span className="text-caption text-subtle-foreground sm:text-right">Staff #{event.actorId}</span>
               </li>
             ))}
           </ol>
@@ -199,16 +210,18 @@ export function OrderDetail() {
           <>
             <Button onClick={() => setAsking(undefined)}>Back</Button>
             <Button
-              variant="danger"
+              variant="dangerSolid"
               loading={busy}
               onClick={() => {
                 const action = asking
                 setAsking(undefined)
                 if (!action) return
-                void run(() =>
-                  action === 'refund'
-                    ? refundOrder(current.id, reason)
-                    : cancelOrder(current.id, reason),
+                void run(
+                  () =>
+                    action === 'refund'
+                      ? refundOrder(current.id, reason)
+                      : cancelOrder(current.id, reason),
+                  action === 'refund' ? 'Order refunded' : 'Order cancelled',
                 ).then(() => setReason(''))
               }}
             >

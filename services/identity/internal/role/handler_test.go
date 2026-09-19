@@ -107,11 +107,11 @@ func TestListHandlerReturnsEveryRole(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status: want 200, got %d: %s", rec.Code, rec.Body.String())
 	}
-	var resp role.ListRoleResponse
+	var resp role.RolePageResponse
 	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if len(resp.Roles) != 1 {
-		t.Fatalf("roles: want 1, got %d", len(resp.Roles))
+	if len(resp.Items) != 1 {
+		t.Fatalf("roles: want 1, got %d", len(resp.Items))
 	}
 }

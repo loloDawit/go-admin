@@ -28,8 +28,8 @@ var testPrincipalKey = []byte("0123456789012345678901234567890123456789")
 
 // newTestAuthzHandlers builds handlers over nil repositories: none of the routes these router-level tests exercise reach one.
 func newTestAuthzHandlers(errWriter func(context.Context, http.ResponseWriter, error)) (*staff.Handler, *role.Handler, *permission.Handler) {
-	staffHandler := staff.NewHandler(staff.NewService(nil, session.NewHasher(4)), 1<<20, errWriter)
-	roleHandler := role.NewHandler(role.NewService(nil), 1<<20, errWriter)
+	staffHandler := staff.NewHandler(staff.NewService(nil, session.NewHasher(4), 100), 1<<20, errWriter)
+	roleHandler := role.NewHandler(role.NewService(nil, 100), 1<<20, errWriter)
 	return staffHandler, roleHandler, permission.NewHandler()
 }
 

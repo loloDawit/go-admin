@@ -1,21 +1,13 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import {
-  Alert,
-  Button,
-  PageHeader,
-  PageStack,
-  Section,
-  StateBlock,
-  TextField,
-  TextareaField,
-} from '../ui'
+import { toast } from 'sonner'
+import { Button, PageHeader, PageStack, Section, StateBlock, TextField, TextareaField } from '../ui'
+import { FieldGrid, FormPage } from '../patterns'
 import { createProduct, getProduct, updateProduct } from '../api/catalog'
 import type { Product } from '../api/catalog'
 import { isApiError } from '../api/client'
 import { moneyInputValue, parseMoney } from '../api/money'
 import { useResource } from '../api/useResource'
-import styles from './ProductForm.module.css'
 
 // A display default only, for the price field's label and decimal places before
 // a product exists. It is not sent: catalog's configured DEFAULT_CURRENCY decides.
@@ -51,6 +43,7 @@ function Fields({ product }: { product?: Product }) {
       const saved = product
         ? await updateProduct(product.id, { title, description, priceMinor })
         : await createProduct({ sku, title, description, priceMinor })
+      toast.success(product ? 'Changes saved' : 'Product created')
       navigate(`/products/${saved.id}`)
     } catch (cause) {
       if (isApiError(cause) && cause.code === 'sku_taken') {
@@ -63,17 +56,15 @@ function Fields({ product }: { product?: Product }) {
   }
 
   return (
-    <form
-      className={styles.form}
-      onSubmit={(event) => {
-        event.preventDefault()
-        void submit()
-      }}
+    <FormPage
+      failure={failure}
+      onSubmit={() => void submit()}
+      submitLabel={product ? 'Save changes' : 'Create product'}
+      saving={saving}
+      onCancel={() => navigate(product ? `/products/${product.id}` : '/products')}
     >
-      {failure && <Alert tone="danger" title={failure} />}
-
       <Section title="Details">
-        <div className={styles.grid}>
+        <FieldGrid>
           {product ? (
             <TextField label="SKU" value={product.sku} readOnly help="A SKU cannot be changed." />
           ) : (
@@ -101,7 +92,7 @@ function Fields({ product }: { product?: Product }) {
             onChange={(event) => setPrice(event.target.value)}
             placeholder="22.00"
           />
-        </div>
+        </FieldGrid>
         <TextareaField
           label="Description"
           optional
@@ -109,16 +100,7 @@ function Fields({ product }: { product?: Product }) {
           onChange={(event) => setDescription(event.target.value)}
         />
       </Section>
-
-      <div className={styles.actions}>
-        <Button type="submit" variant="primary" loading={saving}>
-          {product ? 'Save changes' : 'Create product'}
-        </Button>
-        <Button variant="ghost" onClick={() => navigate(product ? `/products/${product.id}` : '/products')}>
-          Cancel
-        </Button>
-      </div>
-    </form>
+    </FormPage>
   )
 }
 

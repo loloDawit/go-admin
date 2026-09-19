@@ -339,7 +339,7 @@ export interface paths {
                 query?: {
                     status?: components["schemas"]["OrderStatus"];
                     customerId?: string;
-                    /** @description A column from the server's sort allowlist; an unrecognized value is refused. */
+                    /** @description One of number */
                     sort?: string;
                     page?: number;
                     pageSize?: number;
@@ -693,6 +693,8 @@ export interface components {
         OrderSummary: {
             id: string;
             number: string;
+            customerId: string;
+            customerName: string;
             status: components["schemas"]["OrderStatus"];
             totalMinor: number;
             currency: string;

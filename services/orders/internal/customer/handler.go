@@ -72,7 +72,12 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.svc.List(r.Context(), ListQuery{Page: page, PageSize: pageSize})
+	result, err := h.svc.List(r.Context(), ListQuery{
+		Q:        r.URL.Query().Get("q"),
+		Sort:     r.URL.Query().Get("sort"),
+		Page:     page,
+		PageSize: pageSize,
+	})
 	if err != nil {
 		h.writeErr(r.Context(), w, err)
 		return

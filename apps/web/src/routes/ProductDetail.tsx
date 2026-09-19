@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { toast } from 'sonner'
 import {
   Alert,
   Button,
@@ -26,7 +27,6 @@ import { isApiError } from '../api/client'
 import { formatDate, formatMoney } from '../api/format'
 import { useResource } from '../api/useResource'
 import { productStatusTones } from '../app/statusTones'
-import styles from './ProductDetail.module.css'
 
 export function ProductDetail() {
   const navigate = useNavigate()
@@ -39,13 +39,15 @@ export function ProductDetail() {
   const [confirmArchive, setConfirmArchive] = useState(false)
   const retried = useRef(new Set<string>())
 
-  async function run(action: () => Promise<unknown>) {
+  // The confirmation names what happened in the same words the button used.
+  async function run(action: () => Promise<unknown>, done: string) {
     setBusy(true)
     setFailure(undefined)
     try {
       await action()
       product.reload()
       images.reload()
+      toast.success(done)
     } catch (cause) {
       setFailure(isApiError(cause) ? cause.message : 'The change could not be saved.')
     } finally {
@@ -95,7 +97,7 @@ export function ProductDetail() {
               <Button onClick={() => navigate(`/products/${current.id}/edit`)}>Edit</Button>
             )}
             {current.status === 'draft' && (
-              <Button variant="primary" loading={busy} onClick={() => run(() => activateProduct(current.id))}>
+              <Button variant="primary" loading={busy} onClick={() => run(() => activateProduct(current.id), 'Product activated')}>
                 Activate
               </Button>
             )}
@@ -116,11 +118,11 @@ export function ProductDetail() {
           {
             term: 'Status',
             value: (
-              <div className={styles.status}>
+              <div className="flex flex-col items-start gap-1">
                 <Status tone={productStatusTones[current.status]}>
                   {productStatusLabels[current.status]}
                 </Status>
-                <p className={styles.statusHelp}>{productStatusHelp[current.status]}</p>
+                <p className="text-caption text-muted-foreground">{productStatusHelp[current.status]}</p>
               </div>
             ),
           },
@@ -143,7 +145,7 @@ export function ProductDetail() {
                 onChange={(event) => {
                   const file = event.target.files?.[0]
                   event.target.value = ''
-                  if (file) void run(() => uploadProductImage(current.id, file))
+                  if (file) void run(() => uploadProductImage(current.id, file), 'Image added')
                 }}
               />
               <Button loading={busy} onClick={() => fileInput.current?.click()}>
@@ -169,11 +171,11 @@ export function ProductDetail() {
           <StateBlock title="No images yet" description="Upload one to show the product." />
         )}
         {images.status === 'ready' && (images.data?.length ?? 0) > 0 && (
-          <ul className={styles.images}>
+          <ul className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(10rem,1fr))]">
             {images.data?.map((image) => (
-              <li key={image.id} className={styles.image}>
+              <li key={image.id} className="flex flex-col gap-2 rounded-md border border-border p-2">
                 <img
-                  className={styles.thumbnail}
+                  className="aspect-square w-full rounded-sm bg-muted object-cover"
                   src={image.url}
                   alt={image.alt}
                   onError={() => refreshOnce(image)}
@@ -183,7 +185,7 @@ export function ProductDetail() {
                     size="sm"
                     variant="ghost"
                     loading={busy}
-                    onClick={() => void run(() => deleteProductImage(current.id, image.id))}
+                    onClick={() => void run(() => deleteProductImage(current.id, image.id), 'Image removed')}
                   >
                     Remove
                   </Button>
@@ -203,11 +205,11 @@ export function ProductDetail() {
           <>
             <Button onClick={() => setConfirmArchive(false)}>Cancel</Button>
             <Button
-              variant="danger"
+              variant="dangerSolid"
               loading={busy}
               onClick={() => {
                 setConfirmArchive(false)
-                void run(() => archiveProduct(current.id))
+                void run(() => archiveProduct(current.id), 'Product archived')
               }}
             >
               Archive

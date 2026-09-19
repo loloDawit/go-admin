@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import { Alert, Button, TextField } from '../ui'
 import { useAuth } from '../api/auth'
 import { isApiError } from '../api/http'
-import styles from './ChangePassword.module.css'
 
 export function ChangePassword() {
   const auth = useAuth()
@@ -22,11 +22,11 @@ export function ChangePassword() {
   const required = auth.status === 'must-change-password'
 
   return (
-    <div className={styles.page}>
-      <div className={styles.panel}>
-        <div className={styles.heading}>
-          <h1 className={styles.title}>Change your password</h1>
-          <p className={styles.description}>
+    <div className="grid min-h-dvh place-items-center bg-canvas p-6">
+      <div className="flex w-[min(28rem,100%)] flex-col gap-4 rounded-lg border border-border bg-card p-6">
+        <div className="flex flex-col gap-0.5">
+          <h1 className="text-section font-semibold">Change your password</h1>
+          <p className="text-muted-foreground">
             {required
               ? 'Set a password of your own before continuing.'
               : 'Choose a new password for this account.'}
@@ -40,21 +40,24 @@ export function ChangePassword() {
         )}
 
         <form
-          className={styles.form}
+          className="flex flex-col gap-4"
           onSubmit={(event) => {
             event.preventDefault()
             setSubmitting(true)
             setError(undefined)
             auth
               .changePassword(currentPassword, newPassword)
-              .then(() => navigate('/', { replace: true }))
+              .then(() => {
+                toast.success('Password changed')
+                navigate('/', { replace: true })
+              })
               .catch((cause: unknown) => {
                 setError(isApiError(cause) ? cause.message : 'Something went wrong.')
               })
               .finally(() => setSubmitting(false))
           }}
         >
-          <div className={styles.grid}>
+          <div className="grid gap-4">
             <TextField
               label="Current password"
               type="password"
@@ -74,7 +77,7 @@ export function ChangePassword() {
             />
           </div>
 
-          <div className={styles.actions}>
+          <div className="flex items-center gap-2">
             <Button type="submit" variant="primary" loading={submitting}>
               Change password
             </Button>

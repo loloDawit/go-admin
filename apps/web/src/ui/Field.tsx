@@ -5,7 +5,10 @@ import type {
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
 } from 'react'
-import styles from './Field.module.css'
+import { Checkbox } from '@/ui/shadcn/checkbox'
+import { Input } from '@/ui/shadcn/input'
+import { Label } from '@/ui/shadcn/label'
+import { Textarea } from '@/ui/shadcn/textarea'
 
 type FieldShell = {
   label: string
@@ -16,7 +19,6 @@ type FieldShell = {
 
 type ControlRender = (props: {
   id: string
-  className: string
   'aria-describedby'?: string
   'aria-invalid'?: true
 }) => ReactNode
@@ -28,24 +30,23 @@ function Field({ label, help, error, optional, render }: FieldShell & { render: 
   const describedBy = [error ? errorId : '', help ? helpId : ''].filter(Boolean).join(' ')
 
   return (
-    <div className={styles.field}>
-      <label className={styles.label} htmlFor={id}>
+    <div className="grid gap-1.5">
+      <Label htmlFor={id}>
         {label}
-        {optional && <span className={styles.optional}> (optional)</span>}
-      </label>
+        {optional && <span className="font-normal text-subtle-foreground"> (optional)</span>}
+      </Label>
       {render({
         id,
-        className: `${styles.control} ${error ? styles.invalid : ''}`.trim(),
         'aria-describedby': describedBy || undefined,
         'aria-invalid': error ? true : undefined,
       })}
       {help && !error && (
-        <p className={styles.help} id={helpId}>
+        <p className="text-caption text-muted-foreground" id={helpId}>
           {help}
         </p>
       )}
       {error && (
-        <p className={styles.error} id={errorId}>
+        <p className="text-caption text-destructive" id={errorId}>
           {error}
         </p>
       )}
@@ -66,17 +67,21 @@ export function TextField({
       help={help}
       error={error}
       optional={optional}
-      render={(props) => <input {...props} {...rest} />}
+      render={(props) => <Input {...props} {...rest} />}
     />
   )
 }
 
+// A native select, deliberately: this is a form control bound to a value, and
+// the browser's own picker is better on a phone than any listbox we would
+// build. The filter bars use the Radix listbox, which is a different job.
 export function SelectField({
   label,
   help,
   error,
   optional,
   children,
+  className,
   ...rest
 }: FieldShell & SelectHTMLAttributes<HTMLSelectElement>) {
   return (
@@ -86,7 +91,11 @@ export function SelectField({
       error={error}
       optional={optional}
       render={(props) => (
-        <select {...props} className={`${props.className} ${styles.select}`} {...rest}>
+        <select
+          {...props}
+          {...rest}
+          className={`h-8 w-full rounded-md border border-input bg-card px-2.5 text-body shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 ${className ?? ''}`}
+        >
           {children}
         </select>
       )}
@@ -107,24 +116,31 @@ export function TextareaField({
       help={help}
       error={error}
       optional={optional}
-      render={(props) => (
-        <textarea {...props} className={`${props.className} ${styles.textarea}`} {...rest} />
-      )}
+      render={(props) => <Textarea rows={4} {...props} {...rest} />}
     />
   )
 }
 
 export function CheckboxField({
   label,
-  ...rest
+  checked,
+  onChange,
+  disabled,
 }: { label: string } & InputHTMLAttributes<HTMLInputElement>) {
   const id = useId()
   return (
-    <div className={`${styles.field} ${styles.checkboxField}`}>
-      <input type="checkbox" id={id} className={styles.checkbox} {...rest} />
-      <label className={styles.checkboxLabel} htmlFor={id}>
-        {label}
-      </label>
+    <div className="flex items-center gap-2">
+      <Checkbox
+        id={id}
+        checked={checked}
+        disabled={disabled}
+        onCheckedChange={(next) =>
+          onChange?.({
+            target: { checked: next === true },
+          } as React.ChangeEvent<HTMLInputElement>)
+        }
+      />
+      <Label htmlFor={id}>{label}</Label>
     </div>
   )
 }

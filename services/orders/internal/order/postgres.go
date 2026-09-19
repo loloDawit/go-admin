@@ -17,11 +17,14 @@ import (
 
 // orderSortColumns is the only place a caller's sort string reaches a
 // column name: anything absent here is refused rather than interpolated.
+// Qualified: the listing query joins customers, so a bare column name would
+// be ambiguous the moment the two tables share one.
 var orderSortColumns = map[string]string{
-	"placed_at":   "placed_at",
-	"total_minor": "total_minor",
-	"status":      "status",
-	"number":      "number",
+	"placed_at":   "o.placed_at",
+	"total_minor": "o.total_minor",
+	"status":      "o.status",
+	"number":      "o.number",
+	"customer":    "c.name",
 }
 
 const defaultOrderSort = "-placed_at"
@@ -203,7 +206,7 @@ func scanOrders(rows pgx.Rows) ([]Order, error) {
 	for rows.Next() {
 		var o Order
 		var status string
-		if err := rows.Scan(&o.ID, &o.Number, &o.CustomerID, &status, &o.TotalMinor, &o.Currency, &o.PlacedAt, &o.UpdatedAt); err != nil {
+		if err := rows.Scan(&o.ID, &o.Number, &o.CustomerID, &status, &o.TotalMinor, &o.Currency, &o.PlacedAt, &o.UpdatedAt, &o.CustomerName); err != nil {
 			return nil, err
 		}
 		o.Status = Status(status)

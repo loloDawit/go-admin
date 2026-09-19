@@ -34,12 +34,27 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
-	list, err := h.svc.List(r.Context())
+	page, err := h.svc.List(r.Context(), ListQuery{
+		Q:        r.URL.Query().Get("q"),
+		Sort:     r.URL.Query().Get("sort"),
+		Page:     positiveIntParam(r, "page"),
+		PageSize: positiveIntParam(r, "pageSize"),
+	})
 	if err != nil {
 		h.writeErr(r.Context(), w, err)
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, newListRoleResponse(list))
+	httpx.WriteJSON(w, http.StatusOK, newRolePageResponse(page))
+}
+
+// A value that is absent, unparsable or not positive means "unset", which the
+// service turns into its default; a bad page is not worth a 400.
+func positiveIntParam(r *http.Request, key string) int {
+	v, err := strconv.Atoi(r.URL.Query().Get(key))
+	if err != nil || v < 1 {
+		return 0
+	}
+	return v
 }
 
 func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {

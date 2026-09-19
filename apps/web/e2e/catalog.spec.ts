@@ -96,7 +96,7 @@ test.describe('narrow', () => {
     await page.screenshot({ path: 'screenshots/narrow_catalog_detail.png', fullPage: true })
 
     await page.goto('/products')
-    await expect(page.getByRole('heading', { name: 'Products' })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1, name: 'Products' })).toBeVisible()
     await page.screenshot({ path: 'screenshots/narrow_catalog_list.png', fullPage: true })
   })
 })

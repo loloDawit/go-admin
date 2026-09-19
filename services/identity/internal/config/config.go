@@ -26,6 +26,7 @@ type Config struct {
 	CookieSecure        bool
 	PrincipalKey        []byte
 	MaxRequestBodyBytes int64
+	PageSizeMax         int
 }
 
 // Any error here is fatal: a misconfigured service must fail at startup, not at
@@ -85,6 +86,16 @@ func Load() (*Config, error) {
 	}
 	cfg.MaxRequestBodyBytes = maxBody
 
+	pageSizeRaw, err := requireEnv("PAGE_SIZE_MAX")
+	if err != nil {
+		return nil, err
+	}
+	pageSizeMax, err := strconv.Atoi(pageSizeRaw)
+	if err != nil {
+		return nil, fmt.Errorf("PAGE_SIZE_MAX: %w", err)
+	}
+	cfg.PageSizeMax = pageSizeMax
+
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
@@ -100,6 +111,9 @@ func (c *Config) validate() error {
 	}
 	if c.SessionTTL <= 0 {
 		return errors.New("SESSION_TTL must be positive")
+	}
+	if c.PageSizeMax <= 0 {
+		return errors.New("PAGE_SIZE_MAX must be positive")
 	}
 	if c.MaxRequestBodyBytes <= 0 {
 		return errors.New("MAX_REQUEST_BODY_BYTES must be positive")

@@ -65,6 +65,8 @@ func (h *Writer) Write(ctx context.Context, w http.ResponseWriter, err error) {
 		httpx.WriteError(w, http.StatusNotFound, "not_found", "no matching record was found")
 	case errors.Is(err, errs.ErrEmptyPassword):
 		httpx.WriteError(w, http.StatusUnprocessableEntity, "validation_failed", "password must not be empty")
+	case errors.Is(err, errs.ErrInvalidSort):
+		httpx.WriteError(w, http.StatusUnprocessableEntity, "validation_failed", "sort is not supported")
 	case errors.Is(err, schemacheck.ErrDirtySchema):
 		httpx.WriteError(w, http.StatusServiceUnavailable, "schema_dirty", "the service is not ready")
 	case errors.Is(err, schemacheck.ErrNoMigrations):

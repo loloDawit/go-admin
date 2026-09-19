@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { toast } from 'sonner'
 import {
   Alert,
   Button,
@@ -13,7 +14,7 @@ import {
   Status,
   TextField,
 } from '../ui'
-import { deactivateStaff, getStaff, listRoles, updateStaff } from '../api/identity'
+import { deactivateStaff, getStaff, listAllRoles, updateStaff } from '../api/identity'
 import { useResource } from '../api/useResource'
 import { useAuth } from '../api/auth'
 import { isApiError } from '../api/http'
@@ -23,7 +24,7 @@ export function StaffDetail() {
   const { staffId = '' } = useParams()
   const auth = useAuth()
   const member = useResource(`staff:${staffId}`, () => getStaff(staffId))
-  const roles = useResource('roles', listRoles)
+  const roles = useResource('roles', listAllRoles)
   const isSelf = auth.user?.staffId === staffId
   const canEdit = auth.hasPermission('edit_staff')
 
@@ -155,6 +156,7 @@ export function StaffDetail() {
                   : { firstName, lastName, email, roleId, isActive }
                 updateStaff(staffId, body)
                   .then(() => {
+                    toast.success('Changes saved')
                     setEditOpen(false)
                     member.reload()
                   })
@@ -211,12 +213,13 @@ export function StaffDetail() {
               Cancel
             </Button>
             <Button
-              variant="danger"
+              variant="dangerSolid"
               loading={deactivating}
               onClick={() => {
                 setDeactivating(true)
                 deactivateStaff(staffId)
                   .then(() => {
+                    toast.success('Account deactivated')
                     setDeactivateOpen(false)
                     member.reload()
                   })

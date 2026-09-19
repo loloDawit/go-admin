@@ -21,20 +21,30 @@ type RoleResponse struct {
 	ID          string   `json:"id"`
 	Name        string   `json:"name"`
 	Permissions []string `json:"permissions"`
+	MemberCount int      `json:"memberCount"`
 }
 
-type ListRoleResponse struct {
-	Roles []RoleResponse `json:"roles"`
+// RolePageResponse matches the shape every other paged list answers with.
+type RolePageResponse struct {
+	Items    []RoleResponse `json:"items"`
+	Page     int            `json:"page"`
+	PageSize int            `json:"pageSize"`
+	Total    int            `json:"total"`
 }
 
 func newRoleResponse(r Role) RoleResponse {
-	return RoleResponse{ID: strconv.FormatInt(r.ID, 10), Name: r.Name, Permissions: r.Permissions}
+	return RoleResponse{
+		ID:          strconv.FormatInt(r.ID, 10),
+		Name:        r.Name,
+		Permissions: r.Permissions,
+		MemberCount: r.MemberCount,
+	}
 }
 
-func newListRoleResponse(list []Role) ListRoleResponse {
-	out := make([]RoleResponse, len(list))
-	for i, r := range list {
+func newRolePageResponse(p Page) RolePageResponse {
+	out := make([]RoleResponse, len(p.Items))
+	for i, r := range p.Items {
 		out[i] = newRoleResponse(r)
 	}
-	return ListRoleResponse{Roles: out}
+	return RolePageResponse{Items: out, Page: p.Page, PageSize: p.PageSize, Total: p.Total}
 }

@@ -1,20 +1,12 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Link } from 'react-router-dom'
-import {
-  Alert,
-  Button,
-  CheckboxField,
-  DataTable,
-  Dialog,
-  PageHeader,
-  PageStack,
-  Section,
-  SelectField,
-  Status,
-  TextField,
-} from '../ui'
+import { toast } from 'sonner'
+import { Alert, Button, CheckboxField, Dialog, Pagination, SelectField, Status, TextField } from '../ui'
+import { positiveInt, toSearchParams } from '../api/listQuery'
+import { ListPage, SectionCard } from '../patterns'
 import type { Column } from '../ui'
-import { createStaff, listRoles, listStaff } from '../api/identity'
+import { createStaff, listAllRoles, listStaff } from '../api/identity'
 import type { Staff as StaffMember } from '../api/identity'
 import { useResource } from '../api/useResource'
 import { useAuth } from '../api/auth'
@@ -24,8 +16,11 @@ import { staffActiveTones } from '../app/statusTones'
 type Step = 'form' | 'password'
 
 export function Staff() {
-  const staff = useResource('staff', listStaff)
-  const roles = useResource('roles', listRoles)
+  const [params, setParams] = useSearchParams()
+  const page = positiveInt(params, 'page') ?? 1
+  const staff = useResource(`staff:${page}`, () => listStaff(page))
+  const result = staff.data
+  const roles = useResource('roles', listAllRoles)
   const auth = useAuth()
   const canEdit = auth.hasPermission('edit_staff')
 
@@ -46,17 +41,24 @@ export function Staff() {
     {
       key: 'name',
       header: 'Name',
+      width: '18rem',
       cell: (member) => (
         <Link to={`/staff/${member.id}`}>
           {member.firstName} {member.lastName}
         </Link>
       ),
     },
-    { key: 'email', header: 'Email', cell: (member) => member.email },
-    { key: 'role', header: 'Role', cell: (member) => roleNames.get(member.roleId) ?? member.roleId },
+    { key: 'email', header: 'Email', grow: true, cell: (member) => member.email },
+    {
+      key: 'role',
+      header: 'Role',
+      width: '14rem',
+      cell: (member) => roleNames.get(member.roleId) ?? member.roleId,
+    },
     {
       key: 'status',
       header: 'Status',
+      width: '9rem',
       cell: (member) => (
         <Status tone={staffActiveTones[member.isActive ? 'active' : 'inactive']}>
           {member.isActive ? 'Active' : 'Deactivated'}
@@ -94,49 +96,61 @@ export function Staff() {
   ) : undefined
 
   return (
-    <PageStack>
-      <PageHeader
+    <>
+      <ListPage
         title="Staff"
         description="People who can sign in to this back office."
-        actions={addAction}
-      />
-
-      {step === 'password' && (
-        // Not a <dialog>: preventDefault on cancel holds only until user activation is consumed,
-        // and this password cannot be shown again. Above the table so it is never scrolled out of view.
-        <Section title="Account created">
-          <Alert tone="warning" title="Shown once, never retrievable again">
-            {email} can sign in with the password below. Copy it now — it cannot be displayed a
-            second time.
-          </Alert>
-          <TextField
-            label="Generated password"
-            readOnly
-            value={generatedPassword}
-            style={{ fontFamily: 'var(--font-mono)' }}
-            onFocus={(event) => event.currentTarget.select()}
-          />
-          <CheckboxField
-            label="I have saved this password"
-            checked={acknowledged}
-            onChange={(event) => setAcknowledged(event.target.checked)}
-          />
-          <Button variant="primary" disabled={!acknowledged} onClick={dismissPasswordReveal}>
-            Done
-          </Button>
-        </Section>
-      )}
-
-      <DataTable
+        primaryAction={addAction}
+        banner={
+          step === 'password' ? (
+            // Not in the dialog: this password cannot be shown again, and a
+            // dialog can be dismissed by a stray Escape. Above the table so it
+            // is never scrolled out of view.
+            <SectionCard title="Account created">
+              <Alert tone="warning" title="Shown once, never retrievable again">
+                {email} can sign in with the password below. Copy it now — it cannot be displayed
+                a second time.
+              </Alert>
+              <TextField
+                label="Generated password"
+                readOnly
+                value={generatedPassword}
+                className="font-mono"
+                onFocus={(event) => event.currentTarget.select()}
+              />
+              <CheckboxField
+                label="I have saved this password"
+                checked={acknowledged}
+                onChange={(event) => setAcknowledged(event.target.checked)}
+              />
+              <div>
+                <Button variant="primary" disabled={!acknowledged} onClick={dismissPasswordReveal}>
+                  Done
+                </Button>
+              </div>
+            </SectionCard>
+          ) : undefined
+        }
         columns={columns}
-        rows={staff.data ?? []}
+        rows={result?.items ?? []}
         rowKey={(member) => member.id}
+        rowHref={(member) => `/staff/${member.id}`}
         status={staff.status}
         emptyTitle="No colleagues yet"
         emptyDescription="Add someone and they will appear here."
         emptyAction={addAction}
         errorDescription={staff.error?.message}
         onRetry={staff.reload}
+        pagination={
+          result && (
+            <Pagination
+              page={result.page}
+              pageSize={result.pageSize}
+              total={result.total}
+              onChange={(next) => setParams(toSearchParams({ page: next === 1 ? undefined : next }))}
+            />
+          )
+        }
       />
 
       <Dialog
@@ -166,6 +180,7 @@ export function Staff() {
                 setSubmitting(true)
                 createStaff({ email, firstName, lastName, roleId })
                   .then((result) => {
+                    toast.success('Account created')
                     setGeneratedPassword(result.password)
                     setStep('password')
                     setOpen(false)
@@ -219,6 +234,6 @@ export function Staff() {
           ))}
         </SelectField>
       </Dialog>
-    </PageStack>
+    </>
   )
 }

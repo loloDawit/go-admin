@@ -21,13 +21,34 @@ LEFT JOIN permissions p ON p.id = rp.permission_id
 WHERE r.id = $1
 GROUP BY r.id, r.name`
 
-const listRolesWithPermissionsQuery = `
-SELECT r.id, r.name, COALESCE(array_agg(p.name ORDER BY p.name) FILTER (WHERE p.name IS NOT NULL), '{}')
+// roleFilterClause: a NULL $1 means no search filter.
+const roleFilterClause = `($1::text IS NULL OR r.name ILIKE '%' || $1 || '%')`
+
+// The member count is a scalar subquery rather than another LEFT JOIN: joining
+// staff as well would multiply the permission rows before the aggregate. It
+// is aliased member_count so ORDER BY can reference it directly rather than
+// repeating the subquery.
+//
+// listRolesWithPermissionsQueryPrefix and listRolesWithPermissionsQuerySuffix
+// bracket the sort column and direction, both resolved from a fixed allowlist
+// in postgres.go, never from caller input. They are concatenated rather than
+// passed through fmt.Sprintf so the '%' wildcard in roleFilterClause never
+// collides with a format verb.
+const listRolesWithPermissionsQueryPrefix = `
+SELECT r.id, r.name,
+       COALESCE(array_agg(p.name ORDER BY p.name) FILTER (WHERE p.name IS NOT NULL), '{}'),
+       (SELECT COUNT(*) FROM staff s WHERE s.role_id = r.id) AS member_count
 FROM roles r
 LEFT JOIN role_permissions rp ON rp.role_id = r.id
 LEFT JOIN permissions p ON p.id = rp.permission_id
+WHERE ` + roleFilterClause + `
 GROUP BY r.id, r.name
-ORDER BY r.id`
+ORDER BY `
+
+const listRolesWithPermissionsQuerySuffix = `
+LIMIT $2 OFFSET $3`
+
+const countRolesQuery = `SELECT COUNT(*) FROM roles r WHERE ` + roleFilterClause
 
 const hasEditStaffPermissionQuery = `SELECT EXISTS(
     SELECT 1 FROM role_permissions rp

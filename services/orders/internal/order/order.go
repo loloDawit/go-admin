@@ -40,12 +40,16 @@ type Order struct {
 	ID         int64
 	Number     string
 	CustomerID int64
-	Status     Status
-	TotalMinor int64
-	Currency   string
-	PlacedAt   time.Time
-	UpdatedAt  time.Time
-	Items      []Item
+	// CustomerName is joined by the listing query only, in the same way Items
+	// is absent from a listing row: a list shows who an order is for, and
+	// fetching the customer per row from a screen would be one request each.
+	CustomerName string
+	Status       Status
+	TotalMinor   int64
+	Currency     string
+	PlacedAt     time.Time
+	UpdatedAt    time.Time
+	Items        []Item
 }
 
 type Item struct {

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { chooseOption, expectChosen, settled } from './select'
 import type { Page } from '@playwright/test'
 
 function unique(): string {
@@ -31,33 +32,33 @@ test('a searched product list survives a reload', async ({ page }) => {
 
 test('a filtered list is a link someone else can open', async ({ page, context }) => {
   await page.goto('/products')
-  await page.getByLabel('Status').selectOption('archived')
+  await chooseOption(page, 'Status', 'Archived')
   await expect(page).toHaveURL(/[?&]status=archived/)
 
   const shared = page.url()
   const other = await context.newPage()
   await other.goto(shared)
-  await expect(other.getByLabel('Status')).toHaveValue('archived')
+  await expect(other.getByRole('combobox', { name: 'Status' })).toHaveText('Archived')
   await other.close()
 })
 
 test('a default never appears in the query string', async ({ page }) => {
   await page.goto('/products')
-  await page.getByLabel('Status').selectOption('active')
+  await chooseOption(page, 'Status', 'Active')
   await expect(page).toHaveURL(/\/products\?status=active$/)
 
-  await page.getByLabel('Status').selectOption('')
+  await chooseOption(page, 'Status', 'Draft and active')
   await expect(page).toHaveURL(/\/products$/)
 })
 
 test('back undoes the last filter change', async ({ page }) => {
   await page.goto('/products')
-  await page.getByLabel('Status').selectOption('active')
+  await chooseOption(page, 'Status', 'Active')
   await expect(page).toHaveURL(/status=active/)
 
   await page.goBack()
   await expect(page).toHaveURL(/\/products$/)
-  await expect(page.getByLabel('Status')).toHaveValue('')
+  await expectChosen(page, 'Status', 'Draft and active')
 })
 
 // A status the client did not generate must never reach the service, which
@@ -65,24 +66,24 @@ test('back undoes the last filter change', async ({ page }) => {
 // error page.
 test('an unrecognised status in the URL is dropped, not forwarded', async ({ page }) => {
   await page.goto('/products?status=banana')
-  await expect(page.locator('[aria-busy="true"]')).toHaveCount(0)
-  await expect(page.getByLabel('Status')).toHaveValue('')
+  await settled(page)
+  await expectChosen(page, 'Status', 'Draft and active')
   await expect(page.getByText('could not be loaded')).toHaveCount(0)
 })
 
 test('an order status filter is in the URL and survives a reload', async ({ page }) => {
   await page.goto('/orders')
-  await page.getByLabel('Status').selectOption('packed')
+  await chooseOption(page, 'Status', 'Packed')
   await expect(page).toHaveURL(/\/orders\?status=packed$/)
 
   await page.reload()
-  await expect(page.getByLabel('Status')).toHaveValue('packed')
+  await expectChosen(page, 'Status', 'Packed')
 })
 
 test('an unrecognised order status in the URL is dropped', async ({ page }) => {
   await page.goto('/orders?status=elsewhere')
-  await expect(page.locator('[aria-busy="true"]')).toHaveCount(0)
-  await expect(page.getByLabel('Status')).toHaveValue('')
+  await settled(page)
+  await expectChosen(page, 'Status', 'All statuses')
   await expect(page.getByText('could not be loaded')).toHaveCount(0)
 })
 
@@ -100,7 +101,7 @@ test('the customer list page is in the URL', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Previous' })).toBeDisabled()
 
   await page.goto('/customers?page=2')
-  await expect(page.locator('[aria-busy="true"]')).toHaveCount(0)
+  await settled(page)
   await expect(page.getByRole('button', { name: 'Previous' })).toBeEnabled()
 })
 
@@ -123,7 +124,7 @@ test('a product column sorts, says so, and cycles back off', async ({ page }) =>
 
 test('a sorted list is recoverable from its URL', async ({ page }) => {
   await page.goto('/products?sort=-price')
-  await expect(page.locator('[aria-busy="true"]')).toHaveCount(0)
+  await settled(page)
   await expect(page.getByRole('columnheader', { name: 'Price' })).toHaveAttribute(
     'aria-sort',
     'descending',
@@ -132,7 +133,7 @@ test('a sorted list is recoverable from its URL', async ({ page }) => {
 
 test('an unrecognised sort in the URL is dropped', async ({ page }) => {
   await page.goto('/products?sort=whatever')
-  await expect(page.locator('[aria-busy="true"]')).toHaveCount(0)
+  await settled(page)
   await expect(page.getByText('could not be loaded')).toHaveCount(0)
 })
 
@@ -159,7 +160,7 @@ test('a column with no server-side sort is not a button', async ({ page }) => {
 // Read the titles only once the skeleton is gone: six empty placeholder rows
 // reverse to themselves, so this assertion cannot fail against them.
 async function productTitles(page: Page): Promise<string[]> {
-  await expect(page.locator('[aria-busy="true"]')).toHaveCount(0)
+  await settled(page)
   return page.locator('tbody tr td:first-child a').allInnerTexts()
 }
 
@@ -192,6 +193,24 @@ test('a searched list does not offer a sort it cannot apply', async ({ page }) =
 test('a list error keeps the filters that produced it', async ({ page }) => {
   await page.goto('/products?status=active&mock=error')
   await expect(page.getByText('could not be loaded')).toBeVisible()
-  await expect(page.getByLabel('Status')).toHaveValue('active')
+  await expectChosen(page, 'Status', 'Active')
   await expect(page).toHaveURL(/status=active/)
+})
+
+// The order number is ~90px of text. Letting it absorb every spare pixel at a
+// workstation width puts a row's first cell and its total a monitor apart.
+test('no column absorbs the slack a wide viewport leaves', async ({ page }) => {
+  await page.setViewportSize({ width: 2000, height: 1200 })
+  await page.goto('/orders')
+  await expect(page.getByRole('table')).toBeVisible()
+  await settled(page)
+
+  const cells = page.getByRole('row').nth(1).getByRole('cell')
+  const first = await cells.first().boundingBox()
+  const last = await cells.last().boundingBox()
+  if (!first || !last) throw new Error('row cells not found')
+
+  // The grow column is a deliberate choice, not whichever column happens to be
+  // first: an order number is fixed-width text and must never absorb the slack.
+  expect(first.width).toBeLessThan(420)
 })

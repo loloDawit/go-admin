@@ -10,11 +10,12 @@ import (
 )
 
 type Service struct {
-	repo Repository
+	repo        Repository
+	pageSizeMax int
 }
 
-func NewService(repo Repository) *Service {
-	return &Service{repo: repo}
+func NewService(repo Repository, pageSizeMax int) *Service {
+	return &Service{repo: repo, pageSizeMax: pageSizeMax}
 }
 
 func (s *Service) Create(ctx context.Context, in CreateRole) (Role, error) {
@@ -94,12 +95,28 @@ func (s *Service) Get(ctx context.Context, id int64) (Role, error) {
 	return got, nil
 }
 
-func (s *Service) List(ctx context.Context) ([]Role, error) {
-	list, err := s.repo.List(ctx)
-	if err != nil {
-		return nil, errs.Wrap(errs.OpListRoles, err)
+// A page size past the configured maximum is clamped rather than refused. The
+// role picker and the permissions screen both need every role, and ask for a
+// full page deliberately rather than relying on a default that happens to fit.
+func (s *Service) List(ctx context.Context, q ListQuery) (Page, error) {
+	if q.Page < 1 {
+		q.Page = 1
 	}
-	return list, nil
+	if q.PageSize < 1 {
+		q.PageSize = DefaultPageSize
+	}
+	if q.PageSize > s.pageSizeMax {
+		q.PageSize = s.pageSizeMax
+	}
+
+	list, total, err := s.repo.List(ctx, q)
+	if err != nil {
+		if errors.Is(err, ErrInvalidSort) {
+			return Page{}, err
+		}
+		return Page{}, errs.Wrap(errs.OpListRoles, err)
+	}
+	return Page{Items: list, Page: q.Page, PageSize: q.PageSize, Total: total}, nil
 }
 
 // guardLastAdmin refuses removing edit_staff from id when no active staff

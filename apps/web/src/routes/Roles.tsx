@@ -1,21 +1,27 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { toast } from 'sonner'
+import { Alert, Button, Dialog, Pagination, RowActions } from '../ui'
+import { DropdownMenuItem } from '@/ui/shadcn/dropdown-menu'
+import { positiveInt, toSearchParams } from '../api/listQuery'
+import { Checkbox } from '@/ui/shadcn/checkbox'
+import { Input } from '@/ui/shadcn/input'
 import {
-  Alert,
-  Button,
-  CheckboxField,
-  DataTable,
-  Dialog,
-  PageHeader,
-  PageStack,
-  TextField,
-} from '../ui'
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSeparator,
+  FieldSet,
+} from '@/ui/shadcn/field'
+import { ListPage } from '../patterns'
 import type { Column } from '../ui'
 import {
   createRole,
   deleteRole,
   listPermissions,
   listRoles,
-  listStaff,
   permissionLabels,
   updateRole,
 } from '../api/identity'
@@ -27,9 +33,11 @@ import { isApiError } from '../api/http'
 type Editing = { mode: 'create' } | { mode: 'edit'; role: Role }
 
 export function Roles() {
-  const roles = useResource('roles', listRoles)
+  const [params, setParams] = useSearchParams()
+  const page = positiveInt(params, 'page') ?? 1
+  const roles = useResource(`roles:${page}`, () => listRoles(page))
+  const result = roles.data
   const permissions = useResource('permissions', listPermissions)
-  const staff = useResource('staff-for-roles', listStaff)
   const auth = useAuth()
   const canEdit = auth.hasPermission('edit_roles')
 
@@ -43,45 +51,20 @@ export function Roles() {
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string>()
 
-  const memberCounts = new Map<string, number>()
-  for (const member of staff.data ?? []) {
-    memberCounts.set(member.roleId, (memberCounts.get(member.roleId) ?? 0) + 1)
-  }
-
   const columns: Column<Role>[] = [
-    { key: 'name', header: 'Role', cell: (role) => role.name },
+    { key: 'name', header: 'Role', width: '18rem', cell: (role) => role.name },
     {
       key: 'members',
       header: 'People',
       numeric: true,
-      cell: (role) => (staff.status === 'ready' ? String(memberCounts.get(role.id) ?? 0) : '—'),
+      width: '8rem',
+      cell: (role) => String(role.memberCount),
     },
     {
       key: 'permissions',
       header: 'Permissions',
+      grow: true,
       cell: (role) => `${role.permissions.length} of ${permissions.data?.length ?? role.permissions.length}`,
-    },
-    {
-      key: 'actions',
-      header: '',
-      cell: (role) =>
-        canEdit && (
-          <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-            <Button variant="ghost" size="sm" onClick={() => openEdit(role)}>
-              Edit
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setDeleteError(undefined)
-                setDeleteTarget(role)
-              }}
-            >
-              Delete
-            </Button>
-          </div>
-        ),
     },
   ]
 
@@ -115,22 +98,38 @@ export function Roles() {
   ) : undefined
 
   return (
-    <PageStack>
-      <PageHeader
+    <>
+      <ListPage
         title="Roles"
         description="A role is a named set of permissions. Staff hold exactly one."
-        actions={addAction}
-      />
-
-      {deleteError && (
-        <Alert tone="danger" title="Could not delete this role">
-          {deleteError}
-        </Alert>
-      )}
-
-      <DataTable
+        primaryAction={addAction}
+        banner={
+          deleteError ? (
+            <Alert tone="danger" title="Could not delete this role">
+              {deleteError}
+            </Alert>
+          ) : undefined
+        }
         columns={columns}
-        rows={roles.data ?? []}
+        rowActions={
+          canEdit
+            ? (role) => (
+                <RowActions label={`Actions for ${role.name}`}>
+                  <DropdownMenuItem onSelect={() => openEdit(role)}>Edit</DropdownMenuItem>
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onSelect={() => {
+                      setDeleteError(undefined)
+                      setDeleteTarget(role)
+                    }}
+                  >
+                    Delete
+                  </DropdownMenuItem>
+                </RowActions>
+              )
+            : undefined
+        }
+        rows={result?.items ?? []}
         rowKey={(role) => role.id}
         status={roles.status}
         emptyTitle="No roles defined"
@@ -138,6 +137,16 @@ export function Roles() {
         emptyAction={addAction}
         errorDescription={roles.error?.message}
         onRetry={roles.reload}
+        pagination={
+          result && (
+            <Pagination
+              page={result.page}
+              pageSize={result.pageSize}
+              total={result.total}
+              onChange={(next) => setParams(toSearchParams({ page: next === 1 ? undefined : next }))}
+            />
+          )
+        }
       />
 
       <Dialog
@@ -164,6 +173,7 @@ export function Roles() {
                   editing?.mode === 'edit' ? updateRole(editing.role.id, body) : createRole(body)
                 request
                   .then(() => {
+                    toast.success(editing?.mode === 'edit' ? 'Role saved' : 'Role created')
                     setEditing(undefined)
                     roles.reload()
                   })
@@ -183,18 +193,41 @@ export function Roles() {
             {formError}
           </Alert>
         )}
-        <TextField label="Name" value={name} onChange={(event) => setName(event.target.value)} />
-        <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
-          <legend style={{ font: 'inherit', padding: 0, marginBottom: 'var(--space-2)' }}>Permissions</legend>
-          {(permissions.data ?? []).map((permission) => (
-            <CheckboxField
-              key={permission}
-              label={permissionLabels[permission]}
-              checked={selected.has(permission)}
-              onChange={() => togglePermission(permission)}
+        <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor="role-name">Name</FieldLabel>
+            <Input
+              id="role-name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Warehouse"
             />
-          ))}
-        </fieldset>
+            <FieldDescription>Staff hold exactly one role.</FieldDescription>
+          </Field>
+
+          <FieldSeparator />
+
+          <FieldSet>
+            <FieldLegend variant="label">Permissions</FieldLegend>
+            <FieldDescription>
+              {selected.size} of {permissions.data?.length ?? 0} selected.
+            </FieldDescription>
+            <div data-slot="checkbox-group" className="grid gap-2 sm:grid-cols-2">
+              {(permissions.data ?? []).map((permission) => (
+                <Field key={permission} orientation="horizontal">
+                  <Checkbox
+                    id={`perm-${permission}`}
+                    checked={selected.has(permission)}
+                    onCheckedChange={() => togglePermission(permission)}
+                  />
+                  <FieldLabel htmlFor={`perm-${permission}`} className="font-normal">
+                    {permissionLabels[permission]}
+                  </FieldLabel>
+                </Field>
+              ))}
+            </div>
+          </FieldSet>
+        </FieldGroup>
       </Dialog>
 
       <Dialog
@@ -208,13 +241,14 @@ export function Roles() {
               Cancel
             </Button>
             <Button
-              variant="danger"
+              variant="dangerSolid"
               loading={deleting}
               onClick={() => {
                 if (!deleteTarget) return
                 setDeleting(true)
                 deleteRole(deleteTarget.id)
                   .then(() => {
+                    toast.success('Role deleted')
                     setDeleteTarget(undefined)
                     roles.reload()
                   })
@@ -238,6 +272,6 @@ export function Roles() {
           </>
         }
       />
-    </PageStack>
+    </>
   )
 }

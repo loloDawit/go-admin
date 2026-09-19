@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { settled } from './select'
 
 // Owner's own id after a clean `make seed` is always 1: the seed command creates exactly one row.
 const ROUTES = [
@@ -37,7 +38,7 @@ for (const viewport of VIEWPORTS) {
         await page.goto(route)
         await expect(page.locator('h1')).toBeVisible()
         if (route !== '/kit') {
-          await expect(page.locator('[aria-busy="true"]')).toHaveCount(0)
+          await settled(page)
         }
         await page.screenshot({
           path: `screenshots/${viewport.name}${route.replace(/\//g, '_')}.png`,
@@ -77,4 +78,23 @@ test.describe('signed out', () => {
     await page.getByRole('button', { name: 'Sign in' }).click()
     await expect(page.getByText('Enter the email you sign in with.')).toBeVisible()
   })
+})
+
+// The frame fills the viewport. Capping the shell rather than the content is
+// what made the app look shrunk on a workstation monitor.
+test('the content area fills a wide viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 2000, height: 1200 })
+  await page.goto('/orders')
+  const main = await page.getByRole('main').boundingBox()
+  if (!main) throw new Error('no main')
+  expect(main.width).toBeGreaterThan(1700)
+})
+
+test('the active nav item is marked for assistive tech', async ({ page }) => {
+  await page.goto('/orders')
+  await expect(page.getByRole('link', { name: 'Orders' })).toHaveAttribute('aria-current', 'page')
+  await expect(page.getByRole('link', { name: 'Products' })).not.toHaveAttribute(
+    'aria-current',
+    'page',
+  )
 })

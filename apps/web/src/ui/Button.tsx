@@ -1,7 +1,8 @@
+import { Loader2 } from 'lucide-react'
 import type { ButtonHTMLAttributes } from 'react'
-import styles from './Button.module.css'
+import { Button as Base } from '@/ui/shadcn/button'
 
-type Variant = 'primary' | 'secondary' | 'danger' | 'ghost'
+type Variant = 'primary' | 'secondary' | 'danger' | 'dangerSolid' | 'ghost'
 type Size = 'sm' | 'md' | 'lg'
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -10,6 +11,21 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   loading?: boolean
   block?: boolean
 }
+
+// This project's vocabulary, mapped onto the component library's. Screens say
+// primary and danger; shadcn says default and destructive.
+// danger is quiet where it opens a confirmation; dangerSolid is the filled
+// button inside that confirmation. A screen has one filled button, and on a
+// screen that can both advance and cancel an order, it is the advance.
+const VARIANTS = {
+  primary: 'default',
+  secondary: 'secondary',
+  danger: 'destructiveSoft',
+  dangerSolid: 'destructive',
+  ghost: 'ghost',
+} as const
+
+const SIZES = { sm: 'sm', md: 'default', lg: 'lg' } as const
 
 export function Button({
   variant = 'secondary',
@@ -22,26 +38,18 @@ export function Button({
   type = 'button',
   ...rest
 }: ButtonProps) {
-  const classes = [
-    styles.button,
-    styles[variant],
-    size === 'md' ? '' : styles[size],
-    block ? styles.block : '',
-    className ?? '',
-  ]
-    .filter(Boolean)
-    .join(' ')
-
   return (
-    <button
+    <Base
       type={type}
-      className={classes}
+      variant={VARIANTS[variant]}
+      size={SIZES[size]}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
+      className={`${block ? 'w-full' : ''} ${className ?? ''}`.trim() || undefined}
       {...rest}
     >
-      {loading && <span className={styles.spinner} aria-hidden="true" />}
+      {loading && <Loader2 className="animate-spin" aria-hidden />}
       {children}
-    </button>
+    </Base>
   )
 }

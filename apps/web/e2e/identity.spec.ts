@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { settled } from './select'
 
 // Each run gets its own email/role names so a rerun never collides with a previous run's row
 // (the create routes answer 409 on a repeat address, and a stale role would carry stale members).
@@ -72,11 +73,14 @@ test('create, edit and deactivate a colleague, with the generated password shown
 
   await page.getByRole('button', { name: 'Deactivate' }).click()
   await page.getByRole('dialog').getByRole('button', { name: 'Deactivate' }).click()
-  await expect(page.getByText('Deactivated')).toBeVisible()
+  // exact: the success toast also says "Account deactivated", and getByText
+  // matches a substring case-insensitively.
+  await expect(page.getByText('Deactivated', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Deactivate' })).toHaveCount(0)
 
   // Sign out, then the new colleague signs in and is forced to change their password first.
-  await page.getByRole('button', { name: 'Sign out' }).click()
+  await page.getByRole('button', { name: 'Account' }).click()
+  await page.getByRole('menuitem', { name: 'Sign out' }).click()
   await expect(page).toHaveURL(/\/login$/)
   await page.getByRole('textbox', { name: 'Email' }).fill(email)
   await page.getByRole('textbox', { name: 'Password' }).fill(password)
@@ -92,7 +96,9 @@ test('editing a role changes what it grants', async ({ page }) => {
   let row = page.locator('tr').filter({ hasText: roleName })
   await expect(row.getByText('0 of 8')).toBeVisible()
 
-  await row.getByRole('button', { name: 'Edit' }).click()
+  // Row actions live behind the table's own trigger, the same on every list.
+  await row.getByRole('button', { name: `Actions for ${roleName}` }).click()
+  await page.getByRole('menuitem', { name: 'Edit' }).click()
   await page.getByRole('checkbox', { name: 'View orders and history' }).check()
   await page.getByRole('button', { name: 'Save changes' }).click()
   row = page.locator('tr').filter({ hasText: roleName })
@@ -111,7 +117,8 @@ test('a permission error on a real route is a page state, not a crash', async ({
     roleName,
   })
 
-  await page.getByRole('button', { name: 'Sign out' }).click()
+  await page.getByRole('button', { name: 'Account' }).click()
+  await page.getByRole('menuitem', { name: 'Sign out' }).click()
   await changeForcedPassword(page, email, password)
 
   // Dana holds no permissions, so Access is not offered at all — courtesy hiding, not the only guard.
@@ -147,7 +154,8 @@ test('a role still held by staff cannot be deleted', async ({ page }) => {
 
   await page.goto('/roles')
   const row = page.locator('tr').filter({ hasText: roleName })
-  await row.getByRole('button', { name: 'Delete' }).click()
+  await row.getByRole('button', { name: `Actions for ${roleName}` }).click()
+  await page.getByRole('menuitem', { name: 'Delete' }).click()
   await page.getByRole('dialog').getByRole('button', { name: 'Delete' }).click()
   await expect(page.getByText('Could not delete this role')).toBeVisible()
   await expect(page.getByText('People still hold this role. Move them to another role first.')).toBeVisible()
@@ -161,7 +169,7 @@ test('a session that dies mid-visit sends the next action to login, not a crash'
   // A client-side nav, not page.goto: a fresh navigation re-mounts the app and races its own
   // bootstrap /me fetch against clearCookies below. Staying on the already-settled page avoids that.
   await page.getByRole('link', { name: 'Orders' }).click()
-  await expect(page.getByRole('heading', { name: 'Orders' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Orders' })).toBeVisible()
   await context.clearCookies()
   // The next thing to touch the API sends the app to /login. Usually that is this click; a
   // request still in flight when the session died gets there first and unmounts the link
@@ -169,4 +177,18 @@ test('a session that dies mid-visit sends the next action to login, not a crash'
   // than the route to it — reaching /login is still required, so this cannot pass vacuously.
   await page.getByRole('link', { name: 'Staff' }).click({ timeout: 2000 }).catch(() => {})
   await expect(page).toHaveURL(/\/login$/)
+})
+
+// An unbounded list is a list that gets slower every week. Staff and roles are
+// paged by the service, not sliced in the browser.
+test('staff and roles are paged', async ({ page }) => {
+  await loginAsOwner(page)
+
+  for (const route of ['/staff', '/roles']) {
+    await page.goto(route)
+    await settled(page)
+    const rows = await page.locator('tbody tr').count()
+    expect(rows).toBeLessThanOrEqual(20)
+    await expect(page.getByRole('button', { name: 'Next' })).toBeVisible()
+  }
 })
