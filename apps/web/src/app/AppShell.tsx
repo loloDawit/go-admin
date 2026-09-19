@@ -5,10 +5,18 @@ import { TooltipProvider } from '@/ui/shadcn/tooltip'
 import { AppSidebar } from './AppSidebar'
 import { SiteHeader } from './SiteHeader'
 
+// The primitive writes this cookie on every toggle but never reads it back:
+// dashboard-01 reads it server-side in Next.js, which has no equivalent here.
+// Read synchronously so a collapsed rail does not flash open on first paint.
+function storedSidebarOpen(): boolean {
+  const match = /(?:^|;\s*)sidebar_state=(true|false)/.exec(document.cookie)
+  return match ? match[1] === 'true' : true
+}
+
 export function AppShell() {
   return (
     <TooltipProvider>
-      <SidebarProvider>
+      <SidebarProvider defaultOpen={storedSidebarOpen()}>
         <AppSidebar />
         <SidebarInset>
           <SiteHeader />
