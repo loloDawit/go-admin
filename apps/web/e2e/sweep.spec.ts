@@ -19,8 +19,17 @@ for (const theme of ['light', 'dark'] as const) {
         await page.evaluate((t) => localStorage.setItem('go-admin-theme', t), theme)
 
         for (const route of ROUTES) {
+          // Paced deliberately: a hundred-odd page loads back to back trips the
+          // gateway's own rate limiter, which is the limiter working, not a bug.
+          await page.waitForTimeout(120)
           await page.goto(route)
-          await settled(page)
+          try {
+            await settled(page)
+          } catch (cause) {
+            throw new Error(
+              `${theme} ${width}px stalled on ${route}\nconsole: ${consoleErrors.join(' | ')}\n${String(cause).slice(0, 300)}`,
+            )
+          }
 
           const report = await page.evaluate(() => {
             const de = document.documentElement
