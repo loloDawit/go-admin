@@ -1,10 +1,10 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { FilterSelect, Pagination, StatusBadge } from '../ui'
+import { FilterSelect, Pagination, StatusBadge, runBulk, reportBulk } from '../ui'
 import { ListPage } from '../patterns'
 import { Button } from '@/ui/shadcn/button'
-import type { Column } from '../ui'
-import { listOrders, orderStatusLabels } from '../api/orders'
+import type { BulkAction, BulkProgress, Column } from '../ui'
+import { listOrders, orderStatusLabels, setOrderStatus } from '../api/orders'
 import type { OrderQuery, OrderStatus, OrderSummary } from '../api/orders'
 import { formatDateTime, formatMoney } from '../api/format'
 import { oneOf, positiveInt, toSearchParams } from '../api/listQuery'
@@ -74,8 +74,41 @@ export function Orders() {
     }
   }, [params])
 
-  const orders = useResource(`orders:${params.toString()}`, () => listOrders(query))
+  const paramsKey = params.toString()
+  const orders = useResource(`orders:${paramsKey}`, () => listOrders(query))
   const page = orders.data
+
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkProgress, setBulkProgress] = useState<BulkProgress>()
+
+  // Selection is per page: a new page, status filter or sort is a different
+  // set of rows, so a stale selection never survives to act on rows the
+  // person can no longer see.
+  useEffect(() => {
+    setSelected(new Set())
+  }, [paramsKey])
+
+  const selectedOrders = (page?.items ?? []).filter((order) => selected.has(order.id))
+  const canPack = selectedOrders.length > 0 && selectedOrders.every((order) => order.status === 'paid')
+
+  async function runOrderBulk(verb: string, action: (order: OrderSummary) => Promise<unknown>) {
+    const rows = selectedOrders
+    setBulkProgress({ done: 0, total: rows.length })
+    const outcome = await runBulk(rows, action, (done) => setBulkProgress({ done, total: rows.length }))
+    setBulkProgress(undefined)
+    reportBulk(outcome, verb, (order) => order.number)
+    setSelected(new Set())
+    orders.reload()
+  }
+
+  const bulkActions: BulkAction[] = [
+    {
+      label: 'Mark packed',
+      disabled: !canPack,
+      reason: !canPack ? 'Only paid orders can be marked packed' : undefined,
+      onClick: () => runOrderBulk('packed', (order) => setOrderStatus(order.id, 'packed')),
+    },
+  ]
 
   function apply(next: OrderQuery) {
     setParams(
@@ -120,6 +153,9 @@ export function Orders() {
       onRetry={orders.reload}
       sort={query.sort}
       onSort={(next) => apply({ ...query, sort: next, page: 1 })}
+      selection={{ selected, onChange: setSelected, label: (order) => order.number }}
+      bulkActions={bulkActions}
+      bulkProgress={bulkProgress}
       pagination={
         page && (
           <Pagination

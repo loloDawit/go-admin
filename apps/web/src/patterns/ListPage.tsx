@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { DataTable } from '../ui'
-import type { Column } from '../ui'
+import { BulkBar, DataTable } from '../ui'
+import type { BulkAction, BulkProgress, Column, Selection } from '../ui'
 import { PageBlock } from './PageBlock'
 import { PageHeader } from './PageHeader'
 
@@ -35,6 +35,11 @@ export type ListPageProps<T> = {
   rowHref?: (row: T) => string
   rowActions?: (row: T) => ReactNode
   pagination?: ReactNode
+  // Selection ships only with something to do: a screen that passes
+  // `selection` without `bulkActions` is a defect, not a lighter feature.
+  selection?: Selection<T>
+  bulkActions?: BulkAction[]
+  bulkProgress?: BulkProgress
 }
 
 export function ListPage<T>({
@@ -52,9 +57,18 @@ export function ListPage<T>({
   emptyTitle,
   emptyDescription,
   emptyAction,
+  selection,
+  bulkActions,
+  bulkProgress,
   ...table
 }: ListPageProps<T>) {
   const filtered = filtersApplied === true
+  // The bar and the table's own "N of M" must agree: count against the rows
+  // actually on the page, not the raw selected-id set, so a row a reload
+  // dropped (another agent archived it, say) is not counted as selected.
+  const selectedCount = selection
+    ? table.rows.filter((row) => selection.selected.has(table.rowKey(row))).length
+    : 0
   return (
     <PageBlock>
       <PageHeader title={title} description={description} actions={primaryAction} />
@@ -72,8 +86,17 @@ export function ListPage<T>({
             {note}
           </p>
         )}
+        {selection && selectedCount > 0 && (
+          <BulkBar
+            count={selectedCount}
+            actions={bulkActions ?? []}
+            progress={bulkProgress}
+            onClear={() => selection.onChange(new Set())}
+          />
+        )}
         <DataTable
           {...table}
+          selection={selection}
           tableId={tableId ?? title.toLowerCase().replace(/\s+/g, '-')}
           emptyTitle={
             filtered ? (filteredEmptyTitle ?? `No ${title.toLowerCase()} match these filters`) : emptyTitle
