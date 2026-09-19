@@ -2,6 +2,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react'
 import { Button } from '@/ui/shadcn/button'
+import { Checkbox } from '@/ui/shadcn/checkbox'
 import { Skeleton } from '@/ui/shadcn/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/shadcn/table'
 import { ColumnVisibilityMenu, useColumnVisibility } from './ColumnVisibility'
@@ -24,6 +25,16 @@ export type Column<T> = {
   // or it runs past the table rather than down it.
   wrap?: boolean
   cell: (row: T) => ReactNode
+}
+
+// Selection is per page, not owned by a column: it lives outside `columns` so
+// the visibility menu and the growing-column calculation never see it.
+export type Selection<T> = {
+  selected: Set<string>
+  onChange: (next: Set<string>) => void
+  // Names a row for its checkbox's accessible name. Falls back to rowKey,
+  // which is unique but not something a person recognises.
+  label?: (row: T) => string
 }
 
 export type DataTableProps<T> = {
@@ -50,6 +61,10 @@ export type DataTableProps<T> = {
   // Rendered in a trailing column the table owns, so every list puts its row
   // actions in the same place instead of inventing one.
   rowActions?: (row: T) => ReactNode
+  // A leading checkbox column the table owns. Omitted entirely when a screen
+  // has no bulk action to offer — selection chrome with nothing behind it is
+  // a control that does nothing.
+  selection?: Selection<T>
 }
 
 const SKELETON_ROWS = 6
@@ -92,12 +107,36 @@ export function DataTable<T>({
   onSort,
   rowHref,
   rowActions,
+  selection,
 }: DataTableProps<T>) {
   const navigate = useNavigate()
   const { hidden, toggle } = useColumnVisibility(tableId, columns)
   const visibleColumns = tableId ? columns.filter((column) => !hidden.has(column.key)) : columns
-  const colCount = visibleColumns.length + (rowActions ? 1 : 0)
+  const colCount = visibleColumns.length + (rowActions ? 1 : 0) + (selection ? 1 : 0)
   const growing = growingKey(visibleColumns)
+
+  const pageIds = status === 'ready' ? rows.map(rowKey) : []
+  const selectedOnPage = selection ? pageIds.filter((id) => selection.selected.has(id)) : []
+  const allOnPageSelected = pageIds.length > 0 && selectedOnPage.length === pageIds.length
+  const someOnPageSelected = selectedOnPage.length > 0 && !allOnPageSelected
+
+  function toggleRow(id: string, checked: boolean) {
+    if (!selection) return
+    const next = new Set(selection.selected)
+    if (checked) next.add(id)
+    else next.delete(id)
+    selection.onChange(next)
+  }
+
+  function toggleAllOnPage(checked: boolean) {
+    if (!selection) return
+    const next = new Set(selection.selected)
+    for (const id of pageIds) {
+      if (checked) next.add(id)
+      else next.delete(id)
+    }
+    selection.onChange(next)
+  }
 
   return (
     <div>
@@ -106,6 +145,11 @@ export function DataTable<T>({
           <div className="text-caption text-subtle-foreground flex items-baseline gap-3">
             {caption && <span>{caption}</span>}
             {caption && status === 'ready' && <span>{rows.length} shown</span>}
+            {selection && status === 'ready' && (
+              <span>
+                {selectedOnPage.length} of {rows.length} selected
+              </span>
+            )}
           </div>
           {tableId && (
             <ColumnVisibilityMenu columns={columns} hidden={hidden} onToggle={toggle} />
@@ -117,6 +161,18 @@ export function DataTable<T>({
         <Table className="text-body">
           <TableHeader className="sticky top-0 z-10">
             <TableRow className="hover:bg-transparent">
+              {selection && (
+                <TableHead className="bg-muted h-9 w-px px-3">
+                  <Checkbox
+                    aria-label="Select all"
+                    checked={
+                      allOnPageSelected ? true : someOnPageSelected ? 'indeterminate' : false
+                    }
+                    disabled={pageIds.length === 0}
+                    onCheckedChange={(checked) => toggleAllOnPage(checked === true)}
+                  />
+                </TableHead>
+              )}
               {visibleColumns.map((column) => {
                 const sortable = column.sortKey !== undefined && onSort !== undefined
                 const active = sortable && activeKey(sort) === column.sortKey
@@ -179,6 +235,11 @@ export function DataTable<T>({
             {status === 'loading' &&
               Array.from({ length: SKELETON_ROWS }, (_, index) => (
                 <TableRow key={index} className="hover:bg-transparent">
+                  {selection && (
+                    <TableCell className="px-3">
+                      <Skeleton className="size-4" />
+                    </TableCell>
+                  )}
                   {visibleColumns.map((column) => (
                     <TableCell key={column.key} className="px-3">
                       <Skeleton className="h-3 w-full max-w-44" />
@@ -228,16 +289,22 @@ export function DataTable<T>({
             {status === 'ready' &&
               rows.map((row) => {
                 const href = rowHref?.(row)
+                const id = rowKey(row)
                 return (
                   <TableRow
-                    key={rowKey(row)}
+                    key={id}
                     className={href ? 'cursor-pointer' : undefined}
                     onClick={
                       href
                         ? (event) => {
-                            // A click that already landed on a link, a button or
-                            // a menu belongs to that control, not to the row.
-                            if ((event.target as HTMLElement).closest('a,button,[role="menuitem"]')) {
+                            // A click that already landed on a link, a button, a
+                            // menu, or a checkbox belongs to that control, not
+                            // to the row.
+                            if (
+                              (event.target as HTMLElement).closest(
+                                'a,button,[role="menuitem"],[role="checkbox"]',
+                              )
+                            ) {
                               return
                             }
                             navigate(href)
@@ -245,6 +312,18 @@ export function DataTable<T>({
                         : undefined
                     }
                   >
+                    {selection && (
+                      <TableCell
+                        className="w-px px-3"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <Checkbox
+                          aria-label={`Select ${selection.label ? selection.label(row) : id}`}
+                          checked={selection.selected.has(id)}
+                          onCheckedChange={(checked) => toggleRow(id, checked === true)}
+                        />
+                      </TableCell>
+                    )}
                     {visibleColumns.map((column) => (
                       <TableCell
                         key={column.key}
