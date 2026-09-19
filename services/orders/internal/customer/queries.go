@@ -15,7 +15,7 @@ const getCustomerByIDQuery = `SELECT ` + customerColumns + ` FROM customers WHER
 const getCustomerByEmailQuery = `SELECT ` + customerColumns + ` FROM customers WHERE email = $1`
 
 // customerFilterClause: a NULL $1 means no search filter.
-const customerFilterClause = `($1::text IS NULL OR name ILIKE '%' || $1 || '%' OR email ILIKE '%' || $1 || '%')`
+const customerFilterClause = `($1::text IS NULL OR name ILIKE $1 ESCAPE '\' OR email ILIKE $1 ESCAPE '\')`
 
 // listCustomersQueryPrefix and listCustomersQuerySuffix bracket the sort
 // column and direction, both resolved from a fixed allowlist in postgres.go,

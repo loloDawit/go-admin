@@ -12,7 +12,7 @@ RETURNING ` + staffSelectColumns
 const getStaffByIDQuery = `SELECT ` + staffSelectColumns + ` FROM staff WHERE id = $1`
 
 // staffFilterClause: a NULL $1 means no search filter.
-const staffFilterClause = `($1::text IS NULL OR first_name ILIKE '%' || $1 || '%' OR last_name ILIKE '%' || $1 || '%' OR email ILIKE '%' || $1 || '%')`
+const staffFilterClause = `($1::text IS NULL OR first_name ILIKE $1 ESCAPE '\' OR last_name ILIKE $1 ESCAPE '\' OR email ILIKE $1 ESCAPE '\')`
 
 // listStaffQueryPrefix and listStaffQuerySuffix bracket the sort column and
 // direction, both resolved from a fixed allowlist in postgres.go, never from

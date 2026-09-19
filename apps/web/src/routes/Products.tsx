@@ -1,12 +1,13 @@
+import { useEffect, useState } from 'react'
 import { useMemo } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { FilterSelect, Pagination, StatusBadge } from '../ui'
+import { FilterSelect, Pagination, StatusBadge, runBulk, reportBulk } from '../ui'
 import { ListPage } from '../patterns'
 import { Button } from '@/ui/shadcn/button'
 import { Input } from '@/ui/shadcn/input'
 import { Label } from '@/ui/shadcn/label'
-import type { Column } from '../ui'
-import { listProducts, productStatusLabels } from '../api/catalog'
+import type { BulkAction, BulkProgress, Column } from '../ui'
+import { activateProduct, archiveProduct, listProducts, productStatusLabels } from '../api/catalog'
 import type { Product, ProductQuery, ProductStatus } from '../api/catalog'
 import { formatDate, formatMoney } from '../api/format'
 import { oneOf, positiveInt, text, toSearchParams } from '../api/listQuery'
@@ -71,12 +72,54 @@ export function Products() {
       // alongside a search term would be a control that silently does nothing.
       sort: q || !key ? undefined : descending ? `-${key}` : key,
       page: positiveInt(params, 'page') ?? 1,
+      pageSize: positiveInt(params, 'pageSize'),
     }
   }, [params])
 
-  const products = useResource(`products:${params.toString()}`, () => listProducts(query))
+  const paramsKey = params.toString()
+  const products = useResource(`products:${paramsKey}`, () => listProducts(query))
   const page = products.data
   const filtered = Boolean(query.q) || Boolean(query.status)
+
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkProgress, setBulkProgress] = useState<BulkProgress>()
+
+  // Selection is per page: a new page, sort, filter or search is a different
+  // set of rows, so carrying the old ids forward would let a stale selection
+  // act on rows the person can no longer see.
+  useEffect(() => {
+    setSelected(new Set())
+  }, [paramsKey])
+
+  const selectedProducts = (page?.items ?? []).filter((product) => selected.has(product.id))
+
+  async function runProductBulk(verb: string, action: (product: Product) => Promise<unknown>) {
+    const rows = selectedProducts
+    setBulkProgress({ done: 0, total: rows.length })
+    const outcome = await runBulk(rows, action, (done) => setBulkProgress({ done, total: rows.length }))
+    setBulkProgress(undefined)
+    reportBulk(outcome, verb, (product) => product.title)
+    setSelected(new Set())
+    products.reload()
+  }
+
+  const canActivate = selectedProducts.length > 0 && selectedProducts.every((p) => p.status === 'draft')
+  const canArchive = selectedProducts.length > 0 && selectedProducts.every((p) => p.status !== 'archived')
+
+  const bulkActions: BulkAction[] = [
+    {
+      label: 'Activate',
+      disabled: !canActivate,
+      reason: !canActivate ? 'Only draft products can be activated' : undefined,
+      onClick: () => runProductBulk('activated', (product) => activateProduct(product.id)),
+    },
+    {
+      label: 'Archive',
+      disabled: !canArchive,
+      reason: !canArchive ? 'Already-archived products cannot be archived again' : undefined,
+      onClick: () => runProductBulk('archived', (product) => archiveProduct(product.id)),
+    },
+  ]
 
   function apply(next: ProductQuery) {
     setParams(
@@ -85,6 +128,7 @@ export function Products() {
         status: next.status,
         sort: next.q ? undefined : next.sort,
         page: next.page === 1 ? undefined : next.page,
+        pageSize: next.pageSize,
       }),
     )
   }
@@ -154,6 +198,9 @@ export function Products() {
       onRetry={products.reload}
       sort={query.sort}
       onSort={query.q ? undefined : (next) => apply({ ...query, sort: next, page: 1 })}
+      selection={{ selected, onChange: setSelected, label: (product) => product.title }}
+      bulkActions={bulkActions}
+      bulkProgress={bulkProgress}
       pagination={
         page && (
           <Pagination
@@ -161,6 +208,7 @@ export function Products() {
             pageSize={page.pageSize}
             total={page.total}
             onChange={(next) => apply({ ...query, page: next })}
+            onPageSizeChange={(size) => apply({ ...query, pageSize: size, page: 1 })}
           />
         )
       }

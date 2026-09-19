@@ -248,6 +248,10 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
+                    /** @description Matches against first name */
+                    q?: string;
+                    /** @description One of name */
+                    sort?: string;
                     page?: number;
                     pageSize?: number;
                 };
@@ -446,6 +450,10 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
+                    /** @description Matches against the role name. */
+                    q?: string;
+                    /** @description One of name or members */
+                    sort?: string;
                     page?: number;
                     pageSize?: number;
                 };

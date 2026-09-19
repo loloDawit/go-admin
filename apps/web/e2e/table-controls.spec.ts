@@ -3,16 +3,35 @@ import { settled } from './select'
 
 // The catalog has hundreds of seeded products, so the default 20-row page
 // always leaves more than one page to page through.
+// The controls are the subject, so the data is mocked: a seeded database may
+// hold fewer than one page of products, and then nothing about paging can be
+// exercised at all.
 test('page X of Y is stated, and first/last jump to the ends', async ({ page }) => {
+  const TOTAL = 95
+  await page.route('**/api/v1/products*', async (route) => {
+    const url = new URL(route.request().url())
+    const size = Number(url.searchParams.get('pageSize') ?? 20)
+    const current = Number(url.searchParams.get('page') ?? 1)
+    const start = (current - 1) * size
+    const items = Array.from({ length: Math.max(0, Math.min(size, TOTAL - start)) }, (_, i) => ({
+      id: String(start + i + 1),
+      sku: `SKU-${start + i + 1}`,
+      title: `Product ${start + i + 1}`,
+      description: '',
+      status: 'active',
+      priceMinor: 1000,
+      currency: 'USD',
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+    }))
+    await route.fulfill({ json: { items, page: current, pageSize: size, total: TOTAL } })
+  })
+
   await page.goto('/products')
   await settled(page)
 
-  // Other suites seed products concurrently against the same database, so the
-  // total, and with it the last page, is read rather than assumed.
+  const lastPage = Math.ceil(TOTAL / 20)
   const pageLabel = page.getByText(/^Page \d+ of \d+$/)
-  const initial = await pageLabel.textContent()
-  const lastPage = Number(initial?.match(/of (\d+)/)?.[1])
-  expect(lastPage).toBeGreaterThan(1)
   await expect(pageLabel).toHaveText(`Page 1 of ${lastPage}`)
   await expect(page.getByRole('button', { name: 'First page' })).toBeDisabled()
   await expect(page.getByRole('button', { name: 'Previous' })).toBeDisabled()

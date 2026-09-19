@@ -12,18 +12,22 @@ test('navigation opens at narrow widths', async ({ page }) => {
   await expect(page.getByRole('navigation', { name: 'Sections' })).toBeHidden()
 })
 
-test('the rail collapses and restores on ctrl+b, exposing tooltips while collapsed', async ({
-  page,
-}) => {
+// Collapsing leaves an icon rail rather than removing the sidebar: the labels
+// and the account details go, the icons and the tooltips stay.
+test('the sidebar collapses to an icon rail and restores on ctrl+b', async ({ page }) => {
   await page.goto('/orders')
+  const sidebar = page.locator('[data-slot="sidebar"]')
   const ordersLink = page.getByRole('link', { name: 'Orders' })
+  await expect(sidebar).toHaveAttribute('data-state', 'expanded')
   await expect(ordersLink).toBeVisible()
 
   await page.keyboard.press('Control+b')
+  await expect(sidebar).toHaveAttribute('data-state', 'collapsed')
   await ordersLink.hover()
   await expect(page.getByRole('tooltip', { name: 'Orders' })).toBeVisible()
 
   await page.keyboard.press('Control+b')
+  await expect(sidebar).toHaveAttribute('data-state', 'expanded')
   await expect(page.getByRole('tooltip')).toBeHidden()
 })
 
