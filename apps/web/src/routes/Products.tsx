@@ -142,6 +142,7 @@ export function Products() {
       columns={columns}
       rows={page?.items ?? []}
       rowKey={(product) => product.id}
+      rowHref={(product) => `/products/${product.id}`}
       status={products.status}
       filtersApplied={filtered}
       onClearFilters={() => apply({ page: 1 })}

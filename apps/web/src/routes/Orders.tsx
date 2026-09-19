@@ -106,6 +106,7 @@ export function Orders() {
       columns={columns}
       rows={page?.items ?? []}
       rowKey={(order) => order.id}
+      rowHref={(order) => `/orders/${order.id}`}
       status={orders.status}
       filtersApplied={query.status !== undefined}
       onClearFilters={() => apply({ page: 1 })}

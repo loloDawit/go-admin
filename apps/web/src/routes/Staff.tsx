@@ -134,6 +134,7 @@ export function Staff() {
         columns={columns}
         rows={result?.items ?? []}
         rowKey={(member) => member.id}
+        rowHref={(member) => `/staff/${member.id}`}
         status={staff.status}
         emptyTitle="No colleagues yet"
         emptyDescription="Add someone and they will appear here."

@@ -96,7 +96,9 @@ test('editing a role changes what it grants', async ({ page }) => {
   let row = page.locator('tr').filter({ hasText: roleName })
   await expect(row.getByText('0 of 8')).toBeVisible()
 
-  await row.getByRole('button', { name: 'Edit' }).click()
+  // Row actions live behind the table's own trigger, the same on every list.
+  await row.getByRole('button', { name: `Actions for ${roleName}` }).click()
+  await page.getByRole('menuitem', { name: 'Edit' }).click()
   await page.getByRole('checkbox', { name: 'View orders and history' }).check()
   await page.getByRole('button', { name: 'Save changes' }).click()
   row = page.locator('tr').filter({ hasText: roleName })
@@ -152,7 +154,8 @@ test('a role still held by staff cannot be deleted', async ({ page }) => {
 
   await page.goto('/roles')
   const row = page.locator('tr').filter({ hasText: roleName })
-  await row.getByRole('button', { name: 'Delete' }).click()
+  await row.getByRole('button', { name: `Actions for ${roleName}` }).click()
+  await page.getByRole('menuitem', { name: 'Delete' }).click()
   await page.getByRole('dialog').getByRole('button', { name: 'Delete' }).click()
   await expect(page.getByText('Could not delete this role')).toBeVisible()
   await expect(page.getByText('People still hold this role. Move them to another role first.')).toBeVisible()

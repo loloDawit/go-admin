@@ -71,6 +71,7 @@ export function Customers() {
         columns={columns}
         rows={result?.items ?? []}
         rowKey={(customer) => customer.id}
+        rowHref={(customer) => `/customers/${customer.id}`}
         status={customers.status}
         emptyTitle="No customers yet"
         emptyDescription="Add one before taking their first order."

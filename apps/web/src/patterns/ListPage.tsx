@@ -29,6 +29,8 @@ export type ListPageProps<T> = {
   filteredEmptyTitle?: string
   sort?: string
   onSort?: (sort: string | undefined) => void
+  rowHref?: (row: T) => string
+  rowActions?: (row: T) => ReactNode
   pagination?: ReactNode
 }
 
