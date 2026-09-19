@@ -13,7 +13,6 @@ uploads/*
 
 # Planning notes and design sketches — kept local, not part of the build
 docs/
-CLAUDE.md
 .superpowers/
 
 # Binaries from `go build ./tools/...`
