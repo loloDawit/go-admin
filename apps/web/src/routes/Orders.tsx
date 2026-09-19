@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ALL,
-  DefinitionList,
   Pagination,
   RowActions,
   RowDrawer,
@@ -214,17 +213,32 @@ export function Orders() {
         }
       >
         {previewed && (
-          <>
-            <StatusBadge tone={orderStatusTones[previewed.status]}>
-              {orderStatusLabels[previewed.status]}
-            </StatusBadge>
-            <DefinitionList
-              items={[
-                { term: 'Placed', value: formatDateTime(previewed.placedAt) },
-                { term: 'Total', value: formatMoney(previewed.totalMinor, previewed.currency), lead: true },
-              ]}
-            />
-          </>
+          // A stacked list, not the page's DefinitionList: that one is a two to
+          // four column card and cramps every value in a narrow panel.
+          <dl className="divide-border divide-y">
+            <div className="flex items-center justify-between gap-4 py-2.5">
+              <dt className="text-muted-foreground text-sm">Status</dt>
+              <dd>
+                <StatusBadge tone={orderStatusTones[previewed.status]}>
+                  {orderStatusLabels[previewed.status]}
+                </StatusBadge>
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-4 py-2.5">
+              <dt className="text-muted-foreground text-sm">Customer</dt>
+              <dd className="truncate text-sm">{previewed.customerName}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-4 py-2.5">
+              <dt className="text-muted-foreground text-sm">Placed</dt>
+              <dd className="text-sm">{formatDateTime(previewed.placedAt)}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-4 py-2.5">
+              <dt className="text-muted-foreground text-sm">Total</dt>
+              <dd className="font-semibold tabular-nums">
+                {formatMoney(previewed.totalMinor, previewed.currency)}
+              </dd>
+            </div>
+          </dl>
         )}
       </RowDrawer>
     </>
