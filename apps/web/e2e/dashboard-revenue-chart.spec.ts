@@ -34,12 +34,19 @@ function chart(page: Page) {
   return page.locator('[data-slot="card"]', { hasText: 'Revenue' })
 }
 
+// The chart is a lazy chunk, so it mounts after settled() returns. Waiting for
+// the card keeps every assertion below from racing the import.
+async function chartReady(page: Page) {
+  await expect(chart(page)).toBeVisible()
+}
+
 test('the chart renders one point per revenue day, and the range toggle changes the count', async ({
   page,
 }) => {
   await mockDashboard(page, revenueDays(95))
   await page.goto('/')
   await settled(page)
+  await chartReady(page)
 
   // widest range (90) out of 95 available days is the default
   await expect(chart(page).locator('.recharts-dot')).toHaveCount(90)
@@ -57,6 +64,7 @@ test('a single revenue day says so instead of plotting one point', async ({ page
   await mockDashboard(page, revenueDays(1))
   await page.goto('/')
   await settled(page)
+  await chartReady(page)
 
   await expect(chart(page).getByText('Not enough data to chart yet')).toBeVisible()
   await expect(chart(page).locator('.recharts-dot')).toHaveCount(0)
@@ -66,6 +74,7 @@ test('two revenue days do plot', async ({ page }) => {
   await mockDashboard(page, revenueDays(2))
   await page.goto('/')
   await settled(page)
+  await chartReady(page)
 
   await expect(chart(page).locator('.recharts-dot')).toHaveCount(2)
 })
@@ -74,6 +83,7 @@ test('no revenue at all shows an empty state, not a blank chart', async ({ page 
   await mockDashboard(page, [])
   await page.goto('/')
   await settled(page)
+  await chartReady(page)
 
   await expect(chart(page).getByText('No revenue recorded yet')).toBeVisible()
   await expect(chart(page).locator('.recharts-dot')).toHaveCount(0)
@@ -89,6 +99,7 @@ test('a failed report shows an error state on the chart, not a stale or blank on
   })
   await page.goto('/')
   await settled(page)
+  await chartReady(page)
 
   await expect(chart(page).getByText('Revenue is unavailable')).toBeVisible()
 })
@@ -99,11 +110,12 @@ test("hovering the chart shows the day's revenue formatted as money, not a raw m
   await mockDashboard(page, revenueDays(7))
   await page.goto('/')
   await settled(page)
+  await chartReady(page)
 
-  const plot = chart(page).locator('.recharts-surface').first()
-  const box = await plot.boundingBox()
-  if (!box) throw new Error('chart did not render a plot area')
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  // Hover a real data point: the centre of the plot area is not necessarily
+  // inside an active band, so a computed midpoint stops working the moment the
+  // surrounding layout changes.
+  await chart(page).locator('.recharts-dot').nth(3).hover({ force: true })
 
   await expect(chart(page).getByText(/^\$\d[\d,]*\.\d{2}$/)).toBeVisible()
 })
