@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { ComponentProps } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
+  CirclePlus,
   CircleUser,
   Key,
   LayoutDashboard,
@@ -35,6 +36,7 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
+  SidebarGroupContent,
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
@@ -176,6 +178,27 @@ export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
 
       <SidebarContent role="navigation" aria-label="Sections">
+        {/* The block pins a primary action above the menu. Ours is the thing
+            staff do all day: take an order. */}
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  tooltip="New order"
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground min-w-8 duration-200 ease-linear"
+                >
+                  <NavLink to="/orders/new" onClick={() => setOpenMobile(false)}>
+                    <CirclePlus aria-hidden />
+                    <span>New order</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
         {NAV_GROUPS.map((group) => {
           const items = group.items
             .map((item) => visibleItem(item, auth.hasPermission))
