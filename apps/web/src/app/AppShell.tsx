@@ -18,7 +18,7 @@ export function AppShell() {
     <TooltipProvider>
       <SidebarProvider defaultOpen={storedSidebarOpen()}>
         <AppSidebar />
-        <SidebarInset>
+        <SidebarInset className="min-w-0">
           <SiteHeader />
           <div className="bg-canvas min-w-0 flex-1 p-6 max-lg:p-4">
             <Outlet />
