@@ -1,6 +1,5 @@
 import styles from './Status.module.css'
-
-export type StatusTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger'
+import type { StatusTone } from './tone'
 
 export function Status({ tone, children }: { tone: StatusTone; children: string }) {
   return (

@@ -59,6 +59,7 @@
   --color-warning-soft: var(--warning-soft);
   --color-info: var(--info);
   --color-info-soft: var(--info-soft);
+  --color-skeleton: var(--skeleton);
   --color-border: var(--border);
   --color-border-strong: var(--border-strong);
   --color-input: var(--input);
@@ -114,6 +115,7 @@
   --info: #1e5a8a;
   --info-soft: #e5eef5;
 
+  --skeleton: #e6e9ec;
   --border: #d8dcdf;
   --border-strong: #b4babf;
   --input: #d8dcdf;

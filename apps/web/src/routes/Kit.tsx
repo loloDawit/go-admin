@@ -1,218 +1,258 @@
 import { useState } from 'react'
+import { Inbox, MoreHorizontal, SearchX } from 'lucide-react'
+import { EmptyState, Money, StatusBadge } from '../ui'
+import type { StatusTone } from '../ui'
+import { Button } from '@/ui/shadcn/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/ui/shadcn/card'
+import { Input } from '@/ui/shadcn/input'
+import { Textarea } from '@/ui/shadcn/textarea'
+import { Label } from '@/ui/shadcn/label'
+import { Checkbox } from '@/ui/shadcn/checkbox'
+import { Skeleton } from '@/ui/shadcn/skeleton'
+import { Separator } from '@/ui/shadcn/separator'
+import { Alert, AlertDescription, AlertTitle } from '@/ui/shadcn/alert'
 import {
-  Alert,
-  Button,
-  CheckboxField,
-  DataTable,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/ui/shadcn/select'
+import {
   Dialog,
-  PageHeader,
-  PageStack,
-  Section,
-  SelectField,
-  StateBlock,
-  Status,
-  TextField,
-  TextareaField,
-} from '../ui'
-import type { Column } from '../ui'
-import styles from './Kit.module.css'
-
-type KitRow = { id: string; label: string; amount: string }
-
-const columns: Column<KitRow>[] = [
-  { key: 'label', header: 'Label', cell: (row) => row.label },
-  { key: 'amount', header: 'Amount', numeric: true, cell: (row) => row.amount },
-]
-
-const rows: KitRow[] = [
-  { id: '1', label: 'First row', amount: '£12.00' },
-  { id: '2', label: 'Second row', amount: '£340.00' },
-]
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/ui/shadcn/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/ui/shadcn/dropdown-menu'
 
 const TYPE_SCALE = [
-  { token: '2xl / 24px', className: styles.size2xl },
-  { token: 'xl / 20px', className: styles.sizeXl },
-  { token: 'lg / 16px', className: styles.sizeLg },
-  { token: 'base / 14px', className: styles.sizeBase },
-  { token: 'md / 13px', className: styles.sizeMd },
-  { token: 'sm / 12px', className: styles.sizeSm },
+  { name: 'display / 30px', className: 'text-display font-semibold' },
+  { name: 'title / 24px', className: 'text-title font-semibold' },
+  { name: 'section / 18px', className: 'text-section font-semibold' },
+  { name: 'body / 14px', className: 'text-body' },
+  { name: 'label / 13px', className: 'text-label font-medium' },
+  { name: 'caption / 12px', className: 'text-caption text-muted-foreground' },
 ]
 
-const SWATCHES = [
-  { name: 'accent', className: styles.chipAccent },
-  { name: 'success', className: styles.chipSuccess },
-  { name: 'warning', className: styles.chipWarning },
-  { name: 'danger', className: styles.chipDanger },
-  { name: 'info', className: styles.chipInfo },
-  { name: 'canvas', className: styles.chipCanvas },
-  { name: 'surface', className: styles.chipSurface },
-  { name: 'border', className: styles.chipBorder },
+const TONES: { tone: StatusTone; label: string }[] = [
+  { tone: 'neutral', label: 'Archived' },
+  { tone: 'info', label: 'Paid' },
+  { tone: 'success', label: 'Delivered' },
+  { tone: 'warning', label: 'Pending' },
+  { tone: 'danger', label: 'Refunded' },
 ]
+
+const SURFACES = [
+  { name: 'canvas', className: 'bg-canvas' },
+  { name: 'card', className: 'bg-card' },
+  { name: 'muted', className: 'bg-muted' },
+  { name: 'accent', className: 'bg-accent' },
+]
+
+function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-section">{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-wrap items-start gap-3">{children}</CardContent>
+    </Card>
+  )
+}
 
 export function Kit() {
-  const [dialogOpen, setDialogOpen] = useState(false)
+  const [checked, setChecked] = useState(true)
 
   return (
-    <PageStack>
-      <PageHeader
-        title="Interface kit"
-        description="Every primitive in each of its states. Not part of the product navigation for staff."
-      />
+    <div className="flex max-w-[76rem] flex-col gap-5">
+      <header>
+        <h1 className="text-title font-semibold tracking-[-0.011em]">Component kit</h1>
+        <p className="mt-1 text-muted-foreground">
+          Every primitive and every state it can be in. A screen that needs something not
+          shown here is a screen that needs a new primitive, not a one-off.
+        </p>
+      </header>
 
-      <Section title="Colour">
-        <div className={styles.swatches}>
-          {SWATCHES.map((swatch) => (
-            <div key={swatch.name} className={styles.swatch}>
-              <span className={`${styles.chip} ${swatch.className}`} />
-              {swatch.name}
-            </div>
-          ))}
-        </div>
-      </Section>
-
-      <Section title="Type scale">
-        <div className={styles.scale}>
+      <Panel title="Typography">
+        <div className="flex w-full flex-col gap-3">
           {TYPE_SCALE.map((step) => (
-            <div key={step.token} className={styles.scaleRow}>
-              <span className={styles.scaleLabel}>{step.token}</span>
-              <span className={step.className}>Orders waiting on you</span>
+            <div key={step.name} className="flex items-baseline gap-6">
+              <span className="w-40 shrink-0 text-caption text-subtle-foreground">
+                {step.name}
+              </span>
+              <span className={step.className}>Northgate Supply</span>
             </div>
           ))}
         </div>
-      </Section>
+      </Panel>
 
-      <Section title="Buttons">
-        <div className={styles.row}>
-          <Button variant="primary">Primary</Button>
-          <Button variant="secondary">Secondary</Button>
-          <Button variant="danger">Danger</Button>
-          <Button variant="ghost">Ghost</Button>
+      <Panel title="Buttons">
+        <Button>Save changes</Button>
+        <Button variant="secondary">Cancel</Button>
+        <Button variant="ghost">Dismiss</Button>
+        <Button variant="destructive">Delete product</Button>
+        <Button disabled>Disabled</Button>
+        <Separator orientation="vertical" className="h-8" />
+        <Button size="sm">Small</Button>
+        <Button size="lg">Large</Button>
+      </Panel>
+
+      <Panel title="Status">
+        {TONES.map((t) => (
+          <StatusBadge key={t.tone} tone={t.tone}>
+            {t.label}
+          </StatusBadge>
+        ))}
+      </Panel>
+
+      <Panel title="Surfaces">
+        {SURFACES.map((s) => (
+          <div key={s.name} className="flex flex-col items-center gap-1">
+            <div className={`size-16 rounded-md border border-border ${s.className}`} />
+            <span className="text-caption text-muted-foreground">{s.name}</span>
+          </div>
+        ))}
+      </Panel>
+
+      <Panel title="Form controls">
+        <div className="grid w-full max-w-lg gap-4">
+          <div className="grid gap-1.5">
+            <Label htmlFor="kit-sku">SKU</Label>
+            <Input id="kit-sku" placeholder="MUG-CLY-300" />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="kit-bad">Title</Label>
+            <Input id="kit-bad" aria-invalid defaultValue="" aria-describedby="kit-bad-error" />
+            <p id="kit-bad-error" className="text-caption text-destructive">
+              Give the product a title.
+            </p>
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="kit-status">Status</Label>
+            <Select defaultValue="all">
+              <SelectTrigger id="kit-status" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="draft">Draft</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="kit-notes">Description</Label>
+            <Textarea id="kit-notes" rows={3} />
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="kit-check"
+              checked={checked}
+              onCheckedChange={(v) => setChecked(v === true)}
+            />
+            <Label htmlFor="kit-check">Show archived products</Label>
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="kit-disabled">Disabled</Label>
+            <Input id="kit-disabled" disabled defaultValue="Cannot be changed" />
+          </div>
         </div>
-        <div className={styles.row}>
-          <Button variant="primary" loading>
-            Saving
-          </Button>
-          <Button variant="primary" disabled>
-            Disabled
-          </Button>
-          <Button variant="secondary" size="sm">
-            Small
-          </Button>
-          <Button variant="secondary" size="lg">
-            Large
-          </Button>
+      </Panel>
+
+      <Panel title="Money">
+        <div className="flex flex-col items-end gap-1">
+          <Money minor={1248000} currency="USD" className="text-display font-semibold" />
+          <Money minor={4000} currency="USD" />
+          <Money minor={129} currency="USD" />
         </div>
-      </Section>
+      </Panel>
 
-      <Section title="Form controls">
-        <div className={styles.grid}>
-          <TextField label="Default" placeholder="Placeholder" />
-          <TextField label="With help" help="Explains the expected value." />
-          <TextField label="With error" defaultValue="12" error="Enter a whole number above zero." />
-          <TextField label="Disabled" defaultValue="Not editable" disabled />
-          <SelectField label="Select" defaultValue="Kitchen">
-            <option>Kitchen</option>
-            <option>Textiles</option>
-          </SelectField>
-          <TextField label="Optional" optional />
+      <Panel title="Feedback">
+        <div className="grid w-full gap-3">
+          <Alert>
+            <AlertTitle>The projection is still catching up</AlertTitle>
+            <AlertDescription>Revenue may lag a paid order by a few seconds.</AlertDescription>
+          </Alert>
+          <Alert variant="destructive">
+            <AlertTitle>This product could not be saved</AlertTitle>
+            <AlertDescription>Another product already uses this SKU.</AlertDescription>
+          </Alert>
         </div>
-        <TextareaField label="Textarea" placeholder="Longer text" />
-        <CheckboxField label="Checkbox" defaultChecked />
-      </Section>
+      </Panel>
 
-      <Section title="Feedback">
-        <Alert tone="info" title="Informational">
-          Something worth knowing before you continue.
-        </Alert>
-        <Alert tone="success" title="Product saved">
-          The catalog now shows the new price.
-        </Alert>
-        <Alert tone="warning" title="Three products need restocking">
-          The storefront keeps selling them until you change the count.
-        </Alert>
-        <Alert
-          tone="danger"
-          title="The catalog service did not respond"
-          actions={<Button variant="secondary">Try again</Button>}
-        >
-          Nothing was changed. Try again in a moment.
-        </Alert>
-      </Section>
-
-      <Section title="Status">
-        <div className={styles.row}>
-          <Status tone="neutral">Draft</Status>
-          <Status tone="info">Paid</Status>
-          <Status tone="success">Shipped</Status>
-          <Status tone="warning">Awaiting payment</Status>
-          <Status tone="danger">Refunded</Status>
+      <Panel title="Loading">
+        <div className="grid w-full gap-2">
+          <Skeleton className="h-4 w-48" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-2/3" />
         </div>
-      </Section>
+      </Panel>
 
-      <Section title="Table — ready">
-        <DataTable columns={columns} rows={rows} rowKey={(row) => row.id} caption="Two rows" />
-      </Section>
-
-      <Section title="Table — loading">
-        <DataTable columns={columns} rows={[]} rowKey={(row) => row.id} status="loading" />
-      </Section>
-
-      <Section title="Table — empty">
-        <DataTable
-          columns={columns}
-          rows={[]}
-          rowKey={(row) => row.id}
-          emptyTitle="Nothing here yet"
-          emptyDescription="Rows appear once the shop has activity."
-          emptyAction={<Button variant="primary">Add the first one</Button>}
-        />
-      </Section>
-
-      <Section title="Table — error">
-        <DataTable
-          columns={columns}
-          rows={[]}
-          rowKey={(row) => row.id}
-          status="error"
-          onRetry={() => undefined}
-        />
-      </Section>
-
-      <Section title="Page states">
-        <StateBlock title="Loading" description="Fetching the record." />
-        <StateBlock
-          tone="error"
-          title="This record could not be loaded"
-          description="The service did not respond. Try again in a moment."
-          action={<Button variant="secondary">Try again</Button>}
-        />
-      </Section>
-
-      <Section title="Dialog">
-        <div className={styles.row}>
-          <Button variant="secondary" onClick={() => setDialogOpen(true)}>
-            Open dialog
-          </Button>
+      <Panel title="Empty states">
+        <div className="grid w-full gap-4 lg:grid-cols-2">
+          <div className="rounded-md border border-border">
+            <EmptyState
+              icon={Inbox}
+              title="Nothing here yet"
+              description="Products you add will appear in this list."
+              action={<Button>Add product</Button>}
+            />
+          </div>
+          <div className="rounded-md border border-border">
+            <EmptyState
+              icon={SearchX}
+              title="No products match these filters"
+              description="Try a different search, or clear the filters to see everything."
+              action={<Button variant="secondary">Clear filters</Button>}
+            />
+          </div>
         </div>
-        <Dialog
-          open={dialogOpen}
-          title="Discard this draft?"
-          description="The product has not been published, so customers never saw it."
-          onClose={() => setDialogOpen(false)}
-          footer={
-            <>
-              <Button variant="ghost" onClick={() => setDialogOpen(false)}>
-                Keep editing
-              </Button>
-              <Button variant="danger" onClick={() => setDialogOpen(false)}>
-                Discard draft
-              </Button>
-            </>
-          }
-        >
-          <TextField label="Reason" optional placeholder="Duplicate of MUG-CLY-300" />
+      </Panel>
+
+      <Panel title="Overlays">
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button variant="secondary">Open dialog</Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Cancel this order?</DialogTitle>
+              <DialogDescription>
+                The order moves to cancelled and the stock is released. This cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button variant="secondary">Keep the order</Button>
+              </DialogClose>
+              <Button variant="destructive">Cancel order</Button>
+            </DialogFooter>
+          </DialogContent>
         </Dialog>
-      </Section>
-    </PageStack>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" aria-label="Row actions">
+              <MoreHorizontal />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem>Edit</DropdownMenuItem>
+            <DropdownMenuItem>Duplicate</DropdownMenuItem>
+            <DropdownMenuItem variant="destructive">Delete</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </Panel>
+    </div>
   )
 }
