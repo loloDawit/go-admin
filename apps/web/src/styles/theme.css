@@ -191,6 +191,13 @@
 }
 
 @layer base {
+  /* Tailwind's bare `border` sets a width and leaves the colour at
+     currentColor, so without this every border in the application painted
+     near-black instead of the border token. */
+  * {
+    @apply border-border outline-ring/50;
+  }
+
   body {
     background: var(--canvas);
     color: var(--foreground);

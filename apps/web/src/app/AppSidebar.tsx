@@ -161,7 +161,7 @@ export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
     : undefined
 
   return (
-    <Sidebar collapsible="offcanvas" {...props}>
+    <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
