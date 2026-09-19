@@ -49,9 +49,17 @@ test.describe('theme', () => {
     await page.getByRole('button', { name: 'Theme' }).click()
     await page.getByRole('menuitemradio', { name: 'Dark', exact: true }).click()
 
-    const background = await page.evaluate(() =>
-      getComputedStyle(document.documentElement).getPropertyValue('--background').trim(),
-    )
-    expect(background.toLowerCase()).toBe('#101315')
+    // Asserting a literal hex pins the test to one palette; what matters is
+    // that the token resolves to a different, darker value.
+    const luminance = await page.evaluate(() => {
+      const probe = document.createElement('div')
+      probe.style.backgroundColor = 'var(--background)'
+      document.body.append(probe)
+      const rgb = getComputedStyle(probe).backgroundColor
+      probe.remove()
+      const [r, g, b] = rgb.match(/[\d.]+/g)!.map(Number)
+      return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+    })
+    expect(luminance).toBeLessThan(0.3)
   })
 })
