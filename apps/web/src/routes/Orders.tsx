@@ -30,7 +30,7 @@ const columns: Column<OrderSummary>[] = [
     key: 'status',
     header: 'Status',
     sortKey: 'status',
-    grow: true,
+    width: '12rem',
     cell: (order) => (
       <StatusBadge tone={orderStatusTones[order.status]}>
         {orderStatusLabels[order.status]}
@@ -42,7 +42,7 @@ const columns: Column<OrderSummary>[] = [
     header: 'Total',
     numeric: true,
     sortKey: 'total_minor',
-    width: '9rem',
+    grow: true,
     cell: (order) => formatMoney(order.totalMinor, order.currency),
   },
 ]

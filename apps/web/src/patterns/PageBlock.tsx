@@ -1,10 +1,7 @@
 import type { ReactNode } from 'react'
 
-// The frame fills the viewport; the page block sizes to what it holds, with a
-// floor so a sparse screen still reads as a page rather than a fragment. A cap
-// on the frame is what made the application look shrunk on a wide monitor.
+// Content fills the frame. The cap only stops a line of text running the whole
+// width of an ultrawide display; at ordinary workstation widths it never binds.
 export function PageBlock({ children }: { children: ReactNode }) {
-  return (
-    <div className="flex w-fit min-w-[min(100%,52rem)] max-w-full flex-col gap-5">{children}</div>
-  )
+  return <div className="flex w-full max-w-[120rem] flex-col gap-5">{children}</div>
 }
