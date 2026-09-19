@@ -1,14 +1,6 @@
 import { useState } from 'react'
-import {
-  Alert,
-  Button,
-  CheckboxField,
-  DataTable,
-  Dialog,
-  PageHeader,
-  PageStack,
-  TextField,
-} from '../ui'
+import { Alert, Button, CheckboxField, Dialog, TextField } from '../ui'
+import { ListPage } from '../patterns'
 import type { Column } from '../ui'
 import {
   createRole,
@@ -49,24 +41,27 @@ export function Roles() {
   }
 
   const columns: Column<Role>[] = [
-    { key: 'name', header: 'Role', cell: (role) => role.name },
+    { key: 'name', header: 'Role', width: '18rem', cell: (role) => role.name },
     {
       key: 'members',
       header: 'People',
       numeric: true,
+      width: '8rem',
       cell: (role) => (staff.status === 'ready' ? String(memberCounts.get(role.id) ?? 0) : '—'),
     },
     {
       key: 'permissions',
       header: 'Permissions',
+      width: '12rem',
       cell: (role) => `${role.permissions.length} of ${permissions.data?.length ?? role.permissions.length}`,
     },
     {
       key: 'actions',
       header: '',
+      grow: true,
       cell: (role) =>
         canEdit && (
-          <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+          <div className="flex justify-end gap-2">
             <Button variant="ghost" size="sm" onClick={() => openEdit(role)}>
               Edit
             </Button>
@@ -115,20 +110,18 @@ export function Roles() {
   ) : undefined
 
   return (
-    <PageStack>
-      <PageHeader
+    <>
+      <ListPage
         title="Roles"
         description="A role is a named set of permissions. Staff hold exactly one."
-        actions={addAction}
-      />
-
-      {deleteError && (
-        <Alert tone="danger" title="Could not delete this role">
-          {deleteError}
-        </Alert>
-      )}
-
-      <DataTable
+        primaryAction={addAction}
+        banner={
+          deleteError ? (
+            <Alert tone="danger" title="Could not delete this role">
+              {deleteError}
+            </Alert>
+          ) : undefined
+        }
         columns={columns}
         rows={roles.data ?? []}
         rowKey={(role) => role.id}
@@ -238,6 +231,6 @@ export function Roles() {
           </>
         }
       />
-    </PageStack>
+    </>
   )
 }

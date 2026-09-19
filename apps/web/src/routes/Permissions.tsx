@@ -1,4 +1,4 @@
-import { DataTable, PageHeader, PageStack } from '../ui'
+import { ListPage } from '../patterns'
 import type { Column } from '../ui'
 import { listPermissions, listRoles, permissionLabels } from '../api/identity'
 import type { Permission } from '../api/identity'
@@ -16,8 +16,13 @@ export function Permissions() {
   }
 
   const columns: Column<Permission>[] = [
-    { key: 'key', header: 'Permission', cell: (permission) => permission },
-    { key: 'description', header: 'What it allows', cell: (permission) => permissionLabels[permission] },
+    { key: 'key', header: 'Permission', width: '16rem', cell: (permission) => permission },
+    {
+      key: 'description',
+      header: 'What it allows',
+      width: '26rem',
+      cell: (permission) => permissionLabels[permission],
+    },
     {
       key: 'roles',
       header: 'Held by',
@@ -29,21 +34,17 @@ export function Permissions() {
   ]
 
   return (
-    <PageStack>
-      <PageHeader
-        title="Permissions"
-        description="The fixed vocabulary the services enforce. Roles are built from these."
-      />
-      <DataTable
-        columns={columns}
-        rows={permissions.data ?? []}
-        rowKey={(permission) => permission}
-        status={permissions.status}
-        emptyTitle="No permissions published"
-        emptyDescription="The identity service has not reported its vocabulary."
-        errorDescription={permissions.error?.message}
-        onRetry={permissions.reload}
-      />
-    </PageStack>
+    <ListPage
+      title="Permissions"
+      description="The fixed vocabulary the services enforce. Roles are built from these."
+      columns={columns}
+      rows={permissions.data ?? []}
+      rowKey={(permission) => permission}
+      status={permissions.status}
+      emptyTitle="No permissions published"
+      emptyDescription="The identity service has not reported its vocabulary."
+      errorDescription={permissions.error?.message}
+      onRetry={permissions.reload}
+    />
   )
 }

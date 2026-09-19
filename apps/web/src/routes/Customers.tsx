@@ -1,15 +1,7 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import {
-  Alert,
-  Button,
-  DataTable,
-  Dialog,
-  PageHeader,
-  PageStack,
-  Pagination,
-  TextField,
-} from '../ui'
+import { Alert, Button, Dialog, Pagination, TextField } from '../ui'
+import { ListPage } from '../patterns'
 import type { Column } from '../ui'
 import { createCustomer, listCustomers } from '../api/customers'
 import type { Customer } from '../api/customers'
@@ -22,10 +14,16 @@ const columns: Column<Customer>[] = [
   {
     key: 'name',
     header: 'Customer',
+    width: '20rem',
     cell: (customer) => <Link to={`/customers/${customer.id}`}>{customer.name}</Link>,
   },
-  { key: 'email', header: 'Email', cell: (customer) => customer.email },
-  { key: 'since', header: 'Customer since', cell: (customer) => formatDate(customer.createdAt) },
+  { key: 'email', header: 'Email', grow: true, cell: (customer) => customer.email },
+  {
+    key: 'since',
+    header: 'Customer since',
+    width: '12rem',
+    cell: (customer) => formatDate(customer.createdAt),
+  },
 ]
 
 export function Customers() {
@@ -62,20 +60,12 @@ export function Customers() {
   }
 
   return (
-    <PageStack>
-      <PageHeader
+    <>
+      <ListPage
         title="Customers"
         description="Everyone an order can be placed for."
-        actions={
-          <Button variant="primary" onClick={() => setAdding(true)}>
-            Add customer
-          </Button>
-        }
-      />
-
-      {failure && <Alert tone="danger" title={failure} />}
-
-      <DataTable
+        primaryAction={<Button variant="primary" onClick={() => setAdding(true)}>Add customer</Button>}
+        banner={failure ? <Alert tone="danger" title={failure} /> : undefined}
         columns={columns}
         rows={result?.items ?? []}
         rowKey={(customer) => customer.id}
@@ -89,16 +79,17 @@ export function Customers() {
         }
         errorDescription={customers.error?.message}
         onRetry={customers.reload}
+        pagination={
+          result && (
+            <Pagination
+              page={result.page}
+              pageSize={result.pageSize}
+              total={result.total}
+              onChange={(next) => setParams(toSearchParams({ page: next === 1 ? undefined : next }))}
+            />
+          )
+        }
       />
-
-      {result && (
-        <Pagination
-          page={result.page}
-          pageSize={result.pageSize}
-          total={result.total}
-          onChange={(next) => setParams(toSearchParams({ page: next === 1 ? undefined : next }))}
-        />
-      )}
 
       <Dialog
         open={adding}
@@ -133,6 +124,6 @@ export function Customers() {
           placeholder="rita@example.com"
         />
       </Dialog>
-    </PageStack>
+    </>
   )
 }

@@ -10,6 +10,9 @@ export type ListPageProps<T> = {
   primaryAction?: ReactNode
   filters?: ReactNode
   note?: ReactNode
+  // Sits between the header and the table: a reveal or a warning that must not
+  // be scrolled out of view behind the list.
+  banner?: ReactNode
   columns: Column<T>[]
   rows: T[]
   rowKey: (row: T) => string
@@ -35,6 +38,7 @@ export function ListPage<T>({
   primaryAction,
   filters,
   note,
+  banner,
   pagination,
   filtersApplied,
   onClearFilters,
@@ -48,6 +52,8 @@ export function ListPage<T>({
   return (
     <PageBlock>
       <PageHeader title={title} description={description} actions={primaryAction} />
+
+      {banner}
 
       <div className="overflow-hidden rounded-lg border border-border bg-card">
         {filters && (
