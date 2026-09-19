@@ -1,5 +1,6 @@
 #!/bin/sh
-# Keeps local planning notes from being committed by accident.
+# Keeps local planning notes from being committed by accident. CLAUDE.md is
+# deliberately tracked: it is the contract, not a planning note.
 #
 # .gitignore does not stop `git add -f`, and these files have been force-added
 # once already. This checks the staged set, so that case is caught too.
@@ -10,7 +11,7 @@
 set -eu
 
 staged=$(git diff --cached --name-only --diff-filter=ACMR \
-	| grep -E '^(\.superpowers/|\.claude/|docs/|CLAUDE\.md$)' || true)
+	| grep -E '^(\.superpowers/|\.claude/|docs/)' || true)
 
 [ -z "$staged" ] && exit 0
 
