@@ -165,7 +165,7 @@ test('a session that dies mid-visit sends the next action to login, not a crash'
   // A client-side nav, not page.goto: a fresh navigation re-mounts the app and races its own
   // bootstrap /me fetch against clearCookies below. Staying on the already-settled page avoids that.
   await page.getByRole('link', { name: 'Orders' }).click()
-  await expect(page.getByRole('heading', { name: 'Orders' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Orders' })).toBeVisible()
   await context.clearCookies()
   // The next thing to touch the API sends the app to /login. Usually that is this click; a
   // request still in flight when the session died gets there first and unmounts the link

@@ -15,7 +15,7 @@ test('a customer with no orders opens instead of crashing', async ({ page }) => 
   await page.getByRole('dialog').getByRole('button', { name: 'Add customer' }).click()
 
   await page.getByRole('link', { name }).click()
-  await expect(page.getByRole('heading', { name })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name })).toBeVisible()
   await expect(page.getByText('Unexpected Application Error')).toHaveCount(0)
   await expect(page.getByText('No orders yet').first()).toBeVisible()
 })
@@ -40,7 +40,10 @@ for (const viewport of VIEWPORTS) {
       await page.getByRole('dialog').getByRole('button', { name: 'Add customer' }).click()
 
       await page.getByRole('link', { name }).click()
-      await expect(page.getByRole('heading', { name })).toBeVisible()
+      // level 1, because an accessible name matches by case-insensitive
+      // substring: on an empty database the Orders page also carries the
+      // heading "No orders yet", which answers to "Orders".
+      await expect(page.getByRole('heading', { level: 1, name })).toBeVisible()
       await settled(page)
       await page.screenshot({
         path: `screenshots/${viewport.name}_customer-detail.png`,

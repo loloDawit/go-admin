@@ -192,7 +192,7 @@ test('the dashboard reports revenue once an order is paid', async ({ page }) => 
   })
 
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: 'Revenue' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: 'Revenue' })).toBeVisible()
   // The projection is asynchronous: the worker has to publish and apply before
   // the figure moves, so this polls rather than asserting once.
   await expect

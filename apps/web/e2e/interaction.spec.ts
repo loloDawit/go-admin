@@ -8,7 +8,7 @@ test('navigation opens at narrow widths', async ({ page }) => {
   await expect(page.getByRole('navigation', { name: 'Sections' })).toBeVisible()
   await page.screenshot({ path: 'screenshots/interaction_narrow-nav.png', fullPage: true })
   await page.getByRole('link', { name: 'Products' }).click()
-  await expect(page.getByRole('heading', { name: 'Products' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Products' })).toBeVisible()
   await expect(page.getByRole('navigation', { name: 'Sections' })).toBeHidden()
 })
 
