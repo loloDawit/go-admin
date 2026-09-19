@@ -22,7 +22,7 @@ WHERE r.id = $1
 GROUP BY r.id, r.name`
 
 // roleFilterClause: a NULL $1 means no search filter.
-const roleFilterClause = `($1::text IS NULL OR r.name ILIKE '%' || $1 || '%')`
+const roleFilterClause = `($1::text IS NULL OR r.name ILIKE $1 ESCAPE '\')`
 
 // The member count is a scalar subquery rather than another LEFT JOIN: joining
 // staff as well would multiply the permission rows before the aggregate. It
