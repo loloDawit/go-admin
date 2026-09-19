@@ -71,6 +71,7 @@ export function Products() {
       // alongside a search term would be a control that silently does nothing.
       sort: q || !key ? undefined : descending ? `-${key}` : key,
       page: positiveInt(params, 'page') ?? 1,
+      pageSize: positiveInt(params, 'pageSize'),
     }
   }, [params])
 
@@ -85,6 +86,7 @@ export function Products() {
         status: next.status,
         sort: next.q ? undefined : next.sort,
         page: next.page === 1 ? undefined : next.page,
+        pageSize: next.pageSize,
       }),
     )
   }
@@ -161,6 +163,7 @@ export function Products() {
             pageSize={page.pageSize}
             total={page.total}
             onChange={(next) => apply({ ...query, page: next })}
+            onPageSizeChange={(size) => apply({ ...query, pageSize: size, page: 1 })}
           />
         )
       }

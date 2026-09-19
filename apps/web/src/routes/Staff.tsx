@@ -18,7 +18,8 @@ type Step = 'form' | 'password'
 export function Staff() {
   const [params, setParams] = useSearchParams()
   const page = positiveInt(params, 'page') ?? 1
-  const staff = useResource(`staff:${page}`, () => listStaff(page))
+  const pageSize = positiveInt(params, 'pageSize')
+  const staff = useResource(`staff:${page}:${pageSize ?? ''}`, () => listStaff(page, pageSize))
   const result = staff.data
   const roles = useResource('roles', listAllRoles)
   const auth = useAuth()
@@ -147,7 +148,10 @@ export function Staff() {
               page={result.page}
               pageSize={result.pageSize}
               total={result.total}
-              onChange={(next) => setParams(toSearchParams({ page: next === 1 ? undefined : next }))}
+              onChange={(next) =>
+                setParams(toSearchParams({ page: next === 1 ? undefined : next, pageSize }))
+              }
+              onPageSizeChange={(size) => setParams(toSearchParams({ pageSize: size }))}
             />
           )
         }

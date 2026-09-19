@@ -70,6 +70,7 @@ export function Orders() {
       status: oneOf(params, 'status', STATUSES),
       sort: key ? (descending ? `-${key}` : key) : undefined,
       page: positiveInt(params, 'page') ?? 1,
+      pageSize: positiveInt(params, 'pageSize'),
     }
   }, [params])
 
@@ -82,6 +83,7 @@ export function Orders() {
         status: next.status,
         sort: next.sort,
         page: next.page === 1 ? undefined : next.page,
+        pageSize: next.pageSize,
       }),
     )
   }
@@ -125,6 +127,7 @@ export function Orders() {
             pageSize={page.pageSize}
             total={page.total}
             onChange={(next) => apply({ ...query, page: next })}
+            onPageSizeChange={(size) => apply({ ...query, pageSize: size, page: 1 })}
           />
         )
       }
