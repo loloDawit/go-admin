@@ -35,4 +35,3 @@ test('keyboard focus is visible', async ({ page }) => {
   await expect(page.getByRole('dialog')).toBeVisible()
   await page.screenshot({ path: 'screenshots/interaction_dialog.png' })
 })
-

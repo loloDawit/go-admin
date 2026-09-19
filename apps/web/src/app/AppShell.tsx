@@ -12,7 +12,7 @@ export function AppShell() {
         <AppSidebar />
         <SidebarInset>
           <SiteHeader />
-          <div className="min-w-0 flex-1 bg-canvas p-6 max-lg:p-4">
+          <div className="bg-canvas min-w-0 flex-1 p-6 max-lg:p-4">
             <Outlet />
           </div>
         </SidebarInset>

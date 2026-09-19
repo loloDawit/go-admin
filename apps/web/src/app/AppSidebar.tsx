@@ -90,7 +90,9 @@ export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
 
       <SidebarContent role="navigation" aria-label="Sections">
         {NAV_GROUPS.map((group) => {
-          const items = group.items.filter((item) => !item.require || auth.hasPermission(item.require))
+          const items = group.items.filter(
+            (item) => !item.require || auth.hasPermission(item.require),
+          )
           if (items.length === 0) return null
           return (
             <SidebarGroup key={group.label}>
@@ -99,7 +101,12 @@ export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
                 {items.map((item) => (
                   <SidebarMenuItem key={item.to}>
                     <SidebarMenuButton asChild tooltip={item.label}>
-                      <NavLink to={item.to} end={item.end} className={LINK_CLASS} onClick={() => setOpenMobile(false)}>
+                      <NavLink
+                        to={item.to}
+                        end={item.end}
+                        className={LINK_CLASS}
+                        onClick={() => setOpenMobile(false)}
+                      >
                         <item.icon aria-hidden />
                         <span>{item.label}</span>
                       </NavLink>
@@ -126,7 +133,7 @@ export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
               </DropdownMenuTrigger>
               <DropdownMenuContent side="right" align="end" className="w-56">
                 <DropdownMenuLabel className="font-normal">
-                  <span className="block text-caption text-muted-foreground">Signed in as</span>
+                  <span className="text-caption text-muted-foreground block">Signed in as</span>
                   <span className="block truncate">{auth.user?.email}</span>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />

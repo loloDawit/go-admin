@@ -4,14 +4,13 @@ import { SidebarTrigger } from '@/ui/shadcn/sidebar'
 
 export function SiteHeader() {
   return (
-    <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b border-border bg-card px-4">
+    <header className="border-border bg-card sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b px-4">
       <SidebarTrigger className="-ml-1" />
       <Separator orientation="vertical" className="h-4" />
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
-            {/* A dynamic page crumb here would repeat a nav item's own accessible name, colliding
-                with role=link lookups elsewhere in the suite that target that name. */}
+            {/* Static, not the page name: BreadcrumbPage is role="link", which would collide with getByRole('link', { name: <page> }) against the nav. */}
             <BreadcrumbPage>Back office</BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
