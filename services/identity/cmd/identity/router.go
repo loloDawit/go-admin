@@ -12,6 +12,7 @@ import (
 	"github.com/loloDawit/go-admin/platform/readiness"
 	"github.com/loloDawit/go-admin/platform/requestid"
 	"github.com/loloDawit/go-admin/services/identity/internal/authz"
+	"github.com/loloDawit/go-admin/services/identity/internal/config"
 	"github.com/loloDawit/go-admin/services/identity/internal/permission"
 	"github.com/loloDawit/go-admin/services/identity/internal/role"
 	"github.com/loloDawit/go-admin/services/identity/internal/session"
@@ -32,6 +33,8 @@ func newRouter(
 ) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(requestid.Middleware)
+	r.Use(observability.HTTPMiddleware(config.ServiceName))
+	r.Use(observability.RouteTagger())
 	r.Use(observability.RequestLogger(logger))
 	r.Use(chimiddleware.Recoverer)
 

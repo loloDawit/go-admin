@@ -10,14 +10,16 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-const serviceName = "identity"
+// ServiceName is this service's identity in logs, traces and metrics.
+const ServiceName = "identity"
 
-// serviceName and DefaultPort are the two values a service-specific rename touches.
+// ServiceName and DefaultPort are the two values a service-specific rename touches.
 const DefaultPort = "8081"
 
 type Config struct {
 	ServiceName         string
 	Port                string
+	OTLPEndpoint        string
 	DatabaseURL         string
 	BcryptCost          int
 	SessionTTL          time.Duration
@@ -30,9 +32,12 @@ type Config struct {
 // the first request.
 func Load() (*Config, error) {
 	cfg := &Config{
-		ServiceName: serviceName,
+		ServiceName: ServiceName,
 		Port:        withDefault("PORT", DefaultPort),
-		DatabaseURL: os.Getenv("DATABASE_URL"),
+		// Optional by design: an unconfigured collector means a no-op provider,
+		// not a failed boot.
+		OTLPEndpoint: withDefault("OTEL_EXPORTER_OTLP_ENDPOINT", ""),
+		DatabaseURL:  os.Getenv("DATABASE_URL"),
 	}
 	if cfg.DatabaseURL == "" {
 		return nil, errors.New("DATABASE_URL is required")

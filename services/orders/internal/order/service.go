@@ -80,7 +80,7 @@ func (s *Service) Create(ctx context.Context, in CreateOrder) (Order, error) {
 			return err
 		}
 
-		rec, err := outbox.New(outbox.TypeOrderCreated, strconv.FormatInt(created.ID, 10), in.ActorID, created.PlacedAt, map[string]any{
+		rec, err := outbox.New(ctx, outbox.TypeOrderCreated, strconv.FormatInt(created.ID, 10), in.ActorID, created.PlacedAt, map[string]any{
 			"totalMinor": created.TotalMinor,
 			"currency":   created.Currency,
 			"placedAt":   created.PlacedAt,
@@ -157,7 +157,7 @@ func (s *Service) transition(ctx context.Context, id int64, actorID string, to S
 			return err
 		}
 
-		rec, err := outbox.New(outbox.TypeOrderStatusChanged, strconv.FormatInt(id, 10), actorID, updated.UpdatedAt, map[string]any{
+		rec, err := outbox.New(ctx, outbox.TypeOrderStatusChanged, strconv.FormatInt(id, 10), actorID, updated.UpdatedAt, map[string]any{
 			"from":       string(from),
 			"to":         string(to),
 			"totalMinor": updated.TotalMinor,

@@ -5,6 +5,8 @@ package catalog
 import (
 	"net/http"
 	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 // Client calls Catalog's internal, gateway-network-only endpoints.
@@ -19,11 +21,11 @@ type Client struct {
 func NewClient(baseURL string, timeout time.Duration, maxIdleConns int) *Client {
 	return &Client{
 		httpClient: &http.Client{
-			Transport: &http.Transport{
+			Transport: otelhttp.NewTransport(&http.Transport{
 				MaxIdleConns:        maxIdleConns,
 				MaxIdleConnsPerHost: maxIdleConns,
 				MaxConnsPerHost:     maxIdleConns,
-			},
+			}),
 		},
 		baseURL: baseURL,
 		timeout: timeout,

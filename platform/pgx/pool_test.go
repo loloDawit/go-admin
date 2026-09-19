@@ -29,3 +29,18 @@ func TestNewPoolRejectsAMalformedDSN(t *testing.T) {
 		t.Error("the error must not echo credential material")
 	}
 }
+
+// The tracer is what turns every query in every service into a span. Without
+// it "which dependency caused the latency?" has no answer for the database,
+// which is the dependency most often responsible.
+func TestPoolHasAQueryTracer(t *testing.T) {
+	pool, err := pgxplatform.NewPool(context.Background(), "postgres://u:p@127.0.0.1:1/db?sslmode=disable")
+	if err != nil {
+		t.Fatalf("NewPool: %v", err)
+	}
+	defer pool.Close()
+
+	if pool.Config().ConnConfig.Tracer == nil {
+		t.Fatal("ConnConfig.Tracer is nil")
+	}
+}

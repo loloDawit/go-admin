@@ -44,6 +44,12 @@ func main() {
 
 	ctx := context.Background()
 
+	shutdownTracing, err := observability.NewTracerProvider(ctx, cfg.ServiceName, cfg.OTLPEndpoint)
+	if err != nil {
+		logger.Error("tracing", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
 	// A database that is down must not stop the process from starting; readiness
 	// reports it and the service recovers when Postgres returns.
 	pool, err := pgxplatform.NewPool(ctx, cfg.DatabaseURL)
@@ -107,6 +113,7 @@ func main() {
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	_ = srv.Shutdown(shutdownCtx)
+	_ = shutdownTracing(shutdownCtx)
 	cancel()
 	pool.Close()
 

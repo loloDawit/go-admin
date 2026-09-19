@@ -67,7 +67,7 @@ func TestRequestLoggerRecordsTheExpectedAttributes(t *testing.T) {
 
 	for _, tc := range []struct{ key, want string }{
 		{"request_id", "known-id"},
-		{"route", "/_platform"},
+		{"path", "/_platform"},
 		{"method", "GET"},
 	} {
 		v, ok := captured.Attr(0, tc.key)

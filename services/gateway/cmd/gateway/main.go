@@ -40,6 +40,13 @@ func main() {
 	logger := observability.NewLogger(serviceName, os.Stdout)
 	slog.SetDefault(logger)
 
+	ctx := context.Background()
+	shutdownTracing, err := observability.NewTracerProvider(ctx, serviceName, cfg.OTLPEndpoint)
+	if err != nil {
+		logger.Error("tracing", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
 	var spa http.Handler
 	if cfg.WebRoot != "" {
 		spa, err = web.Handler(cfg.WebRoot)
@@ -105,6 +112,7 @@ func main() {
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	_ = srv.Shutdown(shutdownCtx)
+	_ = shutdownTracing(shutdownCtx)
 	cancel()
 
 	os.Exit(exitCode)

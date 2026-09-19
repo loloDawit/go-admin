@@ -10,8 +10,8 @@ import (
 )
 
 func NewLogger(service string, w io.Writer) *slog.Logger {
-	return slog.New(slog.NewJSONHandler(w, &slog.HandlerOptions{Level: slog.LevelInfo})).
-		With(slog.String("service", service))
+	base := slog.NewJSONHandler(w, &slog.HandlerOptions{Level: slog.LevelInfo})
+	return slog.New(traceHandler{Handler: base}).With(slog.String("service", service))
 }
 
 func RequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
@@ -22,13 +22,19 @@ func RequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 
 			next.ServeHTTP(rec, r)
 
-			logger.InfoContext(r.Context(), "request",
+			// route is chi's pattern, not the concrete path: a path here is one
+			// log stream, and one metric time series, per order.
+			attrs := []slog.Attr{
 				slog.String("request_id", requestid.FromContext(r.Context())),
 				slog.String("method", r.Method),
-				slog.String("route", r.URL.Path),
+				slog.String("path", r.URL.Path),
 				slog.Int("status", rec.status),
 				slog.Int64("duration_ms", time.Since(start).Milliseconds()),
-			)
+			}
+			if pattern := routePattern(r); pattern != "" {
+				attrs = append(attrs, slog.String("route", pattern))
+			}
+			logger.LogAttrs(r.Context(), slog.LevelInfo, "request", attrs...)
 		})
 	}
 }

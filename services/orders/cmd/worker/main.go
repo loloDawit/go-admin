@@ -33,6 +33,13 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	shutdownTracing, err := observability.NewTracerProvider(ctx, cfg.ServiceName+"-worker", cfg.OTLPEndpoint)
+	if err != nil {
+		logger.Error("tracing", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	defer func() { _ = shutdownTracing(context.Background()) }()
+
 	pool, err := pgxplatform.NewPool(ctx, cfg.DatabaseURL)
 	if err != nil {
 		logger.Error("database pool", slog.String("error", err.Error()))

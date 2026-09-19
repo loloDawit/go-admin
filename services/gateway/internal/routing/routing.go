@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
 	"github.com/loloDawit/go-admin/platform/requestid"
 	"github.com/loloDawit/go-admin/services/gateway/internal/errs"
 	"github.com/loloDawit/go-admin/services/gateway/internal/httperr"
@@ -51,6 +53,10 @@ func newProxy(logger *slog.Logger, name string, target *url.URL) *httputil.Rever
 		resp.Header.Del(requestid.Header)
 		return nil
 	}
+
+	// ReverseProxy copies headers but creates no client span, so without this
+	// the gateway's span and the upstream's would not parent.
+	proxy.Transport = otelhttp.NewTransport(http.DefaultTransport)
 
 	return proxy
 }

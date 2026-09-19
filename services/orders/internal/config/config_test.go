@@ -147,3 +147,33 @@ func TestLoadCarriesCatalogSettingsThrough(t *testing.T) {
 		t.Errorf("principal key: want %q, got %q", validSigningKey, cfg.PrincipalKey)
 	}
 }
+
+// The endpoint is the one optional setting in this config: an operator who has
+// not stood up a collector must still be able to boot the service.
+func TestOTLPEndpointIsOptional(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://u:p@localhost:5432/orders_db")
+	setValidOrdersEnv(t)
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.OTLPEndpoint != "" {
+		t.Fatalf("OTLPEndpoint = %q, want empty", cfg.OTLPEndpoint)
+	}
+}
+
+func TestOTLPEndpointIsRead(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://u:p@localhost:5432/orders_db")
+	setValidOrdersEnv(t)
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "otel-collector:4317")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.OTLPEndpoint != "otel-collector:4317" {
+		t.Fatalf("OTLPEndpoint = %q", cfg.OTLPEndpoint)
+	}
+}
