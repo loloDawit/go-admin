@@ -73,17 +73,23 @@ test('an unrecognised status in the URL is dropped, not forwarded', async ({ pag
 
 test('an order status filter is in the URL and survives a reload', async ({ page }) => {
   await page.goto('/orders')
-  await chooseOption(page, 'Status', 'Packed')
+  await page.getByRole('tab', { name: 'Packed', exact: true }).click()
   await expect(page).toHaveURL(/\/orders\?status=packed$/)
 
   await page.reload()
-  await expectChosen(page, 'Status', 'Packed')
+  await expect(page.getByRole('tab', { name: 'Packed', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
 })
 
 test('an unrecognised order status in the URL is dropped', async ({ page }) => {
   await page.goto('/orders?status=elsewhere')
   await settled(page)
-  await expectChosen(page, 'Status', 'All statuses')
+  await expect(page.getByRole('tab', { name: 'All', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
   await expect(page.getByText('could not be loaded')).toHaveCount(0)
 })
 

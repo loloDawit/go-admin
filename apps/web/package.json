@@ -22,7 +22,8 @@
     "react-is": "^19.3.0",
     "react-router-dom": "^7.18.3",
     "recharts": "^3.8.0",
-    "sonner": "^2.0.8"
+    "sonner": "^2.0.8",
+    "vaul": "^1.1.2"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
