@@ -1,8 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { FilterSelect, Pagination, StatusBadge, runBulk, reportBulk } from '../ui'
+import {
+  ALL,
+  DefinitionList,
+  Pagination,
+  RowActions,
+  RowDrawer,
+  StatusBadge,
+  runBulk,
+  reportBulk,
+} from '../ui'
 import { ListPage } from '../patterns'
 import { Button } from '@/ui/shadcn/button'
+import { DropdownMenuItem } from '@/ui/shadcn/dropdown-menu'
+import { Tabs, TabsList, TabsTrigger } from '@/ui/shadcn/tabs'
 import type { BulkAction, BulkProgress, Column } from '../ui'
 import { listOrders, orderStatusLabels, setOrderStatus } from '../api/orders'
 import type { OrderQuery, OrderStatus, OrderSummary } from '../api/orders'
@@ -80,6 +91,11 @@ export function Orders() {
 
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkProgress, setBulkProgress] = useState<BulkProgress>()
+  const [previewedId, setPreviewedId] = useState<string>()
+  // Derived, not stored: switching tabs or pages while a preview is open drops
+  // it naturally once its row is no longer on the page, rather than showing a
+  // stale one.
+  const previewed = (page?.items ?? []).find((order) => order.id === previewedId)
 
   // Selection is per page: a new page, status filter or sort is a different
   // set of rows, so a stale selection never survives to act on rows the
@@ -122,51 +138,95 @@ export function Orders() {
   }
 
   return (
-    <ListPage
-      title="Orders"
-      description="Everything placed through the shop, newest first."
-      primaryAction={<Button onClick={() => navigate('/orders/new')}>New order</Button>}
-      filters={
-        <FilterSelect
-          label="Status"
-          value={query.status}
-          allLabel="All statuses"
-          options={STATUSES.map((status) => ({
-            value: status,
-            label: orderStatusLabels[status],
-          }))}
-          onChange={(status) => apply({ page: 1, status: status as OrderStatus | undefined })}
-        />
-      }
-      columns={columns}
-      rows={page?.items ?? []}
-      rowKey={(order) => order.id}
-      rowHref={(order) => `/orders/${order.id}`}
-      status={orders.status}
-      filtersApplied={query.status !== undefined}
-      onClearFilters={() => apply({ page: 1 })}
-      filteredEmptyTitle="No orders with this status"
-      emptyTitle="No orders yet"
-      emptyDescription="Take the first order and it appears here."
-      emptyAction={<Button onClick={() => navigate('/orders/new')}>New order</Button>}
-      errorDescription={orders.error?.message}
-      onRetry={orders.reload}
-      sort={query.sort}
-      onSort={(next) => apply({ ...query, sort: next, page: 1 })}
-      selection={{ selected, onChange: setSelected, label: (order) => order.number }}
-      bulkActions={bulkActions}
-      bulkProgress={bulkProgress}
-      pagination={
-        page && (
-          <Pagination
-            page={page.page}
-            pageSize={page.pageSize}
-            total={page.total}
-            onChange={(next) => apply({ ...query, page: next })}
-            onPageSizeChange={(size) => apply({ ...query, pageSize: size, page: 1 })}
-          />
-        )
-      }
-    />
+    <>
+      <ListPage
+        title="Orders"
+        description="Everything placed through the shop, newest first."
+        primaryAction={<Button onClick={() => navigate('/orders/new')}>New order</Button>}
+        filters={
+          <Tabs
+            value={query.status ?? ALL}
+            onValueChange={(status) =>
+              apply({ page: 1, status: status === ALL ? undefined : (status as OrderStatus) })
+            }
+            className="max-w-full"
+          >
+            {/* Seven statuses outrun a narrow toolbar; scrolling the strip keeps
+                every tab reachable instead of clipping it against the card edge. */}
+            <div className="max-w-full overflow-x-auto">
+              <TabsList aria-label="Status">
+                <TabsTrigger value={ALL}>All</TabsTrigger>
+                {STATUSES.map((status) => (
+                  <TabsTrigger key={status} value={status}>
+                    {orderStatusLabels[status]}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </div>
+          </Tabs>
+        }
+        columns={columns}
+        rows={page?.items ?? []}
+        rowKey={(order) => order.id}
+        rowHref={(order) => `/orders/${order.id}`}
+        rowActions={(order) => (
+          <RowActions label={`Actions for ${order.number}`}>
+            <DropdownMenuItem onSelect={() => setPreviewedId(order.id)}>Quick look</DropdownMenuItem>
+          </RowActions>
+        )}
+        status={orders.status}
+        filtersApplied={query.status !== undefined}
+        onClearFilters={() => apply({ page: 1 })}
+        filteredEmptyTitle="No orders with this status"
+        emptyTitle="No orders yet"
+        emptyDescription="Take the first order and it appears here."
+        emptyAction={<Button onClick={() => navigate('/orders/new')}>New order</Button>}
+        errorDescription={orders.error?.message}
+        onRetry={orders.reload}
+        sort={query.sort}
+        onSort={(next) => apply({ ...query, sort: next, page: 1 })}
+        selection={{ selected, onChange: setSelected, label: (order) => order.number }}
+        bulkActions={bulkActions}
+        bulkProgress={bulkProgress}
+        pagination={
+          page && (
+            <Pagination
+              page={page.page}
+              pageSize={page.pageSize}
+              total={page.total}
+              onChange={(next) => apply({ ...query, page: next })}
+              onPageSizeChange={(size) => apply({ ...query, pageSize: size, page: 1 })}
+            />
+          )
+        }
+      />
+      <RowDrawer
+        open={previewed !== undefined}
+        onClose={() => setPreviewedId(undefined)}
+        title={previewed?.number ?? ''}
+        description={previewed?.customerName}
+        footer={
+          previewed && (
+            <Button asChild>
+              <Link to={`/orders/${previewed.id}`}>Open order</Link>
+            </Button>
+          )
+        }
+      >
+        {previewed && (
+          <>
+            <StatusBadge tone={orderStatusTones[previewed.status]}>
+              {orderStatusLabels[previewed.status]}
+            </StatusBadge>
+            <DefinitionList
+              items={[
+                { term: 'Placed', value: formatDateTime(previewed.placedAt) },
+                { term: 'Total', value: formatMoney(previewed.totalMinor, previewed.currency), lead: true },
+              ]}
+            />
+          </>
+        )}
+      </RowDrawer>
+    </>
   )
 }
