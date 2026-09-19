@@ -22,7 +22,10 @@ export default defineConfig({
     { name: 'setup', testMatch: /auth\.setup\.ts/ },
     {
       name: 'authenticated',
-      testMatch: /(shell|interaction|catalog|order|urlstate|coverage|keyboard)\.spec\.ts/,
+      // A glob, not a filename list: an explicit list means a new spec file
+      // silently never runs.
+      testMatch: /.*\.spec\.ts$/,
+      testIgnore: /identity\.spec\.ts/,
       dependencies: ['setup'],
       use: { storageState: authFile },
     },
