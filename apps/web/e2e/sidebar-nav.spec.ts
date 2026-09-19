@@ -1,15 +1,18 @@
 import { expect, test, type Page } from '@playwright/test'
 
-// Intercepting the report keeps the badge's count deterministic — the seeded
-// backend's own order mix is not something this spec controls or should assert on.
+// Intercepting the report keeps the badge's count deterministic and counts fulfillments,
+// which proves getDashboard's in-flight dedupe rather than racing the real fetch.
 async function mockDashboard(page: Page, counts: Record<string, number>) {
+  let fulfilled = 0
   await page.route('**/api/v1/reports/dashboard', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ counts, recent: [], revenue: [] }),
     })
+    fulfilled++
   })
+  return () => fulfilled
 }
 
 function ordersMenuItem(page: Page) {
@@ -27,9 +30,13 @@ test('the Orders badge states the same waiting total as the dashboard KPI', asyn
 })
 
 test('a zero waiting total renders no badge', async ({ page }) => {
-  await mockDashboard(page, { pending: 0, paid: 0, packed: 0 })
+  const fulfilledCount = await mockDashboard(page, { pending: 0, paid: 0, packed: 0 })
   await page.goto('/')
-  await expect(page.locator('[data-slot="card"]', { hasText: 'Orders to handle' }).locator('[data-slot="card-title"]')).toHaveText('0')
+  const card = page.locator('[data-slot="card"]', { hasText: 'Orders to handle' })
+  await expect(card.locator('[data-slot="card-title"]')).toHaveText('0')
+  // The KPI card settling on '0' proves the sidebar's own fetch (sharing the same
+  // in-flight request) has settled too, so an absent badge here means "zero", not "still loading".
+  expect(fulfilledCount()).toBe(1)
   await expect(ordersMenuItem(page).locator('[data-slot="sidebar-menu-badge"]')).toHaveCount(0)
 })
 
@@ -43,6 +50,7 @@ test('the badge does not appear while the report is still loading', async ({ pag
     })
   })
   await page.goto('/')
+  await expect(ordersMenuItem(page)).toBeVisible()
   await expect(ordersMenuItem(page).locator('[data-slot="sidebar-menu-badge"]')).toHaveCount(0)
   await expect(ordersMenuItem(page).locator('[data-slot="sidebar-menu-badge"]')).toHaveText('5')
 })
@@ -52,6 +60,17 @@ test('the Orders link keeps its plain accessible name once the badge renders', a
   await page.goto('/')
   await expect(ordersMenuItem(page).locator('[data-slot="sidebar-menu-badge"]')).toHaveText('249')
   await expect(page.getByRole('link', { name: 'Orders', exact: true })).toHaveCount(1)
+})
+
+test('the report is fetched once per session, not once per navigation', async ({ page }) => {
+  const fulfilledCount = await mockDashboard(page, { pending: 1 })
+  await page.goto('/orders')
+  await expect(ordersMenuItem(page).locator('[data-slot="sidebar-menu-badge"]')).toHaveText('1')
+  await page.getByRole('link', { name: 'Products', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Products' })).toBeVisible()
+  await page.getByRole('link', { name: 'Customers', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Customers' })).toBeVisible()
+  expect(fulfilledCount()).toBe(1)
 })
 
 test('Roles and Permissions nest under a parent instead of sitting flat', async ({ page }) => {
