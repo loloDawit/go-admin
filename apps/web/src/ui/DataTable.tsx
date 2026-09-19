@@ -4,6 +4,7 @@ import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react'
 import { Button } from '@/ui/shadcn/button'
 import { Skeleton } from '@/ui/shadcn/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/shadcn/table'
+import { ColumnVisibilityMenu, useColumnVisibility } from './ColumnVisibility'
 import { EmptyState } from './EmptyState'
 
 export type Column<T> = {
@@ -30,6 +31,9 @@ export type DataTableProps<T> = {
   rows: T[]
   rowKey: (row: T) => string
   status?: 'ready' | 'loading' | 'error'
+  // Enables the column visibility menu and keys its persistence: two tables
+  // sharing an id would also share which columns each other hides.
+  tableId?: string
   caption?: string
   emptyTitle?: string
   emptyDescription?: string
@@ -76,6 +80,7 @@ export function DataTable<T>({
   rows,
   rowKey,
   status = 'ready',
+  tableId,
   caption,
   emptyTitle = 'Nothing here yet',
   emptyDescription,
@@ -89,167 +94,177 @@ export function DataTable<T>({
   rowActions,
 }: DataTableProps<T>) {
   const navigate = useNavigate()
-  const colCount = columns.length + (rowActions ? 1 : 0)
-  const growing = growingKey(columns)
+  const { hidden, toggle } = useColumnVisibility(tableId, columns)
+  const visibleColumns = tableId ? columns.filter((column) => !hidden.has(column.key)) : columns
+  const colCount = visibleColumns.length + (rowActions ? 1 : 0)
+  const growing = growingKey(visibleColumns)
 
   return (
     <div>
-      {caption && (
-        <div className="text-caption text-subtle-foreground flex items-baseline justify-between gap-3 py-2">
-          <span>{caption}</span>
-          {status === 'ready' && <span>{rows.length} shown</span>}
+      {(caption || tableId) && (
+        <div className="flex items-baseline justify-between gap-3 border-b border-border px-4 py-2">
+          <div className="text-caption text-subtle-foreground flex items-baseline gap-3">
+            {caption && <span>{caption}</span>}
+            {caption && status === 'ready' && <span>{rows.length} shown</span>}
+          </div>
+          {tableId && (
+            <ColumnVisibilityMenu columns={columns} hidden={hidden} onToggle={toggle} />
+          )}
         </div>
       )}
-      <Table className="text-body">
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            {columns.map((column) => {
-              const sortable = column.sortKey !== undefined && onSort !== undefined
-              const active = sortable && activeKey(sort) === column.sortKey
-              const direction = active
-                ? sort?.startsWith('-')
-                  ? 'descending'
-                  : 'ascending'
-                : 'none'
-              return (
-                <TableHead
-                  key={column.key}
-                  scope="col"
-                  aria-sort={sortable ? direction : undefined}
-                  style={sizing(column, growing)}
-                  className={`bg-muted text-label text-muted-foreground h-9 px-3 ${
-                    column.numeric ? 'text-right' : 'text-left'
-                  }`}
-                >
-                  {sortable ? (
-                    <button
-                      type="button"
-                      // The header's own typography, not the Button primitive's:
-                      // this is a column affordance, not an action.
-                      className={`group hover:text-foreground inline-flex cursor-pointer items-center gap-1 ${
-                        column.numeric ? 'flex-row-reverse' : ''
-                      }`}
-                      onClick={() => onSort(cycle(sort, column.sortKey as string))}
-                    >
-                      {column.header}
-                      {active ? (
-                        direction === 'ascending' ? (
-                          <ArrowUp className="size-3" aria-hidden />
+      {/* The table's own wrapper also scrolls; folded flat so one box owns the sticky offset. */}
+      <div className="max-h-[32rem] overflow-auto [&>[data-slot=table-container]]:overflow-visible">
+        <Table className="text-body">
+          <TableHeader className="sticky top-0 z-10">
+            <TableRow className="hover:bg-transparent">
+              {visibleColumns.map((column) => {
+                const sortable = column.sortKey !== undefined && onSort !== undefined
+                const active = sortable && activeKey(sort) === column.sortKey
+                const direction = active
+                  ? sort?.startsWith('-')
+                    ? 'descending'
+                    : 'ascending'
+                  : 'none'
+                return (
+                  <TableHead
+                    key={column.key}
+                    scope="col"
+                    aria-sort={sortable ? direction : undefined}
+                    style={sizing(column, growing)}
+                    className={`bg-muted text-label text-muted-foreground h-9 px-3 ${
+                      column.numeric ? 'text-right' : 'text-left'
+                    }`}
+                  >
+                    {sortable ? (
+                      <button
+                        type="button"
+                        // The header's own typography, not the Button primitive's:
+                        // this is a column affordance, not an action.
+                        className={`group hover:text-foreground inline-flex cursor-pointer items-center gap-1 ${
+                          column.numeric ? 'flex-row-reverse' : ''
+                        }`}
+                        onClick={() => onSort(cycle(sort, column.sortKey as string))}
+                      >
+                        {column.header}
+                        {active ? (
+                          direction === 'ascending' ? (
+                            <ArrowUp className="size-3" aria-hidden />
+                          ) : (
+                            <ArrowDown className="size-3" aria-hidden />
+                          )
                         ) : (
-                          <ArrowDown className="size-3" aria-hidden />
-                        )
-                      ) : (
-                        // Which columns sort has to be visible before the first
-                        // click, not after it.
-                        <ChevronsUpDown
-                          className="size-3 opacity-35 group-hover:opacity-70"
-                          aria-hidden
-                        />
-                      )}
-                    </button>
-                  ) : (
-                    column.header
-                  )}
+                          // Which columns sort has to be visible before the first
+                          // click, not after it.
+                          <ChevronsUpDown
+                            className="size-3 opacity-35 group-hover:opacity-70"
+                            aria-hidden
+                          />
+                        )}
+                      </button>
+                    ) : (
+                      column.header
+                    )}
+                  </TableHead>
+                )
+              })}
+              {rowActions && (
+                <TableHead className="bg-muted h-9 w-px px-3">
+                  <span className="sr-only">Actions</span>
                 </TableHead>
-              )
-            })}
-            {rowActions && (
-              <TableHead className="bg-muted h-9 w-px px-3">
-                <span className="sr-only">Actions</span>
-              </TableHead>
-            )}
-          </TableRow>
-        </TableHeader>
-
-        <TableBody aria-busy={status === 'loading' || undefined}>
-          {status === 'loading' &&
-            Array.from({ length: SKELETON_ROWS }, (_, index) => (
-              <TableRow key={index} className="hover:bg-transparent">
-                {columns.map((column) => (
-                  <TableCell key={column.key} className="px-3">
-                    <Skeleton className="h-3 w-full max-w-44" />
-                  </TableCell>
-                ))}
-                {rowActions && (
-                  <TableCell className="px-3">
-                    <Skeleton className="h-3 w-6" />
-                  </TableCell>
-                )}
-              </TableRow>
-            ))}
-
-          {status === 'error' && (
-            <TableRow className="hover:bg-transparent">
-              <TableCell colSpan={colCount} className="p-0">
-                {/* A failed list has to be announced, not just drawn. */}
-                <div role="alert">
-                  <EmptyState
-                    title={errorTitle}
-                    description={errorDescription}
-                    action={
-                      onRetry && (
-                        <Button variant="secondary" onClick={onRetry}>
-                          Try again
-                        </Button>
-                      )
-                    }
-                  />
-                </div>
-              </TableCell>
+              )}
             </TableRow>
-          )}
+          </TableHeader>
 
-          {status === 'ready' && rows.length === 0 && (
-            <TableRow className="hover:bg-transparent">
-              <TableCell colSpan={colCount} className="p-0">
-                <EmptyState
-                  title={emptyTitle}
-                  description={emptyDescription}
-                  action={emptyAction}
-                />
-              </TableCell>
-            </TableRow>
-          )}
-
-          {status === 'ready' &&
-            rows.map((row) => {
-              const href = rowHref?.(row)
-              return (
-                <TableRow
-                  key={rowKey(row)}
-                  className={href ? 'cursor-pointer' : undefined}
-                  onClick={
-                    href
-                      ? (event) => {
-                          // A click that already landed on a link, a button or
-                          // a menu belongs to that control, not to the row.
-                          if ((event.target as HTMLElement).closest('a,button,[role="menuitem"]')) {
-                            return
-                          }
-                          navigate(href)
-                        }
-                      : undefined
-                  }
-                >
-                  {columns.map((column) => (
-                    <TableCell
-                      key={column.key}
-                      style={sizing(column, growing)}
-                      className={`px-3 py-2 ${column.numeric ? 'text-right tabular-nums' : ''} ${
-                        column.wrap ? 'break-words whitespace-normal' : ''
-                      }`}
-                    >
-                      {column.cell(row)}
+          <TableBody aria-busy={status === 'loading' || undefined}>
+            {status === 'loading' &&
+              Array.from({ length: SKELETON_ROWS }, (_, index) => (
+                <TableRow key={index} className="hover:bg-transparent">
+                  {visibleColumns.map((column) => (
+                    <TableCell key={column.key} className="px-3">
+                      <Skeleton className="h-3 w-full max-w-44" />
                     </TableCell>
                   ))}
                   {rowActions && (
-                    <TableCell className="w-px px-3 text-right">{rowActions(row)}</TableCell>
+                    <TableCell className="px-3">
+                      <Skeleton className="h-3 w-6" />
+                    </TableCell>
                   )}
                 </TableRow>
-              )
-            })}
-        </TableBody>
-      </Table>
+              ))}
+
+            {status === 'error' && (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={colCount} className="p-0">
+                  {/* A failed list has to be announced, not just drawn. */}
+                  <div role="alert">
+                    <EmptyState
+                      title={errorTitle}
+                      description={errorDescription}
+                      action={
+                        onRetry && (
+                          <Button variant="secondary" onClick={onRetry}>
+                            Try again
+                          </Button>
+                        )
+                      }
+                    />
+                  </div>
+                </TableCell>
+              </TableRow>
+            )}
+
+            {status === 'ready' && rows.length === 0 && (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={colCount} className="p-0">
+                  <EmptyState
+                    title={emptyTitle}
+                    description={emptyDescription}
+                    action={emptyAction}
+                  />
+                </TableCell>
+              </TableRow>
+            )}
+
+            {status === 'ready' &&
+              rows.map((row) => {
+                const href = rowHref?.(row)
+                return (
+                  <TableRow
+                    key={rowKey(row)}
+                    className={href ? 'cursor-pointer' : undefined}
+                    onClick={
+                      href
+                        ? (event) => {
+                            // A click that already landed on a link, a button or
+                            // a menu belongs to that control, not to the row.
+                            if ((event.target as HTMLElement).closest('a,button,[role="menuitem"]')) {
+                              return
+                            }
+                            navigate(href)
+                          }
+                        : undefined
+                    }
+                  >
+                    {visibleColumns.map((column) => (
+                      <TableCell
+                        key={column.key}
+                        style={sizing(column, growing)}
+                        className={`px-3 py-2 ${column.numeric ? 'text-right tabular-nums' : ''} ${
+                          column.wrap ? 'break-words whitespace-normal' : ''
+                        }`}
+                      >
+                        {column.cell(row)}
+                      </TableCell>
+                    ))}
+                    {rowActions && (
+                      <TableCell className="w-px px-3 text-right">{rowActions(row)}</TableCell>
+                    )}
+                  </TableRow>
+                )
+              })}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   )
 }

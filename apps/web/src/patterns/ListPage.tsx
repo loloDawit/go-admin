@@ -7,6 +7,9 @@ import { PageHeader } from './PageHeader'
 export type ListPageProps<T> = {
   title: string
   description?: string
+  // Keys the column-visibility persistence; defaults to the title so a screen
+  // that never names one still gets its own key rather than sharing DataTable's.
+  tableId?: string
   primaryAction?: ReactNode
   filters?: ReactNode
   note?: ReactNode
@@ -37,6 +40,7 @@ export type ListPageProps<T> = {
 export function ListPage<T>({
   title,
   description,
+  tableId,
   primaryAction,
   filters,
   note,
@@ -70,6 +74,7 @@ export function ListPage<T>({
         )}
         <DataTable
           {...table}
+          tableId={tableId ?? title.toLowerCase().replace(/\s+/g, '-')}
           emptyTitle={
             filtered ? (filteredEmptyTitle ?? `No ${title.toLowerCase()} match these filters`) : emptyTitle
           }
