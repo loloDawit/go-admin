@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { toast } from 'sonner'
 import {
   Alert,
   Button,
@@ -155,6 +156,7 @@ export function StaffDetail() {
                   : { firstName, lastName, email, roleId, isActive }
                 updateStaff(staffId, body)
                   .then(() => {
+                    toast.success('Changes saved')
                     setEditOpen(false)
                     member.reload()
                   })
@@ -217,6 +219,7 @@ export function StaffDetail() {
                 setDeactivating(true)
                 deactivateStaff(staffId)
                   .then(() => {
+                    toast.success('Account deactivated')
                     setDeactivateOpen(false)
                     member.reload()
                   })

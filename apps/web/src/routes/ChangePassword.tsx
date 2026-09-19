@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import { Alert, Button, TextField } from '../ui'
 import { useAuth } from '../api/auth'
 import { isApiError } from '../api/http'
@@ -46,7 +47,10 @@ export function ChangePassword() {
             setError(undefined)
             auth
               .changePassword(currentPassword, newPassword)
-              .then(() => navigate('/', { replace: true }))
+              .then(() => {
+                toast.success('Password changed')
+                navigate('/', { replace: true })
+              })
               .catch((cause: unknown) => {
                 setError(isApiError(cause) ? cause.message : 'Something went wrong.')
               })

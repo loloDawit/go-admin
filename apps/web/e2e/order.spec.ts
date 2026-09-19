@@ -227,3 +227,25 @@ test('the orders list names the customer', async ({ page }) => {
   await expect(page.getByRole('columnheader', { name: 'Customer' })).toBeVisible()
   await expect(page.getByRole('cell', { name: buyer }).first()).toBeVisible()
 })
+
+// An action that appears to do nothing is an action staff repeat. The
+// confirmation names what happened in the same words the button used.
+test('advancing an order confirms what happened', async ({ page }) => {
+  const stamp = unique()
+  const buyer = `Toast buyer ${stamp}`
+  const title = `Toast ${stamp}`
+
+  await activeProduct(page, title, '5.00')
+  await customer(page, buyer, stamp)
+
+  await page.goto('/orders/new')
+  await selectCustomer(page, buyer, stamp)
+  await page.getByRole('searchbox', { name: 'Search the catalog' }).fill(title)
+  await page.getByRole('button', { name: 'Search' }).click()
+  await page.getByRole('button', { name: 'Add' }).click()
+  await page.getByRole('button', { name: 'Place order' }).click()
+  await expect(page.getByRole('heading', { name: /^ORD-/ })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Mark paid' }).click()
+  await expect(page.getByText('Order paid')).toBeVisible()
+})

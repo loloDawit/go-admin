@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { toast } from 'sonner'
 import { Alert, Button, CheckboxField, Dialog, SelectField, Status, TextField } from '../ui'
 import { ListPage, SectionCard } from '../patterns'
 import type { Column } from '../ui'
@@ -163,6 +164,7 @@ export function Staff() {
                 setSubmitting(true)
                 createStaff({ email, firstName, lastName, roleId })
                   .then((result) => {
+                    toast.success('Account created')
                     setGeneratedPassword(result.password)
                     setStep('password')
                     setOpen(false)

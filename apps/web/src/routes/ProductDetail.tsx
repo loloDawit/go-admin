@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { toast } from 'sonner'
 import {
   Alert,
   Button,
@@ -38,13 +39,15 @@ export function ProductDetail() {
   const [confirmArchive, setConfirmArchive] = useState(false)
   const retried = useRef(new Set<string>())
 
-  async function run(action: () => Promise<unknown>) {
+  // The confirmation names what happened in the same words the button used.
+  async function run(action: () => Promise<unknown>, done: string) {
     setBusy(true)
     setFailure(undefined)
     try {
       await action()
       product.reload()
       images.reload()
+      toast.success(done)
     } catch (cause) {
       setFailure(isApiError(cause) ? cause.message : 'The change could not be saved.')
     } finally {
@@ -94,7 +97,7 @@ export function ProductDetail() {
               <Button onClick={() => navigate(`/products/${current.id}/edit`)}>Edit</Button>
             )}
             {current.status === 'draft' && (
-              <Button variant="primary" loading={busy} onClick={() => run(() => activateProduct(current.id))}>
+              <Button variant="primary" loading={busy} onClick={() => run(() => activateProduct(current.id), 'Product activated')}>
                 Activate
               </Button>
             )}
@@ -142,7 +145,7 @@ export function ProductDetail() {
                 onChange={(event) => {
                   const file = event.target.files?.[0]
                   event.target.value = ''
-                  if (file) void run(() => uploadProductImage(current.id, file))
+                  if (file) void run(() => uploadProductImage(current.id, file), 'Image added')
                 }}
               />
               <Button loading={busy} onClick={() => fileInput.current?.click()}>
@@ -182,7 +185,7 @@ export function ProductDetail() {
                     size="sm"
                     variant="ghost"
                     loading={busy}
-                    onClick={() => void run(() => deleteProductImage(current.id, image.id))}
+                    onClick={() => void run(() => deleteProductImage(current.id, image.id), 'Image removed')}
                   >
                     Remove
                   </Button>
@@ -206,7 +209,7 @@ export function ProductDetail() {
               loading={busy}
               onClick={() => {
                 setConfirmArchive(false)
-                void run(() => archiveProduct(current.id))
+                void run(() => archiveProduct(current.id), 'Product archived')
               }}
             >
               Archive

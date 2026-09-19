@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { toast } from 'sonner'
 import {
   Alert,
   Button,
@@ -60,13 +61,15 @@ export function OrderDetail() {
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<string>()
 
-  async function run(action: () => Promise<unknown>) {
+  // The confirmation names what happened in the same words the button used.
+  async function run(action: () => Promise<unknown>, done: string) {
     setBusy(true)
     setFailure(undefined)
     try {
       await action()
       order.reload()
       events.reload()
+      toast.success(done)
     } catch (cause) {
       setFailure(isApiError(cause) ? cause.message : 'The order could not be updated.')
     } finally {
@@ -116,7 +119,12 @@ export function OrderDetail() {
               <Button
                 variant="primary"
                 loading={busy}
-                onClick={() => void run(() => setOrderStatus(current.id, advance))}
+                onClick={() =>
+                  void run(
+                    () => setOrderStatus(current.id, advance),
+                    `Order ${orderStatusLabels[advance].toLowerCase()}`,
+                  )
+                }
               >
                 Mark {orderStatusLabels[advance].toLowerCase()}
               </Button>
@@ -208,10 +216,12 @@ export function OrderDetail() {
                 const action = asking
                 setAsking(undefined)
                 if (!action) return
-                void run(() =>
-                  action === 'refund'
-                    ? refundOrder(current.id, reason)
-                    : cancelOrder(current.id, reason),
+                void run(
+                  () =>
+                    action === 'refund'
+                      ? refundOrder(current.id, reason)
+                      : cancelOrder(current.id, reason),
+                  action === 'refund' ? 'Order refunded' : 'Order cancelled',
                 ).then(() => setReason(''))
               }}
             >

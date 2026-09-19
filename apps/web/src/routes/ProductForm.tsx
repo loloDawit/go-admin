@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { toast } from 'sonner'
 import {
   Alert,
   Button,
@@ -50,6 +51,7 @@ function Fields({ product }: { product?: Product }) {
       const saved = product
         ? await updateProduct(product.id, { title, description, priceMinor })
         : await createProduct({ sku, title, description, priceMinor })
+      toast.success(product ? 'Changes saved' : 'Product created')
       navigate(`/products/${saved.id}`)
     } catch (cause) {
       if (isApiError(cause) && cause.code === 'sku_taken') {

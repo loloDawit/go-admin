@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { toast } from 'sonner'
 import { Alert, Button, Dialog, Pagination, TextField } from '../ui'
 import { ListPage } from '../patterns'
 import type { Column } from '../ui'
@@ -44,6 +45,7 @@ export function Customers() {
     setFailure(undefined)
     try {
       await createCustomer(email.trim(), name.trim())
+      toast.success('Customer added')
       setAdding(false)
       setName('')
       setEmail('')

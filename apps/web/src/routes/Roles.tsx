@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { Alert, Button, CheckboxField, Dialog, TextField } from '../ui'
 import { ListPage } from '../patterns'
 import type { Column } from '../ui'
@@ -157,6 +158,7 @@ export function Roles() {
                   editing?.mode === 'edit' ? updateRole(editing.role.id, body) : createRole(body)
                 request
                   .then(() => {
+                    toast.success(editing?.mode === 'edit' ? 'Role saved' : 'Role created')
                     setEditing(undefined)
                     roles.reload()
                   })
@@ -208,6 +210,7 @@ export function Roles() {
                 setDeleting(true)
                 deleteRole(deleteTarget.id)
                   .then(() => {
+                    toast.success('Role deleted')
                     setDeleteTarget(undefined)
                     roles.reload()
                   })

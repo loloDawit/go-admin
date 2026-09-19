@@ -72,7 +72,9 @@ test('create, edit and deactivate a colleague, with the generated password shown
 
   await page.getByRole('button', { name: 'Deactivate' }).click()
   await page.getByRole('dialog').getByRole('button', { name: 'Deactivate' }).click()
-  await expect(page.getByText('Deactivated')).toBeVisible()
+  // exact: the success toast also says "Account deactivated", and getByText
+  // matches a substring case-insensitively.
+  await expect(page.getByText('Deactivated', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Deactivate' })).toHaveCount(0)
 
   // Sign out, then the new colleague signs in and is forced to change their password first.
