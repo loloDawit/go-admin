@@ -2,6 +2,10 @@
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 
+/* Class-based, not media-query based: ThemeProvider decides light/dark/system
+   and stamps the class, so every shadcn `dark:` utility must key off it too. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /*
  * Two layers by shadcn's contract: :root holds the bare names its components
  * reach for inside arbitrary values (var(--secondary), var(--radius-md)), and
@@ -129,6 +133,59 @@
   --sidebar-accent-foreground: #0b5748;
   --sidebar-border: #d8dcdf;
   --sidebar-ring: #0f6e5c;
+}
+
+/* Ink, not white, on primary: white on the lifted teal is 2.32:1. */
+.dark {
+  --canvas: #0a0d0e;
+  --background: #101315;
+  --foreground: #e9ebec;
+  --card: #171b1d;
+  --card-foreground: #e9ebec;
+  --popover: #1c2124;
+  --popover-foreground: #e9ebec;
+
+  --primary: #2fbf9d;
+  --primary-foreground: #04140f;
+  --primary-hover: #26a689;
+  --primary-active: #1f8f76;
+
+  --secondary: #1c2124;
+  --secondary-foreground: #e9ebec;
+
+  --muted: #1e2427;
+  --muted-foreground: #9aa4a9;
+  --subtle-foreground: #7c8489;
+
+  --accent: #173a32;
+  --accent-foreground: #8be8cf;
+
+  --destructive: #f2716a;
+  --destructive-foreground: #2a0705;
+  --destructive-hover: #e2564d;
+  --destructive-soft: #3a1210;
+
+  --success: #5fd08a;
+  --success-soft: #123522;
+  --warning: #e8b84b;
+  --warning-soft: #3a2c0d;
+  --info: #6fb3e8;
+  --info-soft: #132a3d;
+
+  --skeleton: #313a3f;
+  --border: #2a3033;
+  --border-strong: #3d454a;
+  --input: #2a3033;
+  --ring: #2fbf9d;
+
+  --sidebar: #141719;
+  --sidebar-foreground: #e9ebec;
+  --sidebar-primary: #2fbf9d;
+  --sidebar-primary-foreground: #04140f;
+  --sidebar-accent: #173a32;
+  --sidebar-accent-foreground: #8be8cf;
+  --sidebar-border: #2a3033;
+  --sidebar-ring: #2fbf9d;
 }
 
 @layer base {
