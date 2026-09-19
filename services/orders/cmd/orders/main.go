@@ -20,6 +20,7 @@ import (
 	"github.com/loloDawit/go-admin/services/orders/internal/customer"
 	"github.com/loloDawit/go-admin/services/orders/internal/httperr"
 	"github.com/loloDawit/go-admin/services/orders/internal/order"
+	"github.com/loloDawit/go-admin/services/orders/internal/outbox"
 	"github.com/loloDawit/go-admin/services/orders/internal/reporting"
 	"github.com/loloDawit/go-admin/services/orders/internal/schemacheck"
 )
@@ -50,6 +51,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	shutdownMetrics, err := observability.NewMeterProvider(ctx, cfg.ServiceName, cfg.OTLPEndpoint)
+	if err != nil {
+		logger.Error("metrics", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
 	// A database that is down must not stop the process from starting; readiness
 	// reports it and the service recovers when Postgres returns.
 	pool, err := pgxplatform.NewPool(ctx, cfg.DatabaseURL)
@@ -70,6 +77,19 @@ func main() {
 
 	orderSvc := order.NewService(order.NewPostgresRepository(pool), catalogClient, cfg.OrderPageSizeMax)
 	orderHandler := order.NewHandler(orderSvc, cfg.MaxRequestBodyBytes, errWriter.Write)
+
+	// The depth is observed here rather than in the worker: the worker being
+	// down is the failure this gauge exists to detect, and a gauge that
+	// disappears says less than one that climbs.
+	outboxMetrics, err := outbox.NewMetrics()
+	if err != nil {
+		logger.Error("metrics", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	if err := outboxMetrics.WatchDepth(outbox.NewPostgresRepository(pool)); err != nil {
+		logger.Error("metrics", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
 
 	reportingSvc := reporting.NewService(reporting.NewPostgresRepository(pool), cfg.ReportWindowDays)
 	reportingHandler := reporting.NewHandler(reportingSvc, errWriter.Write)
@@ -110,6 +130,7 @@ func main() {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	_ = srv.Shutdown(shutdownCtx)
 	_ = shutdownTracing(shutdownCtx)
+	_ = shutdownMetrics(shutdownCtx)
 	cancel()
 	pool.Close()
 

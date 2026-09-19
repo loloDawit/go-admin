@@ -7,6 +7,9 @@ import (
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/loloDawit/go-admin/services/orders/internal/errs"
 	"github.com/loloDawit/go-admin/services/orders/internal/natsx"
@@ -23,11 +26,14 @@ type Publisher struct {
 	batch    int
 	interval time.Duration
 	logger   *slog.Logger
+	metrics  *Metrics
 }
 
-func NewPublisher(store PublisherStore, js jetstream.JetStream, batch int, interval time.Duration, logger *slog.Logger) *Publisher {
-	return &Publisher{store: store, js: js, batch: batch, interval: interval, logger: logger}
+func NewPublisher(store PublisherStore, js jetstream.JetStream, batch int, interval time.Duration, logger *slog.Logger, metrics *Metrics) *Publisher {
+	return &Publisher{store: store, js: js, batch: batch, interval: interval, logger: logger, metrics: metrics}
 }
+
+var tracer = otel.Tracer("orders/outbox")
 
 func (p *Publisher) Run(ctx context.Context) error {
 	ticker := time.NewTicker(p.interval)
@@ -55,17 +61,33 @@ func (p *Publisher) drain(ctx context.Context) error {
 	}
 
 	for _, row := range rows {
-		msg := &nats.Msg{
-			Subject: row.Subject,
-			Data:    row.Payload,
-			Header:  nats.Header{natsx.MsgIDHeader: []string{row.EventID}},
-		}
-		if _, err := p.js.PublishMsg(ctx, msg); err != nil {
-			return errs.Wrap(errs.OpPublishEvent, err)
-		}
-		if err := p.store.MarkPublished(ctx, row.ID); err != nil {
+		if err := p.publish(ctx, row); err != nil {
 			return err
 		}
 	}
+	return nil
+}
+
+func (p *Publisher) publish(ctx context.Context, row Stored) error {
+	ctx, span := tracer.Start(ctx, "nats.publish", trace.WithSpanKind(trace.SpanKindProducer))
+	defer span.End()
+	span.SetAttributes(attribute.String("messaging.destination.name", row.Subject))
+
+	msg := &nats.Msg{
+		Subject: row.Subject,
+		Data:    row.Payload,
+		Header:  nats.Header{natsx.MsgIDHeader: []string{row.EventID}},
+	}
+	if _, err := p.js.PublishMsg(ctx, msg); err != nil {
+		p.metrics.CountError(ctx, "publish")
+		span.RecordError(err)
+		return errs.Wrap(errs.OpPublishEvent, err)
+	}
+	if err := p.store.MarkPublished(ctx, row.ID); err != nil {
+		p.metrics.CountError(ctx, "mark_published")
+		span.RecordError(err)
+		return err
+	}
+	p.metrics.ObserveLag(ctx, time.Since(row.CreatedAt))
 	return nil
 }

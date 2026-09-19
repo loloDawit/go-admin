@@ -23,6 +23,13 @@ func WriteGatewayTimeout(w http.ResponseWriter) {
 	httpx.WriteError(w, http.StatusGatewayTimeout, "gateway_timeout", "the service did not respond in time")
 }
 
+// Retry-After is seconds, and one is the smallest honest answer: the bucket
+// refills continuously rather than at a fixed instant.
+func WriteRateLimited(w http.ResponseWriter) {
+	w.Header().Set("Retry-After", "1")
+	httpx.WriteError(w, http.StatusTooManyRequests, "rate_limited", "too many requests; try again shortly")
+}
+
 // Writer logs an unmapped error's cause before answering with the generic
 // 500 envelope.
 type Writer struct {

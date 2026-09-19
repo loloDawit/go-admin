@@ -16,17 +16,18 @@ import (
 )
 
 type Applier interface {
-	Apply(ctx context.Context, env outbox.Envelope) error
+	Apply(ctx context.Context, env outbox.Envelope) (applied bool, err error)
 }
 
 type Projector struct {
 	repo     Applier
 	consumer jetstream.Consumer
 	logger   *slog.Logger
+	metrics  *Metrics
 }
 
-func NewProjector(repo Applier, consumer jetstream.Consumer, logger *slog.Logger) *Projector {
-	return &Projector{repo: repo, consumer: consumer, logger: logger}
+func NewProjector(repo Applier, consumer jetstream.Consumer, logger *slog.Logger, metrics *Metrics) *Projector {
+	return &Projector{repo: repo, consumer: consumer, logger: logger, metrics: metrics}
 }
 
 func (p *Projector) Run(ctx context.Context) error {
@@ -59,6 +60,7 @@ func (p *Projector) handle(ctx context.Context, msg jetstream.Msg) {
 			slog.String("type", env.Type),
 			slog.Int("version", env.Version),
 		)
+		p.metrics.Applied(ctx, env.Type, ResultUnknownVersion)
 		_ = msg.Ack()
 		return
 	}
@@ -94,9 +96,16 @@ func (p *Projector) apply(ctx context.Context, env outbox.Envelope) error {
 		attribute.String("event.type", env.Type),
 	)
 
-	if err := p.repo.Apply(ctx, env); err != nil {
+	applied, err := p.repo.Apply(ctx, env)
+	if err != nil {
 		span.RecordError(err)
 		return err
 	}
+	result := ResultApplied
+	if !applied {
+		result = ResultDuplicate
+	}
+	span.SetAttributes(attribute.String("result", result))
+	p.metrics.Applied(ctx, env.Type, result)
 	return nil
 }

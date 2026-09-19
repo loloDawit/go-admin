@@ -16,6 +16,10 @@ func setValidEnv(t *testing.T) {
 	t.Setenv("PRINCIPAL_SIGNING_KEY", validSigningKey)
 	t.Setenv("PRINCIPAL_TTL", "30s")
 	t.Setenv("SESSION_CACHE_TTL", "10s")
+	t.Setenv("RATE_LIMIT_PER_SECOND", "50")
+	t.Setenv("RATE_LIMIT_BURST", "100")
+	t.Setenv("LOGIN_RATE_LIMIT_PER_SECOND", "0.2")
+	t.Setenv("LOGIN_RATE_LIMIT_BURST", "5")
 }
 
 func TestLoadRequiresEveryUpstream(t *testing.T) {
@@ -88,5 +92,30 @@ func TestLoadAcceptsASessionCacheTTLLongerThanPrincipalTTL(t *testing.T) {
 
 	if _, err := config.Load(); err != nil {
 		t.Fatalf("want success (the two TTLs are independent), got %v", err)
+	}
+}
+
+// The default profile is production, so an operator who sets neither
+// APP_PROFILE nor a fault knob gets a gateway that would refuse injection.
+func TestFaultInjectionIsRefusedOutsideDev(t *testing.T) {
+	setValidEnv(t)
+	t.Setenv("FAULT_ERROR_RATE", "0.5")
+
+	if _, err := config.Load(); err == nil {
+		t.Fatal("fault injection was accepted without APP_PROFILE=dev")
+	}
+}
+
+func TestFaultInjectionIsAcceptedInDev(t *testing.T) {
+	setValidEnv(t)
+	t.Setenv("APP_PROFILE", "dev")
+	t.Setenv("FAULT_LATENCY_MS", "200")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Faults.LatencyMS != 200 {
+		t.Fatalf("LatencyMS = %d", cfg.Faults.LatencyMS)
 	}
 }

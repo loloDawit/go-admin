@@ -95,7 +95,7 @@ func TestPublisherSendsInIDOrderAndMarksPublished(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	pub := outbox.NewPublisher(store, js, 10, 10*time.Millisecond, discardLogger())
+	pub := outbox.NewPublisher(store, js, 10, 10*time.Millisecond, discardLogger(), testMetrics(t))
 	go func() { _ = pub.Run(ctx) }()
 
 	var got []string
@@ -138,10 +138,19 @@ func TestPublisherDoesNotMarkWhatItCouldNotSend(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(t.Context(), 400*time.Millisecond)
 	defer cancel()
-	pub := outbox.NewPublisher(store, js, 10, 10*time.Millisecond, discardLogger())
+	pub := outbox.NewPublisher(store, js, 10, 10*time.Millisecond, discardLogger(), testMetrics(t))
 	_ = pub.Run(ctx)
 
 	if ids := store.publishedIDs(); len(ids) != 0 {
 		t.Fatalf("marked %v published despite the publish failing", ids)
 	}
+}
+
+func testMetrics(t *testing.T) *outbox.Metrics {
+	t.Helper()
+	m, err := outbox.NewMetrics()
+	if err != nil {
+		t.Fatalf("NewMetrics: %v", err)
+	}
+	return m
 }

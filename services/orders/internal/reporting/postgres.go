@@ -28,24 +28,30 @@ func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
 // Apply records the event as processed in the same transaction that changes the
 // projection. Revenue is not naturally idempotent — applying it twice doubles
 // it — so a redelivery must conflict here and roll the whole thing back.
-func (r *PostgresRepository) Apply(ctx context.Context, env outbox.Envelope) error {
+// The bool is false for a redelivery the dedup row rejected. Without it the
+// caller cannot tell a duplicate from an application, and the two are
+// indistinguishable in the projection itself.
+func (r *PostgresRepository) Apply(ctx context.Context, env outbox.Envelope) (bool, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
-		return errs.Wrap(errs.OpProjectEvent, err)
+		return false, errs.Wrap(errs.OpProjectEvent, err)
 	}
 	defer tx.Rollback(ctx)
 
 	if _, err := tx.Exec(ctx, insertProcessedStmt, env.ID); err != nil {
 		if isUniqueViolation(err) {
-			return nil
+			return false, nil
 		}
-		return errs.Wrap(errs.OpProjectEvent, err)
+		return false, errs.Wrap(errs.OpProjectEvent, err)
 	}
 
 	if err := project(ctx, tx, env); err != nil {
-		return err
+		return false, err
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func project(ctx context.Context, tx pgx.Tx, env outbox.Envelope) error {

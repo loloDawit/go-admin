@@ -14,18 +14,29 @@ import (
 	"github.com/loloDawit/go-admin/services/orders/internal/outbox"
 )
 
-type applierFunc func(context.Context, outbox.Envelope) error
+type applierFunc func(context.Context, outbox.Envelope) (bool, error)
 
-func (f applierFunc) Apply(ctx context.Context, env outbox.Envelope) error { return f(ctx, env) }
+func (f applierFunc) Apply(ctx context.Context, env outbox.Envelope) (bool, error) {
+	return f(ctx, env)
+}
 
 func recordedApply(t *testing.T, env outbox.Envelope) tracetest.SpanStub {
+	t.Helper()
+	return recordedApplyWith(t, env, func(context.Context, outbox.Envelope) (bool, error) { return true, nil })
+}
+
+func recordedApplyWith(t *testing.T, env outbox.Envelope, apply applierFunc) tracetest.SpanStub {
 	t.Helper()
 	otel.SetTextMapPropagator(propagation.TraceContext{})
 	recorder := tracetest.NewSpanRecorder()
 	otel.SetTracerProvider(sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder)))
 	tracer = otel.Tracer("orders/reporting")
 
-	p := NewProjector(applierFunc(func(context.Context, outbox.Envelope) error { return nil }), nil, slog.New(slog.DiscardHandler))
+	metrics, err := NewMetrics()
+	if err != nil {
+		t.Fatalf("NewMetrics: %v", err)
+	}
+	p := NewProjector(apply, nil, slog.New(slog.DiscardHandler), metrics)
 	if err := p.apply(context.Background(), env); err != nil {
 		t.Fatalf("apply: %v", err)
 	}
