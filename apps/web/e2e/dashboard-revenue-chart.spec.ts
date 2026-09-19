@@ -51,12 +51,23 @@ test('the chart renders one point per revenue day, and the range toggle changes 
   await expect(chart(page).locator('.recharts-dot')).toHaveCount(30)
 })
 
-test('a single revenue day still shows a visible point, not a zero-width line', async ({ page }) => {
+// One point is not a trend. Plotting it leaves a single dot adrift in 250px of
+// empty card, which reads as a broken chart rather than a sparse one.
+test('a single revenue day says so instead of plotting one point', async ({ page }) => {
   await mockDashboard(page, revenueDays(1))
   await page.goto('/')
   await settled(page)
 
-  await expect(chart(page).locator('.recharts-dot')).toHaveCount(1)
+  await expect(chart(page).getByText('Not enough data to chart yet')).toBeVisible()
+  await expect(chart(page).locator('.recharts-dot')).toHaveCount(0)
+})
+
+test('two revenue days do plot', async ({ page }) => {
+  await mockDashboard(page, revenueDays(2))
+  await page.goto('/')
+  await settled(page)
+
+  await expect(chart(page).locator('.recharts-dot')).toHaveCount(2)
 })
 
 test('no revenue at all shows an empty state, not a blank chart', async ({ page }) => {

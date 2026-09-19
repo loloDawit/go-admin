@@ -1,8 +1,9 @@
+import { Suspense, lazy } from 'react'
 import { Link } from 'react-router-dom'
+import { Skeleton } from '@/ui/shadcn/skeleton'
 import { DataTable, StatusBadge } from '../ui'
 import { PageBlock, PageHeader, SectionCard, StatCard } from '../patterns'
 import type { Column } from '../ui'
-import { RevenueChart } from '../components/RevenueChart'
 import { getDashboard } from '../api/reports'
 import type { RevenueDay } from '../api/reports'
 import { orderStatusLabels } from '../api/orders'
@@ -62,6 +63,12 @@ const revenueColumns: Column<RevenueDay>[] = [
   },
 ]
 
+// recharts is roughly a third of the application's JavaScript and the chart
+// appears on this screen alone, so every other route stops paying for it.
+const RevenueChart = lazy(() =>
+  import('../components/RevenueChart').then((m) => ({ default: m.RevenueChart })),
+)
+
 const WAITING: OrderStatus[] = ['pending', 'paid', 'packed']
 
 export function Dashboard() {
@@ -91,11 +98,13 @@ export function Dashboard() {
         />
       </div>
 
-      <RevenueChart
-        revenue={report.data?.revenue ?? []}
-        status={report.status}
-        errorDescription={report.error?.message}
-      />
+      <Suspense fallback={<Skeleton className="h-[21rem] w-full rounded-lg" />}>
+        <RevenueChart
+          revenue={report.data?.revenue ?? []}
+          status={report.status}
+          errorDescription={report.error?.message}
+        />
+      </Suspense>
 
       <SectionCard title="Latest orders" bleed>
         <DataTable

@@ -146,8 +146,9 @@ export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
   const { setOpenMobile } = useSidebar()
   // AppShell mounts this once; it never refetches per navigation.
   const report = useResource('sidebar-dashboard', getDashboard)
-  const waiting = report.data
-    ? WAITING_STATUSES.reduce((sum, status) => sum + (report.data.counts[status] ?? 0), 0)
+  const counts = report.data?.counts
+  const waiting = counts
+    ? WAITING_STATUSES.reduce((sum, status) => sum + (counts[status] ?? 0), 0)
     : undefined
 
   return (

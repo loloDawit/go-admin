@@ -2,9 +2,13 @@ import { Toaster as Sonner, type ToasterProps } from "sonner"
 import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
 
 const Toaster = ({ ...props }: ToasterProps) => {
+  // Sonner keeps its own light baseline for anything the CSS variables below
+  // do not cover, so it has to be told which theme is in force.
+  const dark = document.documentElement.classList.contains("dark")
+
   return (
     <Sonner
-      theme="light"
+      theme={dark ? "dark" : "light"}
       className="toaster group"
       icons={{
         success: (

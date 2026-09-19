@@ -102,7 +102,13 @@ export function RevenueChart({
             description="A day appears here once an order placed that day is paid."
           />
         )}
-        {status === 'ready' && series.length > 0 && currency && (
+        {status === 'ready' && series.length === 1 && (
+          <EmptyState
+            title="Not enough data to chart yet"
+            description={`One day has revenue so far. A trend needs at least two, so the figure is in the table below.`}
+          />
+        )}
+        {status === 'ready' && series.length > 1 && currency && (
           <ChartContainer config={chartConfig} className="aspect-auto h-[250px] w-full">
             <AreaChart data={series} margin={{ left: 12, right: 12 }}>
               <defs>
