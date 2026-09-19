@@ -2,7 +2,7 @@ import { Loader2 } from 'lucide-react'
 import type { ButtonHTMLAttributes } from 'react'
 import { Button as Base } from '@/ui/shadcn/button'
 
-type Variant = 'primary' | 'secondary' | 'danger' | 'ghost'
+type Variant = 'primary' | 'secondary' | 'danger' | 'dangerSolid' | 'ghost'
 type Size = 'sm' | 'md' | 'lg'
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -14,10 +14,14 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 
 // This project's vocabulary, mapped onto the component library's. Screens say
 // primary and danger; shadcn says default and destructive.
+// danger is quiet where it opens a confirmation; dangerSolid is the filled
+// button inside that confirmation. A screen has one filled button, and on a
+// screen that can both advance and cancel an order, it is the advance.
 const VARIANTS = {
   primary: 'default',
   secondary: 'secondary',
-  danger: 'destructive',
+  danger: 'destructiveSoft',
+  dangerSolid: 'destructive',
   ghost: 'ghost',
 } as const
 

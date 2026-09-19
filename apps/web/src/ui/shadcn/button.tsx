@@ -18,6 +18,8 @@ const buttonVariants = cva(
           "text-muted-foreground hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground",
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive-hover focus-visible:ring-destructive/30",
+        destructiveSoft:
+          "border-destructive/20 bg-destructive-soft text-destructive hover:bg-destructive/15 focus-visible:ring-destructive/30",
       },
       size: {
         default:

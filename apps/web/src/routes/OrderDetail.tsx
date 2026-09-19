@@ -137,7 +137,11 @@ export function OrderDetail() {
               </Status>
             ),
           },
-          { term: 'Total', value: formatMoney(current.totalMinor, current.currency) },
+          {
+            term: 'Total',
+            value: formatMoney(current.totalMinor, current.currency),
+            lead: true,
+          },
           { term: 'Customer', value: <CustomerName id={current.customerId} /> },
         ]}
       />
@@ -168,9 +172,9 @@ export function OrderDetail() {
           />
         )}
         {events.status === 'ready' && (
-          <ol className="m-0 max-w-[60rem] list-none border-t border-border p-0">
+          <ol className="m-0 list-none p-0">
             {events.data?.map((event) => (
-              <li key={event.id} className="grid gap-3 border-b border-border py-2 max-sm:gap-1 max-sm:grid-cols-1 sm:grid-cols-[9rem_1fr_10rem]">
+              <li key={event.id} className="grid gap-3 border-b border-border py-2 last:border-b-0 max-sm:grid-cols-1 max-sm:gap-1 sm:grid-cols-[10rem_1fr_auto]">
                 <span className="text-muted-foreground tabular-nums">{formatDateTime(event.at)}</span>
                 <span className="text-foreground">
                   {event.fromStatus
@@ -178,7 +182,7 @@ export function OrderDetail() {
                     : 'Order placed'}
                   {event.reason && ` — ${event.reason}`}
                 </span>
-                <span className="text-subtle-foreground">Staff #{event.actorId}</span>
+                <span className="text-caption text-subtle-foreground sm:text-right">Staff #{event.actorId}</span>
               </li>
             ))}
           </ol>
@@ -198,7 +202,7 @@ export function OrderDetail() {
           <>
             <Button onClick={() => setAsking(undefined)}>Back</Button>
             <Button
-              variant="danger"
+              variant="dangerSolid"
               loading={busy}
               onClick={() => {
                 const action = asking

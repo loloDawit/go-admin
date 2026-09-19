@@ -201,7 +201,7 @@ export function Roles() {
               Cancel
             </Button>
             <Button
-              variant="danger"
+              variant="dangerSolid"
               loading={deleting}
               onClick={() => {
                 if (!deleteTarget) return

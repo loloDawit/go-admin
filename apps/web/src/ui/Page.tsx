@@ -60,13 +60,19 @@ export function Section({
 
 // The value is what someone came to read, so it is the heavier of the pair. The
 // label sitting above it at caption size is what makes the value scannable.
-export function DefinitionList({ items }: { items: { term: string; value: ReactNode }[] }) {
+export function DefinitionList({
+  items,
+}: {
+  items: { term: string; value: ReactNode; lead?: boolean }[]
+}) {
   return (
-    <dl className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    <dl className="grid gap-4 rounded-lg border border-border bg-card p-4 sm:grid-cols-2 xl:grid-cols-4">
       {items.map((item) => (
         <div key={item.term} className="min-w-0">
           <dt className="text-caption text-muted-foreground">{item.term}</dt>
-          <dd className="mt-0.5 font-medium">{item.value}</dd>
+          <dd className={item.lead ? 'mt-0.5 text-section font-semibold tabular-nums' : 'mt-0.5 font-medium'}>
+            {item.value}
+          </dd>
         </div>
       ))}
     </dl>

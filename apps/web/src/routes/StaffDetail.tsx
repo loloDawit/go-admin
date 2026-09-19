@@ -211,7 +211,7 @@ export function StaffDetail() {
               Cancel
             </Button>
             <Button
-              variant="danger"
+              variant="dangerSolid"
               loading={deactivating}
               onClick={() => {
                 setDeactivating(true)

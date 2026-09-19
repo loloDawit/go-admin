@@ -202,7 +202,7 @@ export function ProductDetail() {
           <>
             <Button onClick={() => setConfirmArchive(false)}>Cancel</Button>
             <Button
-              variant="danger"
+              variant="dangerSolid"
               loading={busy}
               onClick={() => {
                 setConfirmArchive(false)
