@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { settled } from './select'
 
 // A customer with no orders has a lifetime value of 0 in no currency, which the
 // service reports as an empty currency code. Intl.NumberFormat throws a
@@ -40,7 +41,7 @@ for (const viewport of VIEWPORTS) {
 
       await page.getByRole('link', { name }).click()
       await expect(page.getByRole('heading', { name })).toBeVisible()
-      await expect(page.locator('[aria-busy="true"]')).toHaveCount(0)
+      await settled(page)
       await page.screenshot({
         path: `screenshots/${viewport.name}_customer-detail.png`,
         fullPage: true,

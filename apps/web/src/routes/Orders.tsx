@@ -1,14 +1,8 @@
 import { useMemo } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import {
-  Button,
-  DataTable,
-  PageHeader,
-  PageStack,
-  Pagination,
-  SelectField,
-  Status,
-} from '../ui'
+import { FilterSelect, Pagination, StatusBadge } from '../ui'
+import { ListPage } from '../patterns'
+import { Button } from '@/ui/shadcn/button'
 import type { Column } from '../ui'
 import { listOrders, orderStatusLabels } from '../api/orders'
 import type { OrderQuery, OrderStatus, OrderSummary } from '../api/orders'
@@ -16,7 +10,6 @@ import { formatDateTime, formatMoney } from '../api/format'
 import { oneOf, positiveInt, toSearchParams } from '../api/listQuery'
 import { useResource } from '../api/useResource'
 import { orderStatusTones } from '../app/statusTones'
-import styles from './Orders.module.css'
 
 const columns: Column<OrderSummary>[] = [
   {
@@ -37,9 +30,11 @@ const columns: Column<OrderSummary>[] = [
     key: 'status',
     header: 'Status',
     sortKey: 'status',
-    width: '10rem',
+    grow: true,
     cell: (order) => (
-      <Status tone={orderStatusTones[order.status]}>{orderStatusLabels[order.status]}</Status>
+      <StatusBadge tone={orderStatusTones[order.status]}>
+        {orderStatusLabels[order.status]}
+      </StatusBadge>
     ),
   },
   {
@@ -85,71 +80,46 @@ export function Orders() {
   }
 
   return (
-    <PageStack>
-      <PageHeader
-        title="Orders"
-        description="Everything placed through the shop, newest first."
-        actions={
-          <Button variant="primary" onClick={() => navigate('/orders/new')}>
-            New order
-          </Button>
-        }
-      />
-
-      <div className={styles.filters}>
-        <div className={styles.status}>
-          <SelectField
-            label="Status"
-            value={query.status ?? ''}
-            onChange={(event) =>
-              apply({
-                page: 1,
-                status: (event.target.value || undefined) as OrderStatus | undefined,
-              })
-            }
-          >
-            <option value="">All statuses</option>
-            {STATUSES.map((status) => (
-              <option key={status} value={status}>
-                {orderStatusLabels[status]}
-              </option>
-            ))}
-          </SelectField>
-        </div>
-      </div>
-
-      <DataTable
-        columns={columns}
-        rows={page?.items ?? []}
-        rowKey={(order) => order.id}
-        status={orders.status}
-        emptyTitle={query.status ? 'No orders with this status' : 'No orders yet'}
-        emptyDescription={
-          query.status
-            ? 'Clear the filter to see the rest.'
-            : 'Take the first order and it appears here.'
-        }
-        emptyAction={
-          query.status ? undefined : (
-            <Button variant="primary" onClick={() => navigate('/orders/new')}>
-              New order
-            </Button>
-          )
-        }
-        errorDescription={orders.error?.message}
-        onRetry={orders.reload}
-        sort={query.sort}
-        onSort={(next) => apply({ ...query, sort: next, page: 1 })}
-      />
-
-      {page && (
-        <Pagination
-          page={page.page}
-          pageSize={page.pageSize}
-          total={page.total}
-          onChange={(next) => apply({ ...query, page: next })}
+    <ListPage
+      title="Orders"
+      description="Everything placed through the shop, newest first."
+      primaryAction={<Button onClick={() => navigate('/orders/new')}>New order</Button>}
+      filters={
+        <FilterSelect
+          label="Status"
+          value={query.status}
+          allLabel="All statuses"
+          options={STATUSES.map((status) => ({
+            value: status,
+            label: orderStatusLabels[status],
+          }))}
+          onChange={(status) => apply({ page: 1, status: status as OrderStatus | undefined })}
         />
-      )}
-    </PageStack>
+      }
+      columns={columns}
+      rows={page?.items ?? []}
+      rowKey={(order) => order.id}
+      status={orders.status}
+      filtersApplied={query.status !== undefined}
+      onClearFilters={() => apply({ page: 1 })}
+      filteredEmptyTitle="No orders with this status"
+      emptyTitle="No orders yet"
+      emptyDescription="Take the first order and it appears here."
+      emptyAction={<Button onClick={() => navigate('/orders/new')}>New order</Button>}
+      errorDescription={orders.error?.message}
+      onRetry={orders.reload}
+      sort={query.sort}
+      onSort={(next) => apply({ ...query, sort: next, page: 1 })}
+      pagination={
+        page && (
+          <Pagination
+            page={page.page}
+            pageSize={page.pageSize}
+            total={page.total}
+            onChange={(next) => apply({ ...query, page: next })}
+          />
+        )
+      }
+    />
   )
 }

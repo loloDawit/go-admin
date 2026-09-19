@@ -1,9 +1,0 @@
-.filters {
-  display: flex;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-}
-
-.status {
-  flex: 0 0 13rem;
-}

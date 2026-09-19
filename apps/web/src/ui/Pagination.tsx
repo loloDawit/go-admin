@@ -1,5 +1,4 @@
-import { Button } from './Button'
-import styles from './Pagination.module.css'
+import { Button } from '@/ui/shadcn/button'
 
 export function Pagination({
   page,
@@ -19,15 +18,15 @@ export function Pagination({
   const last = Math.min(page * pageSize, total)
 
   return (
-    <div className={styles.pagination}>
-      <p className={styles.summary}>
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <p className="text-caption text-muted-foreground tabular-nums">
         {first}–{last} of {total}
       </p>
-      <div className={styles.controls}>
-        <Button size="sm" disabled={page <= 1} onClick={() => onChange(page - 1)}>
+      <div className="flex items-center gap-2">
+        <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => onChange(page - 1)}>
           Previous
         </Button>
-        <Button size="sm" disabled={page >= pages} onClick={() => onChange(page + 1)}>
+        <Button variant="secondary" size="sm" disabled={page >= pages} onClick={() => onChange(page + 1)}>
           Next
         </Button>
       </div>

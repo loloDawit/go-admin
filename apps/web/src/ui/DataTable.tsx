@@ -185,12 +185,12 @@ export function DataTable<T>({
 
             {status === 'ready' &&
               rows.map((row) => (
-                <tr key={rowKey(row)} className="hover:bg-muted">
+                <tr key={rowKey(row)} className="hover:bg-muted [&:last-child>td]:border-b-0">
                   {columns.map((column) => (
                     <td
                       key={column.key}
                       style={sizing(column)}
-                      className={`border-border border-b px-3 py-2 whitespace-nowrap last:border-b-0 ${
+                      className={`border-border border-b px-3 py-2 whitespace-nowrap ${
                         column.numeric ? 'text-right tabular-nums' : ''
                       }`}
                     >
