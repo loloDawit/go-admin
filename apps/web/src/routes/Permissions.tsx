@@ -1,8 +1,11 @@
 import { ListPage } from '../patterns'
+import { Badge } from '@/ui/shadcn/badge'
 import type { Column } from '../ui'
 import { listPermissions, listRoles, permissionLabels } from '../api/identity'
 import type { Permission } from '../api/identity'
 import { useResource } from '../api/useResource'
+
+const SHOWN_HOLDERS = 4
 
 export function Permissions() {
   const permissions = useResource('permissions', listPermissions)
@@ -21,14 +24,34 @@ export function Permissions() {
       key: 'description',
       header: 'What it allows',
       width: '26rem',
+      wrap: true,
       cell: (permission) => permissionLabels[permission],
     },
     {
       key: 'roles',
       header: 'Held by',
+      grow: true,
+      wrap: true,
+      // Named badges up to a point, then a count. A permission held by thirty
+      // roles is a fact about the number, not a list anyone reads.
       cell: (permission) => {
+        if (roles.status !== 'ready') return '—'
         const holders = rolesByPermission.get(permission) ?? []
-        return roles.status === 'ready' ? holders.join(', ') || '—' : '—'
+        if (holders.length === 0) return <span className="text-subtle-foreground">No roles</span>
+        return (
+          <div className="flex flex-wrap items-center gap-1">
+            {holders.slice(0, SHOWN_HOLDERS).map((name) => (
+              <Badge key={name} variant="secondary" className="font-normal">
+                {name}
+              </Badge>
+            ))}
+            {holders.length > SHOWN_HOLDERS && (
+              <span className="text-caption text-muted-foreground">
+                +{holders.length - SHOWN_HOLDERS} more
+              </span>
+            )}
+          </div>
+        )
       },
     },
   ]

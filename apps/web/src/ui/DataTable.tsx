@@ -24,6 +24,10 @@ export type Column<T> = {
   // plain table already has.
   width?: string
   grow?: boolean
+  // Table cells do not wrap, which is right for a date, a status or a figure
+  // and wrong for prose. A cell holding text of unbounded length has to say so,
+  // or it runs past the table rather than down it.
+  wrap?: boolean
   cell: (row: T) => ReactNode
 }
 
@@ -200,7 +204,9 @@ export function DataTable<T>({
                   <TableCell
                     key={column.key}
                     style={sizing(column, growing)}
-                    className={`px-3 py-2 ${column.numeric ? 'text-right tabular-nums' : ''}`}
+                    className={`px-3 py-2 ${column.numeric ? 'text-right tabular-nums' : ''} ${
+                      column.wrap ? 'break-words whitespace-normal' : ''
+                    }`}
                   >
                     {column.cell(row)}
                   </TableCell>

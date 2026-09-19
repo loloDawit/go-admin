@@ -1,6 +1,17 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { Alert, Button, CheckboxField, Dialog, TextField } from '../ui'
+import { Alert, Button, Dialog } from '../ui'
+import { Checkbox } from '@/ui/shadcn/checkbox'
+import { Input } from '@/ui/shadcn/input'
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSeparator,
+  FieldSet,
+} from '@/ui/shadcn/field'
 import { ListPage } from '../patterns'
 import type { Column } from '../ui'
 import {
@@ -178,18 +189,41 @@ export function Roles() {
             {formError}
           </Alert>
         )}
-        <TextField label="Name" value={name} onChange={(event) => setName(event.target.value)} />
-        <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
-          <legend style={{ font: 'inherit', padding: 0, marginBottom: 'var(--space-2)' }}>Permissions</legend>
-          {(permissions.data ?? []).map((permission) => (
-            <CheckboxField
-              key={permission}
-              label={permissionLabels[permission]}
-              checked={selected.has(permission)}
-              onChange={() => togglePermission(permission)}
+        <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor="role-name">Name</FieldLabel>
+            <Input
+              id="role-name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Warehouse"
             />
-          ))}
-        </fieldset>
+            <FieldDescription>Staff hold exactly one role.</FieldDescription>
+          </Field>
+
+          <FieldSeparator />
+
+          <FieldSet>
+            <FieldLegend variant="label">Permissions</FieldLegend>
+            <FieldDescription>
+              {selected.size} of {permissions.data?.length ?? 0} selected.
+            </FieldDescription>
+            <div data-slot="checkbox-group" className="grid gap-2 sm:grid-cols-2">
+              {(permissions.data ?? []).map((permission) => (
+                <Field key={permission} orientation="horizontal">
+                  <Checkbox
+                    id={`perm-${permission}`}
+                    checked={selected.has(permission)}
+                    onCheckedChange={() => togglePermission(permission)}
+                  />
+                  <FieldLabel htmlFor={`perm-${permission}`} className="font-normal">
+                    {permissionLabels[permission]}
+                  </FieldLabel>
+                </Field>
+              ))}
+            </div>
+          </FieldSet>
+        </FieldGroup>
       </Dialog>
 
       <Dialog
