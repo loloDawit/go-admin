@@ -141,7 +141,7 @@ paths:
       parameters:
         - { name: status, in: query, schema: { $ref: "#/components/schemas/OrderStatus" } }
         - { name: customerId, in: query, schema: { type: string } }
-        - { name: sort, in: query, schema: { type: string }, description: A column from the server's sort allowlist; an unrecognized value is refused. }
+        - { name: sort, in: query, schema: { type: string }, description: One of number, placed_at, status, total_minor or customer, optionally prefixed with - for descending; anything else is refused. }
         - { name: page, in: query, schema: { type: integer, minimum: 1 } }
         - { name: pageSize, in: query, schema: { type: integer, minimum: 1 } }
       responses:
@@ -368,10 +368,14 @@ components:
         currency: { type: string }
     OrderSummary:
       type: object
-      required: [id, number, status, totalMinor, currency, placedAt]
+      required: [id, number, customerId, customerName, status, totalMinor, currency, placedAt]
       properties:
         id: { type: string }
         number: { type: string }
+        customerId: { type: string }
+        # Joined by the listing query: a row showing an opaque customer id is
+        # not something staff can scan.
+        customerName: { type: string }
         status: { $ref: "#/components/schemas/OrderStatus" }
         totalMinor: { type: integer }
         currency: { type: string }

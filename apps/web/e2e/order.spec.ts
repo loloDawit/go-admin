@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { settled } from './select'
 import type { Page } from '@playwright/test'
 
 async function selectCustomer(page: Page, name: string, stamp: string): Promise<void> {
@@ -201,4 +202,28 @@ test('the dashboard reports revenue once an order is paid', async ({ page }) => 
     .toBe(true)
 
   expect(requests).toBeLessThanOrEqual(2)
+})
+
+// A list of order numbers against nothing but a status is not something staff
+// can scan: the row has to say who the order is for.
+test('the orders list names the customer', async ({ page }) => {
+  const stamp = unique()
+  const buyer = `Listed buyer ${stamp}`
+  const title = `Listed ${stamp}`
+
+  await activeProduct(page, title, '9.00')
+  await customer(page, buyer, stamp)
+
+  await page.goto('/orders/new')
+  await selectCustomer(page, buyer, stamp)
+  await page.getByRole('searchbox', { name: 'Search the catalog' }).fill(title)
+  await page.getByRole('button', { name: 'Search' }).click()
+  await page.getByRole('button', { name: 'Add' }).click()
+  await page.getByRole('button', { name: 'Place order' }).click()
+  await expect(page.getByRole('heading', { name: /^ORD-/ })).toBeVisible()
+
+  await page.goto('/orders')
+  await settled(page)
+  await expect(page.getByRole('columnheader', { name: 'Customer' })).toBeVisible()
+  await expect(page.getByRole('cell', { name: buyer }).first()).toBeVisible()
 })

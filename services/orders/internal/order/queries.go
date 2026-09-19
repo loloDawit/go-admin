@@ -41,15 +41,24 @@ const updateOrderStatusStmt = `UPDATE orders SET status = $3, updated_at = now()
 WHERE id = $1 AND status = $2
 RETURNING ` + orderColumns
 
-// orderFilterClause: a NULL argument means no filter on that field.
-const orderFilterClause = `($1::order_status IS NULL OR status = $1) AND ($2::bigint IS NULL OR customer_id = $2)`
+// orderFilterClause: a NULL argument means no filter on that field. The
+// columns are qualified because the listing query joins customers.
+const orderFilterClause = `($1::order_status IS NULL OR o.status = $1) AND ($2::bigint IS NULL OR o.customer_id = $2)`
+
+// listOrderColumns is orderColumns qualified, plus the customer's name. The
+// join is inner because orders.customer_id is NOT NULL and references
+// customers(id), so it cannot drop a row.
+const listOrderColumns = `o.id, o.number, o.customer_id, o.status, o.total_minor, o.currency, o.placed_at, o.updated_at, c.name`
 
 // listOrdersQueryTemplate takes the sort column and direction, both resolved
 // from a fixed allowlist in postgres.go, never from caller input: a column
 // name cannot be a bind parameter.
-const listOrdersQueryTemplate = `SELECT ` + orderColumns + ` FROM orders
+const listOrdersQueryTemplate = `SELECT ` + listOrderColumns + ` FROM orders o
+JOIN customers c ON c.id = o.customer_id
 WHERE ` + orderFilterClause + `
 ORDER BY %s %s
 LIMIT $3 OFFSET $4`
 
-const listOrdersCountQuery = `SELECT COUNT(*) FROM orders WHERE ` + orderFilterClause
+const listOrdersCountQuery = `SELECT COUNT(*) FROM orders o
+JOIN customers c ON c.id = o.customer_id
+WHERE ` + orderFilterClause

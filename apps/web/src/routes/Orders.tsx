@@ -20,6 +20,13 @@ const columns: Column<OrderSummary>[] = [
     cell: (order) => <Link to={`/orders/${order.id}`}>{order.number}</Link>,
   },
   {
+    key: 'customer',
+    header: 'Customer',
+    sortKey: 'customer',
+    width: '18rem',
+    cell: (order) => <Link to={`/customers/${order.customerId}`}>{order.customerName}</Link>,
+  },
+  {
     key: 'placed',
     header: 'Placed',
     sortKey: 'placed_at',
@@ -47,7 +54,7 @@ const columns: Column<OrderSummary>[] = [
   },
 ]
 
-const ORDER_SORTS = ['number', 'placed_at', 'status', 'total_minor'] as const
+const ORDER_SORTS = ['number', 'customer', 'placed_at', 'status', 'total_minor'] as const
 
 const STATUSES = Object.keys(orderStatusLabels) as OrderStatus[]
 

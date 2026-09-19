@@ -43,13 +43,14 @@ type TransitionRequest struct {
 // OrderListItemResponse is a listing row: header fields only, no items,
 // since fetching every line for every row in a page is not what a list is for.
 type OrderListItemResponse struct {
-	ID         string    `json:"id"`
-	Number     string    `json:"number"`
-	CustomerID string    `json:"customerId"`
-	Status     string    `json:"status"`
-	TotalMinor int64     `json:"totalMinor"`
-	Currency   string    `json:"currency"`
-	PlacedAt   time.Time `json:"placedAt"`
+	ID           string    `json:"id"`
+	Number       string    `json:"number"`
+	CustomerID   string    `json:"customerId"`
+	CustomerName string    `json:"customerName"`
+	Status       string    `json:"status"`
+	TotalMinor   int64     `json:"totalMinor"`
+	Currency     string    `json:"currency"`
+	PlacedAt     time.Time `json:"placedAt"`
 }
 
 // OrderPageResponse's PageSize is the effective size after clamping, not the
@@ -65,13 +66,14 @@ func newOrderPageResponse(p Page) OrderPageResponse {
 	items := make([]OrderListItemResponse, len(p.Items))
 	for i, o := range p.Items {
 		items[i] = OrderListItemResponse{
-			ID:         strconv.FormatInt(o.ID, 10),
-			Number:     o.Number,
-			CustomerID: strconv.FormatInt(o.CustomerID, 10),
-			Status:     string(o.Status),
-			TotalMinor: o.TotalMinor,
-			Currency:   o.Currency,
-			PlacedAt:   o.PlacedAt,
+			ID:           strconv.FormatInt(o.ID, 10),
+			Number:       o.Number,
+			CustomerID:   strconv.FormatInt(o.CustomerID, 10),
+			CustomerName: o.CustomerName,
+			Status:       string(o.Status),
+			TotalMinor:   o.TotalMinor,
+			Currency:     o.Currency,
+			PlacedAt:     o.PlacedAt,
 		}
 	}
 	return OrderPageResponse{Items: items, Page: p.Page, PageSize: p.PageSize, Total: p.Total}
