@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Alert, Button, Dialog, Pagination } from '../ui'
+import { Alert, Button, Dialog, Pagination, RowActions } from '../ui'
+import { DropdownMenuItem } from '@/ui/shadcn/dropdown-menu'
 import { positiveInt, toSearchParams } from '../api/listQuery'
 import { Checkbox } from '@/ui/shadcn/checkbox'
 import { Input } from '@/ui/shadcn/input'
@@ -62,31 +63,8 @@ export function Roles() {
     {
       key: 'permissions',
       header: 'Permissions',
-      width: '12rem',
-      cell: (role) => `${role.permissions.length} of ${permissions.data?.length ?? role.permissions.length}`,
-    },
-    {
-      key: 'actions',
-      header: '',
       grow: true,
-      cell: (role) =>
-        canEdit && (
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" size="sm" onClick={() => openEdit(role)}>
-              Edit
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setDeleteError(undefined)
-                setDeleteTarget(role)
-              }}
-            >
-              Delete
-            </Button>
-          </div>
-        ),
+      cell: (role) => `${role.permissions.length} of ${permissions.data?.length ?? role.permissions.length}`,
     },
   ]
 
@@ -133,6 +111,24 @@ export function Roles() {
           ) : undefined
         }
         columns={columns}
+        rowActions={
+          canEdit
+            ? (role) => (
+                <RowActions label={`Actions for ${role.name}`}>
+                  <DropdownMenuItem onSelect={() => openEdit(role)}>Edit</DropdownMenuItem>
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onSelect={() => {
+                      setDeleteError(undefined)
+                      setDeleteTarget(role)
+                    }}
+                  >
+                    Delete
+                  </DropdownMenuItem>
+                </RowActions>
+              )
+            : undefined
+        }
         rows={result?.items ?? []}
         rowKey={(role) => role.id}
         status={roles.status}

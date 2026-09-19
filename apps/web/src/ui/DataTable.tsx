@@ -1,15 +1,9 @@
 import type { CSSProperties, ReactNode } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react'
 import { Button } from '@/ui/shadcn/button'
 import { Skeleton } from '@/ui/shadcn/skeleton'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/ui/shadcn/table'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/shadcn/table'
 import { EmptyState } from './EmptyState'
 
 export type Column<T> = {
@@ -45,6 +39,13 @@ export type DataTableProps<T> = {
   onRetry?: () => void
   sort?: string
   onSort?: (sort: string | undefined) => void
+  // Where a row has a detail screen, the whole row opens it. The primary cell
+  // still renders a real link, so the keyboard and middle-click keep working;
+  // this only saves the mouse from a 14px target.
+  rowHref?: (row: T) => string
+  // Rendered in a trailing column the table owns, so every list puts its row
+  // actions in the same place instead of inventing one.
+  rowActions?: (row: T) => ReactNode
 }
 
 const SKELETON_ROWS = 6
@@ -84,14 +85,17 @@ export function DataTable<T>({
   onRetry,
   sort,
   onSort,
+  rowHref,
+  rowActions,
 }: DataTableProps<T>) {
-  const colCount = columns.length
+  const navigate = useNavigate()
+  const colCount = columns.length + (rowActions ? 1 : 0)
   const growing = growingKey(columns)
 
   return (
     <div>
       {caption && (
-        <div className="flex items-baseline justify-between gap-3 py-2 text-caption text-subtle-foreground">
+        <div className="text-caption text-subtle-foreground flex items-baseline justify-between gap-3 py-2">
           <span>{caption}</span>
           {status === 'ready' && <span>{rows.length} shown</span>}
         </div>
@@ -113,7 +117,7 @@ export function DataTable<T>({
                   scope="col"
                   aria-sort={sortable ? direction : undefined}
                   style={sizing(column, growing)}
-                  className={`h-9 bg-muted px-3 text-label text-muted-foreground ${
+                  className={`bg-muted text-label text-muted-foreground h-9 px-3 ${
                     column.numeric ? 'text-right' : 'text-left'
                   }`}
                 >
@@ -122,7 +126,7 @@ export function DataTable<T>({
                       type="button"
                       // The header's own typography, not the Button primitive's:
                       // this is a column affordance, not an action.
-                      className={`group inline-flex cursor-pointer items-center gap-1 hover:text-foreground ${
+                      className={`group hover:text-foreground inline-flex cursor-pointer items-center gap-1 ${
                         column.numeric ? 'flex-row-reverse' : ''
                       }`}
                       onClick={() => onSort(cycle(sort, column.sortKey as string))}
@@ -149,6 +153,11 @@ export function DataTable<T>({
                 </TableHead>
               )
             })}
+            {rowActions && (
+              <TableHead className="bg-muted h-9 w-px px-3">
+                <span className="sr-only">Actions</span>
+              </TableHead>
+            )}
           </TableRow>
         </TableHeader>
 
@@ -161,6 +170,11 @@ export function DataTable<T>({
                     <Skeleton className="h-3 w-full max-w-44" />
                   </TableCell>
                 ))}
+                {rowActions && (
+                  <TableCell className="px-3">
+                    <Skeleton className="h-3 w-6" />
+                  </TableCell>
+                )}
               </TableRow>
             ))}
 
@@ -198,21 +212,42 @@ export function DataTable<T>({
           )}
 
           {status === 'ready' &&
-            rows.map((row) => (
-              <TableRow key={rowKey(row)}>
-                {columns.map((column) => (
-                  <TableCell
-                    key={column.key}
-                    style={sizing(column, growing)}
-                    className={`px-3 py-2 ${column.numeric ? 'text-right tabular-nums' : ''} ${
-                      column.wrap ? 'break-words whitespace-normal' : ''
-                    }`}
-                  >
-                    {column.cell(row)}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
+            rows.map((row) => {
+              const href = rowHref?.(row)
+              return (
+                <TableRow
+                  key={rowKey(row)}
+                  className={href ? 'cursor-pointer' : undefined}
+                  onClick={
+                    href
+                      ? (event) => {
+                          // A click that already landed on a link, a button or
+                          // a menu belongs to that control, not to the row.
+                          if ((event.target as HTMLElement).closest('a,button,[role="menuitem"]')) {
+                            return
+                          }
+                          navigate(href)
+                        }
+                      : undefined
+                  }
+                >
+                  {columns.map((column) => (
+                    <TableCell
+                      key={column.key}
+                      style={sizing(column, growing)}
+                      className={`px-3 py-2 ${column.numeric ? 'text-right tabular-nums' : ''} ${
+                        column.wrap ? 'break-words whitespace-normal' : ''
+                      }`}
+                    >
+                      {column.cell(row)}
+                    </TableCell>
+                  ))}
+                  {rowActions && (
+                    <TableCell className="w-px px-3 text-right">{rowActions(row)}</TableCell>
+                  )}
+                </TableRow>
+              )
+            })}
         </TableBody>
       </Table>
     </div>
