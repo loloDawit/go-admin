@@ -3,8 +3,6 @@ import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router-dom'
 import '@fontsource-variable/ibm-plex-sans'
 import './styles/theme.css'
-import './styles/tokens.css'
-import './styles/base.css'
 import { router } from './app/routes'
 import { AuthProvider } from './api/auth'
 

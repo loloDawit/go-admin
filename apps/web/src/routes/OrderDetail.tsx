@@ -31,7 +31,6 @@ import { isApiError } from '../api/client'
 import { formatDateTime, formatMoney } from '../api/format'
 import { useResource } from '../api/useResource'
 import { orderStatusTones } from '../app/statusTones'
-import styles from './OrderDetail.module.css'
 
 const itemColumns: Column<OrderItem>[] = [
   { key: 'title', header: 'Item', cell: (item) => item.titleSnapshot },
@@ -169,17 +168,17 @@ export function OrderDetail() {
           />
         )}
         {events.status === 'ready' && (
-          <ol className={styles.timeline}>
+          <ol className="m-0 max-w-[60rem] list-none border-t border-border p-0">
             {events.data?.map((event) => (
-              <li key={event.id} className={styles.event}>
-                <span className={styles.eventTime}>{formatDateTime(event.at)}</span>
-                <span className={styles.eventSummary}>
+              <li key={event.id} className="grid gap-3 border-b border-border py-2 max-sm:gap-1 max-sm:grid-cols-1 sm:grid-cols-[9rem_1fr_10rem]">
+                <span className="text-muted-foreground tabular-nums">{formatDateTime(event.at)}</span>
+                <span className="text-foreground">
                   {event.fromStatus
                     ? `${orderStatusLabels[event.fromStatus]} → ${orderStatusLabels[event.toStatus]}`
                     : 'Order placed'}
                   {event.reason && ` — ${event.reason}`}
                 </span>
-                <span className={styles.eventActor}>Staff #{event.actorId}</span>
+                <span className="text-subtle-foreground">Staff #{event.actorId}</span>
               </li>
             ))}
           </ol>

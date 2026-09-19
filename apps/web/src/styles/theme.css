@@ -130,3 +130,44 @@
   --sidebar-border: #d8dcdf;
   --sidebar-ring: #0f6e5c;
 }
+
+@layer base {
+  body {
+    background: var(--canvas);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: 1.55;
+    letter-spacing: -0.011em;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a {
+    color: var(--primary);
+  }
+
+  a:hover {
+    text-decoration: underline;
+  }
+
+  /* shadcn's controls carry their own ring; this covers links, table headers
+     and anything else focusable that is not a library component. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  table {
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

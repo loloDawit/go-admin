@@ -19,7 +19,6 @@ import { createOrder } from '../api/orders'
 import { isApiError } from '../api/client'
 import { formatMoney } from '../api/format'
 import { useResource } from '../api/useResource'
-import styles from './OrderCreate.module.css'
 
 type Line = {
   productId: string
@@ -136,16 +135,16 @@ export function OrderCreate() {
         </Alert>
       )}
 
-      <div className={styles.layout}>
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <Section title="Add products">
           <form
-            className={styles.search}
+            className="flex items-end gap-3"
             onSubmit={(event) => {
               event.preventDefault()
               setSearch(term.trim() || undefined)
             }}
           >
-            <div className={styles.searchField}>
+            <div className="flex-auto">
               <TextField
                 label="Search the catalog"
                 type="search"
@@ -197,13 +196,13 @@ export function OrderCreate() {
             <StateBlock title="No lines yet" description="Add a product to start the order." />
           ) : (
             <>
-              <ul className={styles.lines}>
+              <ul className="m-0 list-none border-t border-border p-0">
                 {lines.map((line) => (
-                  <li key={line.productId} className={styles.line}>
-                    <span className={styles.lineTitle}>{line.title}</span>
-                    <div className={styles.lineControls}>
+                  <li key={line.productId} className="flex flex-col gap-2 border-b border-border py-3">
+                    <span className="[overflow-wrap:anywhere]">{line.title}</span>
+                    <div className="flex items-center gap-3">
                     <input
-                      className={styles.quantity}
+                      className="w-18 rounded-sm border border-border-strong bg-card px-2 py-1 tabular-nums outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                       type="number"
                       min={1}
                       aria-label={`Quantity of ${line.title}`}
@@ -217,7 +216,7 @@ export function OrderCreate() {
                         )
                       }}
                     />
-                    <span className={styles.lineTotal}>
+                    <span className="ml-auto text-muted-foreground tabular-nums">
                       {formatMoney(line.unitPriceMinor * line.quantity, line.currency)}
                     </span>
                     <Button
@@ -236,7 +235,7 @@ export function OrderCreate() {
                 ))}
               </ul>
               {!mixedCurrency && currency && (
-                <p className={styles.total}>
+                <p className="flex justify-between pt-3 font-semibold">
                   <span>Total</span>
                   <span>{formatMoney(total, currency)}</span>
                 </p>

@@ -26,7 +26,6 @@ import { isApiError } from '../api/client'
 import { formatDate, formatMoney } from '../api/format'
 import { useResource } from '../api/useResource'
 import { productStatusTones } from '../app/statusTones'
-import styles from './ProductDetail.module.css'
 
 export function ProductDetail() {
   const navigate = useNavigate()
@@ -116,11 +115,11 @@ export function ProductDetail() {
           {
             term: 'Status',
             value: (
-              <div className={styles.status}>
+              <div className="flex flex-col items-start gap-1">
                 <Status tone={productStatusTones[current.status]}>
                   {productStatusLabels[current.status]}
                 </Status>
-                <p className={styles.statusHelp}>{productStatusHelp[current.status]}</p>
+                <p className="text-caption text-muted-foreground">{productStatusHelp[current.status]}</p>
               </div>
             ),
           },
@@ -169,11 +168,11 @@ export function ProductDetail() {
           <StateBlock title="No images yet" description="Upload one to show the product." />
         )}
         {images.status === 'ready' && (images.data?.length ?? 0) > 0 && (
-          <ul className={styles.images}>
+          <ul className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(10rem,1fr))]">
             {images.data?.map((image) => (
-              <li key={image.id} className={styles.image}>
+              <li key={image.id} className="flex flex-col gap-2 rounded-md border border-border p-2">
                 <img
-                  className={styles.thumbnail}
+                  className="aspect-square w-full rounded-sm bg-muted object-cover"
                   src={image.url}
                   alt={image.alt}
                   onError={() => refreshOnce(image)}

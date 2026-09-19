@@ -15,7 +15,6 @@ import type { Product } from '../api/catalog'
 import { isApiError } from '../api/client'
 import { moneyInputValue, parseMoney } from '../api/money'
 import { useResource } from '../api/useResource'
-import styles from './ProductForm.module.css'
 
 // A display default only, for the price field's label and decimal places before
 // a product exists. It is not sent: catalog's configured DEFAULT_CURRENCY decides.
@@ -64,7 +63,7 @@ function Fields({ product }: { product?: Product }) {
 
   return (
     <form
-      className={styles.form}
+      className="flex max-w-[46rem] flex-col gap-6"
       onSubmit={(event) => {
         event.preventDefault()
         void submit()
@@ -73,7 +72,7 @@ function Fields({ product }: { product?: Product }) {
       {failure && <Alert tone="danger" title={failure} />}
 
       <Section title="Details">
-        <div className={styles.grid}>
+        <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(13rem,1fr))]">
           {product ? (
             <TextField label="SKU" value={product.sku} readOnly help="A SKU cannot be changed." />
           ) : (
@@ -110,7 +109,7 @@ function Fields({ product }: { product?: Product }) {
         />
       </Section>
 
-      <div className={styles.actions}>
+      <div className="flex gap-2 border-t border-border pt-4">
         <Button type="submit" variant="primary" loading={saving}>
           {product ? 'Save changes' : 'Create product'}
         </Button>

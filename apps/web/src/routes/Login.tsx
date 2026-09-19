@@ -4,7 +4,6 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { Alert, Button, TextField } from '../ui'
 import { useAuth } from '../api/auth'
 import { isApiError } from '../api/http'
-import styles from './Login.module.css'
 
 export function Login() {
   const auth = useAuth()
@@ -31,11 +30,11 @@ export function Login() {
   const passwordError = touched && password === '' ? 'Enter your password.' : undefined
 
   return (
-    <div className={styles.page}>
-      <div className={styles.panel}>
-        <div className={styles.brand}>
-          <h1 className={styles.brandName}>Northgate Supply</h1>
-          <p className={styles.brandContext}>Staff sign-in</p>
+    <div className="grid min-h-dvh place-items-center bg-canvas p-6">
+      <div className="flex w-[min(23rem,100%)] flex-col gap-4 rounded-lg border border-border bg-card p-6">
+        <div className="flex flex-col gap-0.5">
+          <h1 className="text-section font-semibold">Northgate Supply</h1>
+          <p className="text-muted-foreground">Staff sign-in</p>
         </div>
 
         {error && (
@@ -45,7 +44,7 @@ export function Login() {
         )}
 
         <form
-          className={styles.form}
+          className="flex flex-col gap-4"
           onSubmit={(event) => {
             event.preventDefault()
             setTouched(true)
