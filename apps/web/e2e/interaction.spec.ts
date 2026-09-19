@@ -12,19 +12,29 @@ test('navigation opens at narrow widths', async ({ page }) => {
   await expect(page.getByRole('navigation', { name: 'Sections' })).toBeHidden()
 })
 
-test('the rail collapses and restores on ctrl+b, exposing tooltips while collapsed', async ({
-  page,
-}) => {
+// The block collapses offcanvas: the sidebar leaves entirely and the content
+// takes the width, rather than shrinking to a rail of icons.
+test('the sidebar collapses and restores on ctrl+b', async ({ page }) => {
   await page.goto('/orders')
-  const ordersLink = page.getByRole('link', { name: 'Orders' })
-  await expect(ordersLink).toBeVisible()
+  const sidebar = page.locator('[data-slot="sidebar"]')
+  const main = page.getByRole('main')
+  await expect(sidebar).toHaveAttribute('data-state', 'expanded')
+  const expanded = (await main.boundingBox())!.width
 
   await page.keyboard.press('Control+b')
-  await ordersLink.hover()
-  await expect(page.getByRole('tooltip', { name: 'Orders' })).toBeVisible()
+  await expect(sidebar).toHaveAttribute('data-state', 'collapsed')
+  // Offcanvas slides the sidebar out rather than unmounting it, so it stays
+  // "visible" to Playwright; what changes is where it is.
+  await expect
+    .poll(async () => (await page.getByRole('link', { name: 'Orders' }).boundingBox())!.x)
+    .toBeLessThan(0)
+  await expect.poll(async () => (await main.boundingBox())!.width).toBeGreaterThan(expanded)
 
   await page.keyboard.press('Control+b')
-  await expect(page.getByRole('tooltip')).toBeHidden()
+  await expect(sidebar).toHaveAttribute('data-state', 'expanded')
+  await expect
+    .poll(async () => (await page.getByRole('link', { name: 'Orders' }).boundingBox())!.x)
+    .toBeGreaterThanOrEqual(0)
 })
 
 test('keyboard focus is visible', async ({ page }) => {

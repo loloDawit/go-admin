@@ -7,7 +7,9 @@ import {
   LayoutDashboard,
   LogOut,
   Package,
+  MoreVertical,
   Settings as SettingsIcon,
+  Store,
   Shield,
   ShoppingCart,
   UserCog,
@@ -98,7 +100,10 @@ function initials(email: string | undefined) {
 }
 
 // A parent with no visible children disappears too, same as a flat item without permission.
-function visibleItem(item: NavItem, hasPermission: (permission: Permission) => boolean): NavItem | null {
+function visibleItem(
+  item: NavItem,
+  hasPermission: (permission: Permission) => boolean,
+): NavItem | null {
   if (item.children) {
     const children = item.children.filter((child) => !child.require || hasPermission(child.require))
     return children.length > 0 ? { ...item, children } : null
@@ -118,7 +123,11 @@ function NavParentItem({
   const [open, setOpen] = useState(true)
   return (
     <SidebarMenuItem>
-      <SidebarMenuButton tooltip={item.label} aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+      <SidebarMenuButton
+        tooltip={item.label}
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
         <item.icon aria-hidden />
         <span>{item.label}</span>
       </SidebarMenuButton>
@@ -143,7 +152,7 @@ function NavParentItem({
 export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
   const auth = useAuth()
   const navigate = useNavigate()
-  const { setOpenMobile } = useSidebar()
+  const { setOpenMobile, isMobile } = useSidebar()
   // AppShell mounts this once; it never refetches per navigation.
   const report = useResource('sidebar-dashboard', getDashboard)
   const counts = report.data?.counts
@@ -152,13 +161,18 @@ export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
     : undefined
 
   return (
-    <Sidebar collapsible="icon" {...props}>
+    <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
-        <div className="flex items-baseline gap-2 px-2 py-1.5 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:text-center">
-          <span className="truncate font-semibold group-data-[collapsible=icon]:hidden">
-            Northgate Supply
-          </span>
-        </div>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild className="data-[slot=sidebar-menu-button]:p-1.5!">
+              <NavLink to="/" onClick={() => setOpenMobile(false)}>
+                <Store className="size-5!" aria-hidden />
+                <span className="text-base font-semibold">Northgate Supply</span>
+              </NavLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarHeader>
 
       <SidebarContent role="navigation" aria-label="Sections">
@@ -209,14 +223,33 @@ export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <SidebarMenuButton size="lg" aria-label="Account">
-                  <Avatar size="sm">
-                    <AvatarFallback>{initials(auth.user?.email)}</AvatarFallback>
+                <SidebarMenuButton
+                  size="lg"
+                  aria-label="Account"
+                  className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                >
+                  <Avatar className="h-8 w-8 rounded-lg grayscale">
+                    <AvatarFallback className="rounded-lg">
+                      {initials(auth.user?.email)}
+                    </AvatarFallback>
                   </Avatar>
-                  <span className="truncate">{auth.user?.email}</span>
+                  <div className="grid flex-1 text-left text-sm leading-tight">
+                    <span className="truncate font-medium">{auth.user?.email}</span>
+                    {/* The block shows a name above the email; /me returns only
+                        an email, so there is no name to show. */}
+                    <span className="text-muted-foreground truncate text-xs">
+                      {auth.user?.permissions.length ?? 0} permissions
+                    </span>
+                  </div>
+                  <MoreVertical className="ml-auto size-4" aria-hidden />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
-              <DropdownMenuContent side="right" align="end" className="w-56">
+              <DropdownMenuContent
+                className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
+                side={isMobile ? 'bottom' : 'right'}
+                align="end"
+                sideOffset={4}
+              >
                 <DropdownMenuLabel className="font-normal">
                   <span className="text-caption text-muted-foreground block">Signed in as</span>
                   <span className="block truncate">{auth.user?.email}</span>

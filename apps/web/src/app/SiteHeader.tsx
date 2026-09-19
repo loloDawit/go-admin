@@ -44,19 +44,21 @@ function ThemeToggle() {
 
 export function SiteHeader() {
   return (
-    <header className="border-border bg-card sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b px-4">
-      <SidebarTrigger className="-ml-1" />
-      <Separator orientation="vertical" className="h-4" />
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            {/* Static, not the page name: BreadcrumbPage is role="link", which would collide with getByRole('link', { name: <page> }) against the nav. */}
-            <BreadcrumbPage>Back office</BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
-      <div className="ml-auto">
-        <ThemeToggle />
+    <header className="flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear">
+      <div className="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
+        <SidebarTrigger className="-ml-1" />
+        <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-4" />
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              {/* Static, not the page name: BreadcrumbPage is role="link", which would collide with getByRole('link', { name: <page> }) against the nav. */}
+              <BreadcrumbPage>Back office</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+        <div className="ml-auto flex items-center gap-2">
+          <ThemeToggle />
+        </div>
       </div>
     </header>
   )

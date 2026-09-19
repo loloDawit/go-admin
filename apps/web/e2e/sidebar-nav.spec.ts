@@ -87,11 +87,15 @@ test('Roles and Permissions nest under a parent instead of sitting flat', async 
   ).toHaveCount(0)
 })
 
-test('collapsing the rail to icons hides the nested sub-items entirely', async ({ page }) => {
+test('collapsing the sidebar hides the nested sub-items with it', async ({ page }) => {
   await page.goto('/staff')
-  await expect(page.getByRole('link', { name: 'Roles', exact: true })).toBeVisible()
+  const roles = page.getByRole('link', { name: 'Roles', exact: true })
+  await expect(roles).toBeVisible()
+
+  // Offcanvas slides the sidebar out rather than unmounting it.
   await page.keyboard.press('Control+b')
-  await expect(page.getByRole('link', { name: 'Roles', exact: true })).toBeHidden()
+  await expect.poll(async () => (await roles.boundingBox())!.x).toBeLessThan(0)
+
   await page.keyboard.press('Control+b')
-  await expect(page.getByRole('link', { name: 'Roles', exact: true })).toBeVisible()
+  await expect.poll(async () => (await roles.boundingBox())!.x).toBeGreaterThanOrEqual(0)
 })
