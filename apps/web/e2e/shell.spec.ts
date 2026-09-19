@@ -78,3 +78,22 @@ test.describe('signed out', () => {
     await expect(page.getByText('Enter the email you sign in with.')).toBeVisible()
   })
 })
+
+// The frame fills the viewport. Capping the shell rather than the content is
+// what made the app look shrunk on a workstation monitor.
+test('the content area fills a wide viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 2000, height: 1200 })
+  await page.goto('/orders')
+  const main = await page.getByRole('main').boundingBox()
+  if (!main) throw new Error('no main')
+  expect(main.width).toBeGreaterThan(1700)
+})
+
+test('the active nav item is marked for assistive tech', async ({ page }) => {
+  await page.goto('/orders')
+  await expect(page.getByRole('link', { name: 'Orders' })).toHaveAttribute('aria-current', 'page')
+  await expect(page.getByRole('link', { name: 'Products' })).not.toHaveAttribute(
+    'aria-current',
+    'page',
+  )
+})

@@ -76,7 +76,8 @@ test('create, edit and deactivate a colleague, with the generated password shown
   await expect(page.getByRole('button', { name: 'Deactivate' })).toHaveCount(0)
 
   // Sign out, then the new colleague signs in and is forced to change their password first.
-  await page.getByRole('button', { name: 'Sign out' }).click()
+  await page.getByRole('button', { name: 'Account' }).click()
+  await page.getByRole('menuitem', { name: 'Sign out' }).click()
   await expect(page).toHaveURL(/\/login$/)
   await page.getByRole('textbox', { name: 'Email' }).fill(email)
   await page.getByRole('textbox', { name: 'Password' }).fill(password)
@@ -111,7 +112,8 @@ test('a permission error on a real route is a page state, not a crash', async ({
     roleName,
   })
 
-  await page.getByRole('button', { name: 'Sign out' }).click()
+  await page.getByRole('button', { name: 'Account' }).click()
+  await page.getByRole('menuitem', { name: 'Sign out' }).click()
   await changeForcedPassword(page, email, password)
 
   // Dana holds no permissions, so Access is not offered at all — courtesy hiding, not the only guard.
