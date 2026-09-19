@@ -23,18 +23,21 @@ const columns: Column<OrderSummary>[] = [
     key: 'number',
     header: 'Order',
     sortKey: 'number',
+    width: '11rem',
     cell: (order) => <Link to={`/orders/${order.id}`}>{order.number}</Link>,
   },
   {
     key: 'placed',
     header: 'Placed',
     sortKey: 'placed_at',
+    width: '11rem',
     cell: (order) => formatDateTime(order.placedAt),
   },
   {
     key: 'status',
     header: 'Status',
     sortKey: 'status',
+    width: '10rem',
     cell: (order) => (
       <Status tone={orderStatusTones[order.status]}>{orderStatusLabels[order.status]}</Status>
     ),
@@ -44,6 +47,7 @@ const columns: Column<OrderSummary>[] = [
     header: 'Total',
     numeric: true,
     sortKey: 'total_minor',
+    width: '9rem',
     cell: (order) => formatMoney(order.totalMinor, order.currency),
   },
 ]

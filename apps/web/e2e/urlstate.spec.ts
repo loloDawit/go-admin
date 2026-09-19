@@ -195,3 +195,20 @@ test('a list error keeps the filters that produced it', async ({ page }) => {
   await expect(page.getByLabel('Status')).toHaveValue('active')
   await expect(page).toHaveURL(/status=active/)
 })
+
+// The order number is ~90px of text. Letting it absorb every spare pixel at a
+// workstation width puts a row's first cell and its total a monitor apart.
+test('no column absorbs the slack a wide viewport leaves', async ({ page }) => {
+  await page.setViewportSize({ width: 2000, height: 1200 })
+  await page.goto('/orders')
+  await expect(page.getByRole('table')).toBeVisible()
+  await expect(page.locator('[aria-busy="true"]')).toHaveCount(0)
+
+  const cells = page.getByRole('row').nth(1).getByRole('cell')
+  const first = await cells.first().boundingBox()
+  const last = await cells.last().boundingBox()
+  if (!first || !last) throw new Error('row cells not found')
+
+  expect(first.width).toBeLessThan(420)
+  expect(last.x - (first.x + first.width)).toBeLessThan(760)
+})
