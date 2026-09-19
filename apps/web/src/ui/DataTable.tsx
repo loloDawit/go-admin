@@ -61,6 +61,8 @@ export type DataTableProps<T> = {
   // Rendered in a trailing column the table owns, so every list puts its row
   // actions in the same place instead of inventing one.
   rowActions?: (row: T) => ReactNode
+  // Rendered beside the column menu, so filters and table controls share one row.
+  toolbar?: ReactNode
   // A leading checkbox column the table owns. Omitted entirely when a screen
   // has no bulk action to offer — selection chrome with nothing behind it is
   // a control that does nothing.
@@ -107,6 +109,7 @@ export function DataTable<T>({
   onSort,
   rowHref,
   rowActions,
+  toolbar,
   selection,
 }: DataTableProps<T>) {
   const navigate = useNavigate()
@@ -140,15 +143,13 @@ export function DataTable<T>({
 
   return (
     <div>
-      {(caption || tableId) && (
-        <div className="flex items-baseline justify-between gap-3 border-b border-border px-4 py-2">
-          <div className="text-caption text-subtle-foreground flex items-baseline gap-3">
-            {caption && <span>{caption}</span>}
-            {caption && status === 'ready' && <span>{rows.length} shown</span>}
-            {selection && status === 'ready' && (
-              <span>
-                {selectedOnPage.length} of {rows.length} selected
-              </span>
+      {(caption || tableId || toolbar) && (
+        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border px-4 py-3">
+          <div className="flex flex-wrap items-end gap-3">
+            {toolbar}
+            {caption && <span className="text-caption text-subtle-foreground">{caption}</span>}
+            {caption && status === 'ready' && (
+              <span className="text-caption text-subtle-foreground">{rows.length} shown</span>
             )}
           </div>
           {tableId && (

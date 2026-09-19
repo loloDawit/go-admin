@@ -76,11 +76,6 @@ export function ListPage<T>({
       {banner}
 
       <div className="overflow-hidden rounded-lg border border-border bg-card">
-        {filters && (
-          <div className="flex flex-wrap items-end gap-3 border-b border-border px-4 py-3">
-            {filters}
-          </div>
-        )}
         {note && (
           <p className="border-b border-border bg-muted px-4 py-2 text-caption text-muted-foreground">
             {note}
@@ -89,12 +84,14 @@ export function ListPage<T>({
         {selection && selectedCount > 0 && (
           <BulkBar
             count={selectedCount}
+            total={table.rows.length}
             actions={bulkActions ?? []}
             progress={bulkProgress}
             onClear={() => selection.onChange(new Set())}
           />
         )}
         <DataTable
+          toolbar={filters}
           {...table}
           selection={selection}
           tableId={tableId ?? title.toLowerCase().replace(/\s+/g, '-')}

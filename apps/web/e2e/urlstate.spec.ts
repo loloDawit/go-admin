@@ -161,7 +161,9 @@ test('a column with no server-side sort is not a button', async ({ page }) => {
 // reverse to themselves, so this assertion cannot fail against them.
 async function productTitles(page: Page): Promise<string[]> {
   await settled(page)
-  return page.locator('tbody tr td:first-child a').allInnerTexts()
+  // Not td:first-child: the selection checkbox is the first cell now. A product
+  // row carries exactly one link, its title.
+  return page.locator('tbody tr td a').allInnerTexts()
 }
 
 // Page one descending is the last page ascending, not page one reversed, so the

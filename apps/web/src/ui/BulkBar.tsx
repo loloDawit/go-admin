@@ -1,4 +1,5 @@
 import { Loader2 } from 'lucide-react'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/shadcn/tooltip'
 import { toast } from 'sonner'
 import { Button } from '@/ui/shadcn/button'
 import { isApiError } from '../api/http'
@@ -7,7 +8,7 @@ export type BulkAction = {
   label: string
   onClick: () => void
   disabled?: boolean
-  // Shown beside a disabled action so it reads as gated, not missing.
+  // Why an action is unavailable, shown on hover rather than as loose text.
   reason?: string
 }
 
@@ -60,11 +61,14 @@ export function reportBulk<T>(outcome: BulkOutcome<T>, verb: string, name: (row:
 
 export function BulkBar({
   count,
+  total,
   actions,
   onClear,
   progress,
 }: {
   count: number
+  // Rows on the current page, so the count says what it is a count of.
+  total: number
   actions: BulkAction[]
   onClear: () => void
   progress?: BulkProgress
@@ -77,24 +81,30 @@ export function BulkBar({
       className="flex flex-wrap items-center gap-4 border-b border-border bg-muted px-4 py-2"
     >
       <span className="text-label text-foreground font-medium" aria-live="polite">
-        {progress ? `Working: ${progress.done} of ${progress.total}` : `${count} selected`}
+        {progress ? `Working: ${progress.done} of ${progress.total}` : `${count} of ${total} selected`}
       </span>
       {busy && <Loader2 className="size-3.5 animate-spin text-muted-foreground" aria-hidden />}
       <div className="flex flex-wrap items-center gap-3">
         {actions.map((action) => (
-          <span key={action.label} className="inline-flex items-center gap-1.5">
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={busy || action.disabled}
-              onClick={action.onClick}
-            >
-              {action.label}
-            </Button>
+          <Tooltip key={action.label}>
+            <TooltipTrigger asChild>
+              {/* A disabled button swallows pointer events, so the tooltip needs
+                  a wrapper to hang the reason on. */}
+              <span className="inline-flex">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={busy || action.disabled}
+                  onClick={action.onClick}
+                >
+                  {action.label}
+                </Button>
+              </span>
+            </TooltipTrigger>
             {action.disabled && action.reason && (
-              <span className="text-caption text-muted-foreground">{action.reason}</span>
+              <TooltipContent>{action.reason}</TooltipContent>
             )}
-          </span>
+          </Tooltip>
         ))}
       </div>
       <Button variant="ghost" size="sm" disabled={busy} onClick={onClear} className="ml-auto">
