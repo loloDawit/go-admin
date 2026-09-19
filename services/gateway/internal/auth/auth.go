@@ -148,7 +148,20 @@ func Middleware(v *Validator) func(http.Handler) http.Handler {
 			}
 			r.Header.Set(principal.HeaderPrincipal, header)
 			r.Header.Set(principal.HeaderSignature, sig)
-			next.ServeHTTP(w, r)
+			next.ServeHTTP(w, r.WithContext(WithStaffID(r.Context(), p.StaffID)))
 		})
 	}
+}
+
+type staffIDKey struct{}
+
+// The staff id is the rate limiter's key. It is carried in the context rather
+// than re-parsed from the signed header, which only this package can produce.
+func WithStaffID(ctx context.Context, staffID string) context.Context {
+	return context.WithValue(ctx, staffIDKey{}, staffID)
+}
+
+func StaffIDFromContext(ctx context.Context) string {
+	id, _ := ctx.Value(staffIDKey{}).(string)
+	return id
 }
